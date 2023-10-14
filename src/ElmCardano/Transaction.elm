@@ -1,10 +1,11 @@
 module ElmCardano.Transaction exposing
     ( Transaction
-    , Value, MintedValue, PolicyId(..), adaAssetName
+    , Value, MintedValue, PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
     , Datum(..), Input, OutputReference, Output
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
+    , KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..)
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -43,17 +44,19 @@ type alias Transaction =
     }
 
 
+{-| A Cardano transaction body.
+-}
 type alias TransactionBody =
     { inputs : List Input -- 0
     , outputs : List Output -- 1
     , fee : Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : Maybe (List Certificate) -- 4
-    , withdrawals : Withdrawals -- 5
+    , withdrawals : Maybe (KeyValuePair RewardAccount Coin) -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe Bytes -- 7
     , validityIntervalStart : Maybe Int -- 8
-    , mint : Maybe (Multiasset Int) -- 9
+    , mint : Maybe (Multiasset Coin) -- 9
     , scriptDataHash : Maybe Bytes -- 11
     , collateral : Maybe (List Input) -- 13
 
@@ -66,14 +69,234 @@ type alias TransactionBody =
     }
 
 
+{-| A Cardano transaction witness set.
+<https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L763>
+-}
 type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
     , plutusV1Script : Maybe (List PlutusV1Script) -- 3
-    , plutusSata : Maybe (List PlutusData) -- 4
+    , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
     , plutusV2Script : Maybe (List PlutusV2Script) -- 6
+    }
+
+
+type alias AuxiliaryData =
+    { metadata : Maybe Metadata -- 0
+    , nativeScripts : Maybe (List NativeScript) -- 1
+    , plutusScripts : Maybe (List PlutusScript) -- 1
+    }
+
+
+type alias Multiasset a =
+    KeyValuePair PolicyId (KeyValuePair AssetName a)
+
+
+type alias Update =
+    { proposedProtocolParameterUpdates : KeyValuePair GenesisHash ProtocolParamUpdate
+    , epoch : Epoch
+    }
+
+
+type alias ProtocolParamUpdate =
+    { -- #[n(0)]
+      minfee_a : Maybe Int
+    , -- #[n(1)]
+      minfee_b : Maybe Int
+    , -- #[n(2)]
+      max_block_body_size : Maybe Int
+    , -- #[n(3)]
+      max_transaction_size : Maybe Int
+    , -- #[n(4)]
+      max_block_header_size : Maybe Int
+    , -- #[n(5)]
+      key_deposit : Maybe Coin
+    , -- #[n(6)]
+      pool_deposit : Maybe Coin
+    , -- #[n(7)]
+      maximum_epoch : Maybe Epoch
+    , -- #[n(8)]
+      desired_number_of_stake_pools : Maybe Int
+    , -- #[n(9)]
+      pool_pledge_influence : Maybe RationalNumber
+    , -- #[n(10)]
+      expansion_rate : Maybe UnitInterval
+    , -- #[n(11)]
+      treasury_growth_rate : Maybe UnitInterval
+    , -- #[n(14)]
+      protocol_version : Maybe ProtocolVersion
+    , -- #[n(16)]
+      min_pool_cost : Maybe Coin
+    , -- #[n(17)]
+      ada_per_utxo_byte : Maybe Coin
+    , -- #[n(18)]
+      cost_models_for_script_languages : Maybe CostModels
+    , -- #[n(19)]
+      execution_costs : Maybe ExUnitPrices
+    , -- #[n(20)]
+      max_tx_ex_units : Maybe ExUnits
+    , -- #[n(21)]
+      max_block_ex_units : Maybe ExUnits
+    , -- #[n(22)]
+      max_value_size : Maybe Int
+    , -- #[n(23)]
+      collateral_percentage : Maybe Int
+    , -- #[n(24)]
+      max_collateral_inputs : Maybe Int
+    }
+
+
+type alias CostModels =
+    { -- #[n(0)]
+      plutus_v1 : Maybe CostModel
+    , -- #[n(1)]
+      plutus_v2 : Maybe CostModel
+    }
+
+
+type alias CostModel =
+    List Int
+
+
+type alias ExUnitPrices =
+    { -- #[n(0)]
+      mem_price : PositiveInterval
+    , -- #[n(1)]
+      step_price : PositiveInterval
+    }
+
+
+type alias ProtocolVersion =
+    ( Int, Int )
+
+
+type alias UnitInterval =
+    RationalNumber
+
+
+type alias PositiveInterval =
+    RationalNumber
+
+
+
+-- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
+
+
+type alias RationalNumber =
+    { numerator : Int
+    , denominator : Int
+    }
+
+
+type alias GenesisHash =
+    Bytes
+
+
+type alias Epoch =
+    Int
+
+
+type alias Metadata =
+    KeyValuePair MetadatumLabel Metadatum
+
+
+type alias MetadatumLabel =
+    Int
+
+
+type Metadatum
+    = MInt Int
+    | MBytes Bytes
+    | Text String
+    | MList (List Metadatum)
+    | Map (KeyValuePair Metadatum Metadatum)
+
+
+type alias RewardAccount =
+    Bytes
+
+
+type KeyValuePair k v
+    = Def (List ( k, v ))
+    | Indef (List ( k, v ))
+
+
+type alias PlutusScript =
+    Bytes
+
+
+type alias PlutusV1Script =
+    Bytes
+
+
+type alias PlutusV2Script =
+    Bytes
+
+
+
+-- script = [ 0, native_script // 1, plutus_v1_script // 2, plutus_v2_script ]
+
+
+{-| <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/babbage/model.rs#L58>
+-}
+type Script
+    = Native NativeScript
+    | PlutusV1 PlutusV1Script
+    | PlutusV2 PlutusV2Script
+
+
+type alias VKeyWitness =
+    { vkey : Bytes -- 0
+    , signature : Bytes
+    }
+
+
+{-| A native script
+<https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
+-}
+type NativeScript
+    = ScriptPubkey
+        -- TODO: AddrKeyHash
+        Bytes
+    | ScriptAll (List NativeScript)
+    | ScriptAny (List NativeScript)
+    | ScriptNofK Int (List NativeScript)
+    | InvalidBefore Int
+    | InvalidHereafter Int
+
+
+type alias Redeemer =
+    { tag : RedeemerTag -- 0
+    , index : Int -- 1
+    , data : Data -- 2
+    , exUnits : ExUnits -- 3
+    }
+
+
+type RedeemerTag
+    = Spend
+    | Mint
+    | Cert
+    | Reward
+
+
+type alias ExUnits =
+    { mem : Int -- 0
+    , steps : Int -- 1
+    }
+
+
+
+-- TODO: what kinds of hashes are these?
+
+
+type alias BootstrapWitness =
+    { publicKey : Bytes -- 0
+    , signature : Bytes -- 1
+    , chainCode : Bytes -- 2
+    , attributes : Bytes -- 3
     }
 
 
@@ -100,11 +323,14 @@ type MintedValue
     = MintedValue
 
 
-{-| The policy id of a Cardano Token. Ada is a special case since it cannot be minted.
+{-| The policy id of a Cardano Token. Ada ("") is a special case since it cannot be minted.
 -}
-type PolicyId
-    = AdaPolicyId
-    | CntPolicyId Blake2b_224
+type alias PolicyId =
+    Blake2b_224
+
+
+type alias AssetName =
+    Bytes
 
 
 {-| Ada, the native currency, isn’t associated with any AssetName (it’s not possible to mint Ada!).
@@ -208,10 +434,10 @@ type alias ScriptContext =
 {-| Characterizes the kind of script being executed and the associated resource.
 -}
 type ScriptPurpose
-    = Mint PolicyId
-    | Spend OutputReference
-    | WithdrawFrom StakeCredential
-    | Publish Certificate
+    = SPMint PolicyId
+    | SPSpend OutputReference
+    | SPWithdrawFrom StakeCredential
+    | SPPublish Certificate
 
 
 
