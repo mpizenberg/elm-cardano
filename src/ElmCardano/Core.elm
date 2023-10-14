@@ -13,4 +13,8 @@ type PosixTime
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
 -}
 type Data
-    = Data
+    = Constr
+        { tag : Int
+        , anyConstructor : Maybe Int
+        , fields : List Data
+        }

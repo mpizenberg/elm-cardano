@@ -35,18 +35,31 @@ import ElmCardano.Interval exposing (Interval)
 {-| A Cardano transaction.
 -}
 type alias Transaction =
-    { inputs : List Input -- Transaction inputs are sorted by address
-    , referenceInputs : List Input -- Transaction inputs are sorted by address
-    , outputs : List Output -- Transaction outputs are not sorted
-    , fee : Value
-    , mint : MintedValue
-    , certificates : List Certificate
-    , withdrawals : List ( StakeCredential, Int ) -- Aiken uses a Dict
-    , validityRange : Interval PosixTime
-    , extraSignatories : List (Hash Blake2b_224)
-    , redeemers : List ( ScriptPurpose, Data ) -- Aiken uses a Dict
-    , datums : List ( Hash Blake2b_256, Data ) -- Aiken uses a Dict
-    , id : { hash : Hash Blake2b_256 }
+    { body : TransactionBody
+    , witness_set : WitnessSet
+    , is_valid : Bool
+    , auxiliary_data : Maybe AuxiliaryData
+    }
+
+
+type alias TransactionBody =
+    { inputs : List Input -- 0
+    , outputs : List Output -- 1
+    , fee : Int -- 2
+    , ttl : Maybe Int -- 3
+    , certificates : Maybe (List Certificate) -- 4
+    , withdrawals : Withdrawals -- 5
+    , update : Maybe Update -- 6
+    , auxiliaryDataHash : Maybe Bytes -- 7
+    , validityIntervalStart : Maybe Int -- 8
+    , mint : Maybe (Multiasset Int) -- 9
+    , scriptDataHash : Maybe Bytes -- 11
+    , collateral : Maybe (List Input) -- 13
+    , requiredSigners : Maybe RequiredSigners -- 14
+    , networkId : Maybe NetworkId -- 15
+    , collateralReturn : Maybe Output -- 16
+    , totalCollateral : Maybe Coin -- 17
+    , referenceInputs : Maybe (List Input) -- 18
     }
 
 
@@ -140,8 +153,8 @@ type Datum
 {-| An input eUTxO for a transaction.
 -}
 type alias Input =
-    { outputReference : OutputReference
-    , output : Output
+    { transaction_id : Bytes
+    , index : Int
     }
 
 
@@ -158,7 +171,7 @@ type alias OutputReference =
 type alias Output =
     { address : Address
     , value : Value
-    , datum : Datum
+    , datum : Maybe Datum
     , referenceScript : Maybe (Hash Blake2b_224)
     }
 
