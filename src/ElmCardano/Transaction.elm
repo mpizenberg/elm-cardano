@@ -1,5 +1,6 @@
 module ElmCardano.Transaction exposing
     ( Transaction
+    , TransactionBody
     , Value, MintedValue, PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
     , Datum(..), Input, OutputReference, Output
