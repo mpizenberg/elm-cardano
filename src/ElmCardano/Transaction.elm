@@ -5,7 +5,7 @@ module ElmCardano.Transaction exposing
     , Datum(..), Input, OutputReference, Output
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..)
+    , KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..), fromCbor, toCbor
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -102,57 +102,57 @@ type alias Update =
 
 type alias ProtocolParamUpdate =
     { -- #[n(0)]
-      minfee_a : Maybe Int
+      minfeeA : Maybe Int
     , -- #[n(1)]
-      minfee_b : Maybe Int
+      minfeeB : Maybe Int
     , -- #[n(2)]
-      max_block_body_size : Maybe Int
+      maxBlockBodySize : Maybe Int
     , -- #[n(3)]
-      max_transaction_size : Maybe Int
+      maxTransactionSize : Maybe Int
     , -- #[n(4)]
-      max_block_header_size : Maybe Int
+      maxBlockHeaderSize : Maybe Int
     , -- #[n(5)]
-      key_deposit : Maybe Coin
+      keyDeposit : Maybe Coin
     , -- #[n(6)]
-      pool_deposit : Maybe Coin
+      poolDeposit : Maybe Coin
     , -- #[n(7)]
-      maximum_epoch : Maybe Epoch
+      maximumEpoch : Maybe Epoch
     , -- #[n(8)]
-      desired_number_of_stake_pools : Maybe Int
+      desiredNumberOfStakePools : Maybe Int
     , -- #[n(9)]
-      pool_pledge_influence : Maybe RationalNumber
+      poolPledgeInfluence : Maybe RationalNumber
     , -- #[n(10)]
-      expansion_rate : Maybe UnitInterval
+      expansionRate : Maybe UnitInterval
     , -- #[n(11)]
-      treasury_growth_rate : Maybe UnitInterval
+      treasuryGrowthRate : Maybe UnitInterval
     , -- #[n(14)]
-      protocol_version : Maybe ProtocolVersion
+      protocolVersion : Maybe ProtocolVersion
     , -- #[n(16)]
-      min_pool_cost : Maybe Coin
+      minPoolCost : Maybe Coin
     , -- #[n(17)]
-      ada_per_utxo_byte : Maybe Coin
+      adaPerUtxoByte : Maybe Coin
     , -- #[n(18)]
-      cost_models_for_script_languages : Maybe CostModels
+      costModelsForScriptLanguages : Maybe CostModels
     , -- #[n(19)]
-      execution_costs : Maybe ExUnitPrices
+      executionCosts : Maybe ExUnitPrices
     , -- #[n(20)]
-      max_tx_ex_units : Maybe ExUnits
+      maxTxExUnits : Maybe ExUnits
     , -- #[n(21)]
-      max_block_ex_units : Maybe ExUnits
+      maxBlockExUnits : Maybe ExUnits
     , -- #[n(22)]
-      max_value_size : Maybe Int
+      maxValueSize : Maybe Int
     , -- #[n(23)]
-      collateral_percentage : Maybe Int
+      collateralPercentage : Maybe Int
     , -- #[n(24)]
-      max_collateral_inputs : Maybe Int
+      maxCollateralInputs : Maybe Int
     }
 
 
 type alias CostModels =
     { -- #[n(0)]
-      plutus_v1 : Maybe CostModel
+      plutusV1 : Maybe CostModel
     , -- #[n(1)]
-      plutus_v2 : Maybe CostModel
+      plutusV2 : Maybe CostModel
     }
 
 
@@ -162,9 +162,9 @@ type alias CostModel =
 
 type alias ExUnitPrices =
     { -- #[n(0)]
-      mem_price : PositiveInterval
+      memPrice : PositiveInterval
     , -- #[n(1)]
-      step_price : PositiveInterval
+      stepPrice : PositiveInterval
     }
 
 
