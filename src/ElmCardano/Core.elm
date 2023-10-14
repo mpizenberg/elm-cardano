@@ -1,4 +1,4 @@
-module ElmCardano.Core exposing (Data, PosixTime)
+module ElmCardano.Core exposing (Coin, Data(..), NetworkId(..), PosixTime)
 
 {-| Essential elements for Cardano smart contracts that don't have a dedicated module.
 -}
@@ -8,6 +8,15 @@ module ElmCardano.Core exposing (Data, PosixTime)
 -}
 type PosixTime
     = PosixTime Int
+
+
+type NetworkId
+    = One -- 0
+    | Two -- 1
+
+
+type alias Coin =
+    Int
 
 
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.

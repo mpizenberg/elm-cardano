@@ -11,6 +11,8 @@ module ElmCardano.Transaction exposing
 
 @docs Transaction
 
+@docs TransactionBody, WitnessSet
+
 @docs Value, MintedValue, PolicyId, adaAssetName
 
 @docs Address, Credential, StakeCredential
@@ -27,18 +29,17 @@ import Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Debug exposing (todo)
-import ElmCardano.Core exposing (Data, PosixTime)
-import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256, Hash)
-import ElmCardano.Interval exposing (Interval)
+import ElmCardano.Core exposing (Coin, Data, NetworkId)
+import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 
 
 {-| A Cardano transaction.
 -}
 type alias Transaction =
-    { body : TransactionBody
-    , witness_set : WitnessSet
-    , is_valid : Bool
-    , auxiliary_data : Maybe AuxiliaryData
+    { body : TransactionBody -- 0
+    , witnessSet : WitnessSet -- 1
+    , isValid : Bool -- 2
+    , auxiliaryData : Maybe AuxiliaryData -- 3
     }
 
 
@@ -55,11 +56,24 @@ type alias TransactionBody =
     , mint : Maybe (Multiasset Int) -- 9
     , scriptDataHash : Maybe Bytes -- 11
     , collateral : Maybe (List Input) -- 13
-    , requiredSigners : Maybe RequiredSigners -- 14
+
+    -- TODO: what hash algo for these bytes
+    , requiredSigners : Maybe Bytes -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Coin -- 17
     , referenceInputs : Maybe (List Input) -- 18
+    }
+
+
+type alias WitnessSet =
+    { vkeywitness : Maybe (List VKeyWitness) -- 0
+    , nativeScripts : Maybe (List NativeScript) -- 1
+    , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
+    , plutusV1Script : Maybe (List PlutusV1Script) -- 3
+    , plutusSata : Maybe (List PlutusData) -- 4
+    , redeemer : Maybe (List Redeemer) -- 5
+    , plutusV2Script : Maybe (List PlutusV2Script) -- 6
     }
 
 
@@ -90,7 +104,7 @@ type MintedValue
 -}
 type PolicyId
     = AdaPolicyId
-    | CntPolicyId (Hash Blake2b_224)
+    | CntPolicyId Blake2b_224
 
 
 {-| Ada, the native currency, isn’t associated with any AssetName (it’s not possible to mint Ada!).
@@ -123,8 +137,8 @@ Credentials are always one of two kinds: a direct public/private key pair, or a 
 
 -}
 type Credential
-    = VerificationKeyCredential (Hash Blake2b_224)
-    | ScriptCredential (Hash Blake2b_224)
+    = VerificationKeyCredential Blake2b_224
+    | ScriptCredential Blake2b_224
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
@@ -146,24 +160,22 @@ type StakeCredential
 -}
 type Datum
     = NoDatum
-    | DatumHash (Hash Blake2b_256)
+    | DatumHash Blake2b_256
     | InlineDatum Data
 
 
 {-| An input eUTxO for a transaction.
 -}
 type alias Input =
-    { transaction_id : Bytes
-    , index : Int
+    { transactionId : Blake2b_256
+    , outputIndex : Int
     }
 
 
 {-| The reference for a eUTxO.
 -}
 type alias OutputReference =
-    { transactionId : { hash : Hash Blake2b_256 }
-    , outputIndex : Int
-    }
+    Input
 
 
 {-| The content of a eUTxO.
@@ -172,7 +184,7 @@ type alias Output =
     { address : Address
     , value : Value
     , datum : Maybe Datum
-    , referenceScript : Maybe (Hash Blake2b_224)
+    , referenceScript : Maybe Blake2b_224
     }
 
 
@@ -213,9 +225,9 @@ Most of the time, they require signatures from specific keys.
 type Certificate
     = CredentialRegistration { delegator : StakeCredential }
     | CredentialDeregistration { delegator : StakeCredential }
-    | CredentialDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
-    | PoolRegistration { poolId : Hash Blake2b_224, vrf : Hash Blake2b_224 }
-    | PoolDeregistration { poolId : Hash Blake2b_224, epoch : Int }
+    | CredentialDelegation { delegator : StakeCredential, delegatee : Blake2b_224 }
+    | PoolRegistration { poolId : Blake2b_224, vrf : Blake2b_224 }
+    | PoolDeregistration { poolId : Blake2b_224, epoch : Int }
     | Governance
     | TreasuryMovement
 
