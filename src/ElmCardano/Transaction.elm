@@ -23,6 +23,10 @@ module ElmCardano.Transaction exposing
 
 -}
 
+import Bytes exposing (Bytes)
+import Cbor.Decode as D
+import Cbor.Encode as E
+import Debug exposing (todo)
 import ElmCardano.Core exposing (Data, PosixTime)
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.Interval exposing (Interval)
@@ -201,3 +205,23 @@ type Certificate
     | PoolDeregistration { poolId : Hash Blake2b_224, epoch : Int }
     | Governance
     | TreasuryMovement
+
+
+toCbor : Transaction -> Bytes
+toCbor tx =
+    tx |> encodeTransaction |> E.encode
+
+
+fromCbor : Bytes -> Maybe Transaction
+fromCbor bytes =
+    D.decode decodeTransaction bytes
+
+
+encodeTransaction : Transaction -> E.Encoder
+encodeTransaction _ =
+    todo "encode tx"
+
+
+decodeTransaction : D.Decoder Transaction
+decodeTransaction =
+    todo "decode tx"
