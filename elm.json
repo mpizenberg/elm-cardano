@@ -1,0 +1,20 @@
+{
+    "type": "package",
+    "name": "mpizenberg/elm-cardano",
+    "summary": "Elm offchain package for Cardano",
+    "license": "BSD-3-Clause",
+    "version": "1.0.0",
+    "elm-version": "0.19.1 <= v < 0.20.0",
+    "exposed-modules": [
+        "ElmCardano.Core",
+        "ElmCardano.Hash",
+        "ElmCardano.Interval",
+        "ElmCardano.Transaction"
+    ],
+    "dependencies": {
+        "elm/core": "1.0.5 <= v < 2.0.0"
+    },
+    "test-dependencies": {
+        "elm-explorations/test": "2.0.0 <= v < 3.0.0"
+    }
+}
