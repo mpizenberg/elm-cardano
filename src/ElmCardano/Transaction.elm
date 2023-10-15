@@ -459,6 +459,10 @@ type Certificate
     | TreasuryMovement
 
 
+
+-- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
+
+
 toCbor : Transaction -> Bytes
 toCbor tx =
     tx |> encodeTransaction |> E.encode
@@ -470,8 +474,30 @@ fromCbor bytes =
 
 
 encodeTransaction : Transaction -> E.Encoder
-encodeTransaction _ =
-    todo "encode tx"
+encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
+    E.sequence
+        [ encodeTransactionBody body
+        , encodeWitnessSet witnessSet
+        , E.bool isValid
+        , auxiliaryData
+            |> Maybe.map encodeAuxiliaryData
+            |> Maybe.withDefault E.null
+        ]
+
+
+encodeTransactionBody : TransactionBody -> E.Encoder
+encodeTransactionBody body =
+    todo "encode tx body"
+
+
+encodeWitnessSet : WitnessSet -> E.Encoder
+encodeWitnessSet witnessSet =
+    todo "encode witness set"
+
+
+encodeAuxiliaryData : AuxiliaryData -> E.Encoder
+encodeAuxiliaryData auxiliaryData =
+    todo "encode auxiliary data"
 
 
 decodeTransaction : D.Decoder Transaction
