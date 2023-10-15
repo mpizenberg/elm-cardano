@@ -408,7 +408,7 @@ type alias OutputReference =
 {-| The content of a eUTxO.
 -}
 type alias Output =
-    { address : Address
+    { address : Bytes
     , value : Value
     , datum : Maybe Datum
     , referenceScript : Maybe Blake2b_224
@@ -487,7 +487,14 @@ encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
 
 encodeTransactionBody : TransactionBody -> E.Encoder
 encodeTransactionBody body =
-    todo "encode tx body"
+    E.sequence
+        [ E.sequence (List.map encodeInput body.inputs)
+        , E.sequence (List.map encodeOutput body.outputs)
+        , E.int body.fee
+        , body.ttl
+            |> Maybe.map E.int
+            |> Maybe.withDefault E.null
+        ]
 
 
 encodeWitnessSet : WitnessSet -> E.Encoder
@@ -496,8 +503,31 @@ encodeWitnessSet witnessSet =
 
 
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
-encodeAuxiliaryData auxiliaryData =
+encodeAuxiliaryData _ =
     todo "encode auxiliary data"
+
+
+encodeInput : Input -> E.Encoder
+encodeInput { transactionId, outputIndex } =
+    E.sequence
+        [ E.bytes transactionId
+        , E.int outputIndex
+        ]
+
+
+encodeOutput : Output -> E.Encoder
+encodeOutput output =
+    E.sequence
+        [ E.bytes output.address
+        , encodeValue output.value
+        , todo "encode datum"
+        , todo "encode script ref"
+        ]
+
+
+encodeValue : Value -> E.Encoder
+encodeValue _ =
+    todo "encode value"
 
 
 decodeTransaction : D.Decoder Transaction
