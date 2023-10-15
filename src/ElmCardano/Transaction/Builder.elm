@@ -5,12 +5,12 @@ import ElmCardano.Transaction exposing (Input, Output, Transaction, TransactionB
 
 
 type Tx
-    = Builder Transaction
+    = Tx Transaction
 
 
 new : Tx
 new =
-    Builder
+    Tx
         { body =
             { inputs = []
             , outputs = []
@@ -46,14 +46,14 @@ new =
 
 updateBody : (TransactionBody -> TransactionBody) -> Transaction -> Tx
 updateBody apply inner =
-    Builder
+    Tx
         { inner
             | body = apply inner.body
         }
 
 
 input : Input -> Tx -> Tx
-input newInput (Builder inner) =
+input newInput (Tx inner) =
     inner |> updateBody (addInput newInput)
 
 
@@ -63,7 +63,7 @@ addInput newInput body =
 
 
 output : Output -> Tx -> Tx
-output newOutput (Builder inner) =
+output newOutput (Tx inner) =
     inner |> updateBody (addOutput newOutput)
 
 
@@ -73,5 +73,5 @@ addOutput newOutput body =
 
 
 complete : Tx -> Bytes
-complete (Builder inner) =
+complete (Tx inner) =
     inner |> toCbor
