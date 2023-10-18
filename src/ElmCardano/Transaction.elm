@@ -488,23 +488,28 @@ encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
 encodeTransactionBody : TransactionBody -> E.Encoder
 encodeTransactionBody body =
     E.sequence
-        [ E.sequence (List.map encodeInput body.inputs)
-        , E.sequence (List.map encodeOutput body.outputs)
-        , E.int body.fee
-        , body.ttl
-            |> Maybe.map E.int
-            |> Maybe.withDefault E.null
+        [ E.beginDict
+        , E.pair E.int encodeInputs ( 0, body.inputs )
+        , E.pair E.int encodeOutputs ( 1, body.outputs )
+        , E.pair E.int E.int ( 2, body.fee )
+        , body.ttl |> encodeOptional (\t -> E.pair E.int E.int ( 3, t ))
+        , E.break
         ]
 
 
 encodeWitnessSet : WitnessSet -> E.Encoder
-encodeWitnessSet witnessSet =
+encodeWitnessSet _ =
     todo "encode witness set"
 
 
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
 encodeAuxiliaryData _ =
     todo "encode auxiliary data"
+
+
+encodeInputs : List Input -> E.Encoder
+encodeInputs inputs =
+    E.sequence (List.map encodeInput inputs)
 
 
 encodeInput : Input -> E.Encoder
@@ -515,6 +520,11 @@ encodeInput { transactionId, outputIndex } =
         ]
 
 
+encodeOutputs : List Output -> E.Encoder
+encodeOutputs outputs =
+    E.sequence (List.map encodeOutput outputs)
+
+
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
     E.sequence
@@ -523,6 +533,13 @@ encodeOutput output =
         , todo "encode datum"
         , todo "encode script ref"
         ]
+
+
+encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
+encodeOptional apply value =
+    value
+        |> Maybe.map apply
+        |> Maybe.withDefault E.null
 
 
 encodeValue : Value -> E.Encoder
