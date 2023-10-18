@@ -11,8 +11,8 @@ type PosixTime
 
 
 type NetworkId
-    = One -- 0
-    | Two -- 1
+    = Testnet -- 0
+    | Mainnet -- 1
 
 
 type alias Coin =

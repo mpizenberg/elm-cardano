@@ -31,7 +31,7 @@ import Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Debug exposing (todo)
-import ElmCardano.Core exposing (Coin, Data, NetworkId)
+import ElmCardano.Core exposing (Coin, Data, NetworkId(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 
 
@@ -62,7 +62,7 @@ type alias TransactionBody =
     , collateral : Maybe (List Input) -- 13
 
     -- TODO: what hash algo for these bytes
-    , requiredSigners : Maybe Bytes -- 14
+    , requiredSigners : Maybe (List Bytes) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Coin -- 17
@@ -476,12 +476,12 @@ fromCbor bytes =
 encodeTransaction : Transaction -> E.Encoder
 encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
     E.sequence
-        [ encodeTransactionBody body
+        [ E.beginList
+        , encodeTransactionBody body
         , encodeWitnessSet witnessSet
         , E.bool isValid
-        , auxiliaryData
-            |> Maybe.map encodeAuxiliaryData
-            |> Maybe.withDefault E.null
+        , encodeNullable encodeAuxiliaryData auxiliaryData
+        , E.break
         ]
 
 
@@ -492,14 +492,161 @@ encodeTransactionBody body =
         , E.pair E.int encodeInputs ( 0, body.inputs )
         , E.pair E.int encodeOutputs ( 1, body.outputs )
         , E.pair E.int E.int ( 2, body.fee )
-        , body.ttl |> encodeOptional (\t -> E.pair E.int E.int ( 3, t ))
+        , body.ttl
+            |> encodeOptional
+                (\t ->
+                    E.pair E.int E.int ( 3, t )
+                )
+        , body.certificates
+            |> encodeOptional
+                (\certificates ->
+                    E.pair E.int encodeCertificates ( 4, certificates )
+                )
+        , body.withdrawals
+            |> encodeOptional
+                (\w ->
+                    E.pair E.int (\withdrawals -> todo "") ( 5, w )
+                )
+        , body.update
+            |> encodeOptional
+                (\u ->
+                    E.pair E.int (\update -> todo "") ( 6, u )
+                )
+        , body.auxiliaryDataHash
+            |> encodeOptional
+                (\auxiliaryDataHash ->
+                    E.pair E.int E.bytes ( 7, auxiliaryDataHash )
+                )
+        , body.validityIntervalStart
+            |> encodeOptional
+                (\validityIntervalStart ->
+                    E.pair E.int E.int ( 8, validityIntervalStart )
+                )
+        , body.mint
+            |> encodeOptional
+                (\m ->
+                    E.pair E.int (\mint -> todo "") ( 9, m )
+                )
+        , body.scriptDataHash
+            |> encodeOptional
+                (\scriptDataHash ->
+                    E.pair E.int E.bytes ( 11, scriptDataHash )
+                )
+        , body.collateral
+            |> encodeOptional
+                (\inputs ->
+                    E.pair E.int encodeInputs ( 13, inputs )
+                )
+        , body.requiredSigners
+            |> encodeOptional
+                (\r ->
+                    E.pair E.int encodeRequiredSigners ( 14, r )
+                )
+        , body.networkId
+            |> encodeOptional
+                (\n ->
+                    E.pair E.int
+                        (\networkId ->
+                            E.int <|
+                                case networkId of
+                                    Testnet ->
+                                        0
+
+                                    Mainnet ->
+                                        1
+                        )
+                        ( 15, n )
+                )
+        , body.collateralReturn
+            |> encodeOptional
+                (\output ->
+                    E.pair E.int encodeOutput ( 16, output )
+                )
+        , body.totalCollateral
+            |> encodeOptional
+                (\totalCollateral ->
+                    E.pair E.int E.int ( 17, totalCollateral )
+                )
+        , body.referenceInputs
+            |> encodeOptional
+                (\referenceInputs ->
+                    E.pair E.int encodeInputs ( 17, referenceInputs )
+                )
         , E.break
         ]
 
 
 encodeWitnessSet : WitnessSet -> E.Encoder
-encodeWitnessSet _ =
-    todo "encode witness set"
+encodeWitnessSet witnessSet =
+    E.sequence
+        [ E.beginDict
+        , witnessSet.vkeywitness
+            |> encodeOptional
+                (\v ->
+                    E.pair E.int encodeVKeyWitnesses ( 0, v )
+                )
+        , witnessSet.nativeScripts
+            |> encodeOptional
+                (\n ->
+                    E.pair E.int (\scripts -> todo "") ( 1, n )
+                )
+        , witnessSet.bootstrapWitness
+            |> encodeOptional
+                (\b ->
+                    E.pair E.int encodeBootstrapWitnesses ( 2, b )
+                )
+        , witnessSet.plutusV1Script
+            |> encodeOptional
+                (\p ->
+                    E.pair E.int (\scripts -> E.list E.bytes scripts) ( 3, p )
+                )
+        , witnessSet.plutusData
+            |> encodeOptional
+                (\d ->
+                    E.pair E.int (\data -> todo "") ( 4, d )
+                )
+        , witnessSet.redeemer
+            |> encodeOptional
+                (\r ->
+                    E.pair E.int (\redeemers -> todo "") ( 5, r )
+                )
+        , witnessSet.plutusV2Script
+            |> encodeOptional
+                (\p ->
+                    E.pair E.int (\scripts -> E.list E.bytes scripts) ( 6, p )
+                )
+        , E.break
+        ]
+
+
+encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
+encodeVKeyWitnesses v =
+    E.list encodeVKeyWitness v
+
+
+encodeVKeyWitness : VKeyWitness -> E.Encoder
+encodeVKeyWitness v =
+    E.sequence
+        [ E.beginList
+        , E.bytes v.vkey
+        , E.bytes v.signature
+        , E.break
+        ]
+
+
+encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
+encodeBootstrapWitnesses b =
+    E.list encodeBootstrapWitness b
+
+
+encodeBootstrapWitness : BootstrapWitness -> E.Encoder
+encodeBootstrapWitness b =
+    E.sequence
+        [ E.beginList
+        , E.bytes b.publicKey
+        , E.bytes b.signature
+        , E.break
+        ]
 
 
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
@@ -509,42 +656,75 @@ encodeAuxiliaryData _ =
 
 encodeInputs : List Input -> E.Encoder
 encodeInputs inputs =
-    E.sequence (List.map encodeInput inputs)
+    E.list encodeInput inputs
 
 
 encodeInput : Input -> E.Encoder
 encodeInput { transactionId, outputIndex } =
     E.sequence
-        [ E.bytes transactionId
+        [ E.beginList
+        , E.bytes transactionId
         , E.int outputIndex
+        , E.break
         ]
 
 
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
-    E.sequence (List.map encodeOutput outputs)
+    E.list encodeOutput outputs
 
 
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
     E.sequence
-        [ E.bytes output.address
+        [ E.beginList
+        , E.bytes output.address
         , encodeValue output.value
         , todo "encode datum"
         , todo "encode script ref"
+        , E.break
         ]
 
 
-encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
-encodeOptional apply value =
-    value
-        |> Maybe.map apply
-        |> Maybe.withDefault E.null
+encodeCertificates : List Certificate -> E.Encoder
+encodeCertificates certificates =
+    E.list encodeCertificate certificates
+
+
+encodeCertificate : Certificate -> E.Encoder
+encodeCertificate _ =
+    todo "encode certificate"
+
+
+encodeRequiredSigners : List Bytes -> E.Encoder
+encodeRequiredSigners requiredSigners =
+    E.list E.bytes requiredSigners
 
 
 encodeValue : Value -> E.Encoder
 encodeValue _ =
     todo "encode value"
+
+
+{-| Encode things shown in the cddl as `x // null`.
+-}
+encodeNullable : (a -> E.Encoder) -> Maybe a -> E.Encoder
+encodeNullable apply value =
+    encodeMaybe apply E.null value
+
+
+{-| Encode things shown in the cddl as `? 0 : x`.
+-}
+encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
+encodeOptional apply value =
+    encodeMaybe apply (E.sequence []) value
+
+
+encodeMaybe : (a -> E.Encoder) -> E.Encoder -> Maybe a -> E.Encoder
+encodeMaybe apply default value =
+    value
+        |> Maybe.map apply
+        |> Maybe.withDefault default
 
 
 decodeTransaction : D.Decoder Transaction
