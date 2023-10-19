@@ -2,6 +2,7 @@ module Tests exposing (..)
 
 import Bytes exposing (Bytes, width)
 import Bytes.Decode as D
+import Bytes.Encode as E
 
 
 {-| Convert a list of BE unsigned8 to bytes
@@ -20,3 +21,10 @@ hex bytes =
                             |> D.map (\x -> D.Loop ( n - 1, x :: xs ))
                 )
             )
+
+
+{-| Convert a list of BE unsigned8 to bytes
+-}
+toBytes : List Int -> Bytes
+toBytes =
+    List.map E.unsignedInt8 >> E.sequence >> E.encode
