@@ -1,0 +1,21 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Main</title>
+    <script src="main.js"></script>
+    <script src="elm-cardano.js"></script>
+</head>
+
+<body>
+    <div id="myapp"></div>
+    <script>
+        var app = Elm.Main.init({
+            node: document.getElementById('myapp'),
+            flags: null,
+        });
+        initElmCardanoJs(app)
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,3 @@
+```sh
+elm-watch hot
+```
