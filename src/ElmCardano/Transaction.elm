@@ -1,9 +1,9 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody
-    , Value, MintedValue, PolicyId, adaAssetName
+    , Value(..), MintedValue, PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
-    , Datum(..), Input, OutputReference, Output
+    , Datum(..), Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
     , KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..), fromCbor, toCbor
@@ -312,7 +312,8 @@ In particular, a Value will never contain a zero quantity of a particular token.
 
 -}
 type Value
-    = Value (List { policyId : PolicyId, assetName : String, amount : Int })
+    = Coin Coin
+    | Multiasset Coin (Multiasset Coin)
 
 
 {-| A multi-asset value that can be found when minting transaction.
@@ -407,12 +408,18 @@ type alias OutputReference =
 
 {-| The content of a eUTxO.
 -}
-type alias Output =
-    { address : Bytes
-    , value : Value
-    , datum : Maybe Datum
-    , referenceScript : Maybe Blake2b_224
-    }
+type Output
+    = Legacy
+        { address : Bytes
+        , amount : Value
+        , datumHash : Maybe Bytes
+        }
+    | PostAlonzo
+        { address : Bytes
+        , value : Value
+        , datum : Maybe Datum
+        , referenceScript : Maybe Blake2b_224
+        }
 
 
 
@@ -676,14 +683,32 @@ encodeOutputs outputs =
 
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
-    E.sequence
-        [ E.beginList
-        , E.bytes output.address
-        , encodeValue output.value
-        , todo "encode datum"
-        , todo "encode script ref"
-        , E.break
-        ]
+    E.sequence <|
+        case output of
+            Legacy { address, amount, datumHash } ->
+                [ E.beginList
+                , E.bytes address
+                , encodeValue amount
+                , encodeOptional E.bytes datumHash
+                , E.break
+                ]
+
+            PostAlonzo { address, value, datum, referenceScript } ->
+                [ E.beginDict
+                , E.pair E.int E.bytes ( 0, address )
+                , E.pair E.int encodeValue ( 1, value )
+                , datum
+                    |> encodeOptional
+                        (\d ->
+                            E.pair E.int (todo "e") ( 2, d )
+                        )
+                , referenceScript
+                    |> encodeOptional
+                        (\r ->
+                            E.pair E.int E.bytes ( 3, r )
+                        )
+                , E.break
+                ]
 
 
 encodeCertificates : List Certificate -> E.Encoder
@@ -702,8 +727,18 @@ encodeRequiredSigners requiredSigners =
 
 
 encodeValue : Value -> E.Encoder
-encodeValue _ =
-    todo "encode value"
+encodeValue value =
+    case value of
+        Coin amount ->
+            E.int amount
+
+        Multiasset amount multiasset ->
+            E.sequence
+                [ E.beginList
+                , E.int amount
+                , todo "encode multiasset"
+                , E.break
+                ]
 
 
 {-| Encode things shown in the cddl as `x // null`.

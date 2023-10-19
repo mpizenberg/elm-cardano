@@ -1,15 +1,23 @@
-module ElmCardano.Transaction.Builder exposing (Tx, complete, input, new, output)
+module ElmCardano.Transaction.Builder exposing
+    ( Tx
+    , complete
+    , input
+    , new
+    , output
+    , payToAddress
+    )
 
 import Bytes exposing (Bytes)
-import ElmCardano.Transaction exposing (Input, Output, Transaction, TransactionBody, toCbor)
+import ElmCardano.Core exposing (Coin, NetworkId)
+import ElmCardano.Transaction exposing (Input, Output(..), Transaction, TransactionBody, Value(..), toCbor)
 
 
 type Tx
     = Tx Transaction
 
 
-new : Tx
-new =
+new : NetworkId -> Tx
+new networkId =
     Tx
         { body =
             { inputs = []
@@ -25,7 +33,7 @@ new =
             , scriptDataHash = Nothing
             , collateral = Nothing
             , requiredSigners = Nothing
-            , networkId = Nothing
+            , networkId = Just networkId
             , collateralReturn = Nothing
             , totalCollateral = Nothing
             , referenceInputs = Nothing
@@ -60,6 +68,19 @@ input newInput (Tx inner) =
 addInput : Input -> TransactionBody -> TransactionBody
 addInput newInput body =
     { body | inputs = newInput :: body.inputs }
+
+
+payToAddress : Bytes -> Coin -> Tx -> Tx
+payToAddress address amount tx =
+    tx
+        |> output
+            (PostAlonzo
+                { address = address
+                , value = Coin amount
+                , datum = Nothing
+                , referenceScript = Nothing
+                }
+            )
 
 
 output : Output -> Tx -> Tx
