@@ -570,7 +570,7 @@ encodeTransactionBody body =
         , body.referenceInputs
             |> encodeOptional
                 (\referenceInputs ->
-                    E.pair E.int encodeInputs ( 17, referenceInputs )
+                    E.pair E.int encodeInputs ( 18, referenceInputs )
                 )
         , E.break
         ]
