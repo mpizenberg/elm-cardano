@@ -2,6 +2,7 @@ port module Main exposing (..)
 
 import Browser
 import Html exposing (Html, div, text)
+import Html.Attributes exposing (height, src)
 import Json.Decode as JDecode exposing (Value, value)
 import Wallet
 
@@ -82,7 +83,11 @@ viewAvailableWallets wallets =
                 ++ Debug.toString w.isEnabled
                 ++ ", supportedExtensions: "
                 ++ Debug.toString w.supportedExtensions
+
+        walletIcon : Wallet.Cip30WalletDescriptor -> Html Msg
+        walletIcon { icon } =
+            Html.img [ src icon, height 32 ] []
     in
     wallets
-        |> List.map (\w -> div [] [ text (walletDescription w) ])
+        |> List.map (\w -> div [] [ walletIcon w, text (walletDescription w) ])
         |> div []
