@@ -3,6 +3,7 @@ module Tests exposing (..)
 import Bytes exposing (Bytes, width)
 import Bytes.Decode as D
 import Bytes.Encode as E
+import Hex.Convert
 
 
 {-| Convert a list of BE unsigned8 to bytes
@@ -28,3 +29,13 @@ hex bytes =
 toBytes : List Int -> Bytes
 toBytes =
     List.map E.unsignedInt8 >> E.sequence >> E.encode
+
+
+fromString : String -> Bytes
+fromString s =
+    case Hex.Convert.toBytes s of
+        Just x ->
+            x
+
+        Nothing ->
+            toBytes [ 0x00 ]

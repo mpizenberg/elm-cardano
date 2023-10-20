@@ -494,136 +494,49 @@ encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
 
 encodeTransactionBody : TransactionBody -> E.Encoder
 encodeTransactionBody body =
-    E.sequence
-        [ E.beginDict
-        , E.pair E.int encodeInputs ( 0, body.inputs )
-        , E.pair E.int encodeOutputs ( 1, body.outputs )
-        , E.pair E.int E.int ( 2, body.fee )
-        , body.ttl
-            |> encodeOptional
-                (\t ->
-                    E.pair E.int E.int ( 3, t )
-                )
-        , body.certificates
-            |> encodeOptional
-                (\certificates ->
-                    E.pair E.int encodeCertificates ( 4, certificates )
-                )
-        , body.withdrawals
-            |> encodeOptional
-                (\w ->
-                    E.pair E.int (\withdrawals -> todo "") ( 5, w )
-                )
-        , body.update
-            |> encodeOptional
-                (\u ->
-                    E.pair E.int (\update -> todo "") ( 6, u )
-                )
-        , body.auxiliaryDataHash
-            |> encodeOptional
-                (\auxiliaryDataHash ->
-                    E.pair E.int E.bytes ( 7, auxiliaryDataHash )
-                )
-        , body.validityIntervalStart
-            |> encodeOptional
-                (\validityIntervalStart ->
-                    E.pair E.int E.int ( 8, validityIntervalStart )
-                )
-        , body.mint
-            |> encodeOptional
-                (\m ->
-                    E.pair E.int (\mint -> todo "") ( 9, m )
-                )
-        , body.scriptDataHash
-            |> encodeOptional
-                (\scriptDataHash ->
-                    E.pair E.int E.bytes ( 11, scriptDataHash )
-                )
-        , body.collateral
-            |> encodeOptional
-                (\inputs ->
-                    E.pair E.int encodeInputs ( 13, inputs )
-                )
-        , body.requiredSigners
-            |> encodeOptional
-                (\r ->
-                    E.pair E.int encodeRequiredSigners ( 14, r )
-                )
-        , body.networkId
-            |> encodeOptional
-                (\n ->
-                    E.pair E.int
-                        (\networkId ->
-                            E.int <|
-                                case networkId of
-                                    Testnet ->
-                                        0
+    E.beginDict
+        |> encodeField 0 encodeInputs body.inputs
+        |> encodeField 1 encodeOutputs body.outputs
+        |> encodeField 2 E.int body.fee
+        |> encodeFieldMaybe 3 E.int body.ttl
+        |> encodeFieldMaybe 4 encodeCertificates body.certificates
+        |> encodeFieldMaybe 5 (\_ -> todo "") body.withdrawals
+        |> encodeFieldMaybe 6 (\_ -> todo "") body.update
+        |> encodeFieldMaybe 7 (\_ -> todo "") body.auxiliaryDataHash
+        |> encodeFieldMaybe 8 E.int body.validityIntervalStart
+        |> encodeFieldMaybe 9 (\_ -> todo "") body.mint
+        |> encodeFieldMaybe 11 E.bytes body.scriptDataHash
+        |> encodeFieldMaybe 13 encodeInputs body.collateral
+        |> encodeFieldMaybe 14 encodeRequiredSigners body.requiredSigners
+        |> encodeFieldMaybe 15 encodeNetworkId body.networkId
+        |> encodeFieldMaybe 16 encodeOutput body.collateralReturn
+        |> encodeFieldMaybe 17 E.int body.totalCollateral
+        |> encodeFieldMaybe 18 encodeInputs body.referenceInputs
+        |> (\b -> E.sequence [ b, E.break ])
 
-                                    Mainnet ->
-                                        1
-                        )
-                        ( 15, n )
-                )
-        , body.collateralReturn
-            |> encodeOptional
-                (\output ->
-                    E.pair E.int encodeOutput ( 16, output )
-                )
-        , body.totalCollateral
-            |> encodeOptional
-                (\totalCollateral ->
-                    E.pair E.int E.int ( 17, totalCollateral )
-                )
-        , body.referenceInputs
-            |> encodeOptional
-                (\referenceInputs ->
-                    E.pair E.int encodeInputs ( 18, referenceInputs )
-                )
-        , E.break
-        ]
+
+encodeNetworkId : NetworkId -> E.Encoder
+encodeNetworkId networkId =
+    E.int <|
+        case networkId of
+            Testnet ->
+                0
+
+            Mainnet ->
+                1
 
 
 encodeWitnessSet : WitnessSet -> E.Encoder
 encodeWitnessSet witnessSet =
-    E.sequence
-        [ E.beginDict
-        , witnessSet.vkeywitness
-            |> encodeOptional
-                (\v ->
-                    E.pair E.int encodeVKeyWitnesses ( 0, v )
-                )
-        , witnessSet.nativeScripts
-            |> encodeOptional
-                (\n ->
-                    E.pair E.int (\scripts -> todo "") ( 1, n )
-                )
-        , witnessSet.bootstrapWitness
-            |> encodeOptional
-                (\b ->
-                    E.pair E.int encodeBootstrapWitnesses ( 2, b )
-                )
-        , witnessSet.plutusV1Script
-            |> encodeOptional
-                (\p ->
-                    E.pair E.int (\scripts -> E.list E.bytes scripts) ( 3, p )
-                )
-        , witnessSet.plutusData
-            |> encodeOptional
-                (\d ->
-                    E.pair E.int (\data -> todo "") ( 4, d )
-                )
-        , witnessSet.redeemer
-            |> encodeOptional
-                (\r ->
-                    E.pair E.int (\redeemers -> todo "") ( 5, r )
-                )
-        , witnessSet.plutusV2Script
-            |> encodeOptional
-                (\p ->
-                    E.pair E.int (\scripts -> E.list E.bytes scripts) ( 6, p )
-                )
-        , E.break
-        ]
+    E.beginDict
+        |> encodeFieldMaybe 0 encodeVKeyWitnesses witnessSet.vkeywitness
+        |> encodeFieldMaybe 1 (\scripts -> todo "") witnessSet.nativeScripts
+        |> encodeFieldMaybe 2 encodeBootstrapWitnesses witnessSet.bootstrapWitness
+        |> encodeFieldMaybe 3 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV1Script
+        |> encodeFieldMaybe 4 (\data -> todo "") witnessSet.plutusData
+        |> encodeFieldMaybe 5 (\redeemers -> todo "") witnessSet.redeemer
+        |> encodeFieldMaybe 6 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV2Script
+        |> (\b -> E.sequence [ b, E.break ])
 
 
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
@@ -695,18 +608,10 @@ encodeOutput output =
 
             PostAlonzo { address, value, datum, referenceScript } ->
                 [ E.beginDict
-                , E.pair E.int E.bytes ( 0, address )
-                , E.pair E.int encodeValue ( 1, value )
-                , datum
-                    |> encodeOptional
-                        (\d ->
-                            E.pair E.int (todo "e") ( 2, d )
-                        )
-                , referenceScript
-                    |> encodeOptional
-                        (\r ->
-                            E.pair E.int E.bytes ( 3, r )
-                        )
+                    |> encodeField 0 E.bytes address
+                    |> encodeField 1 encodeValue value
+                    |> encodeFieldMaybe 2 (\_ -> todo "") datum
+                    |> encodeFieldMaybe 3 (\_ -> todo "") referenceScript
                 , E.break
                 ]
 
@@ -748,11 +653,24 @@ encodeNullable apply value =
     encodeMaybe apply E.null value
 
 
-{-| Encode things shown in the cddl as `? 0 : x`.
--}
 encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
 encodeOptional apply value =
     encodeMaybe apply (E.sequence []) value
+
+
+encodeField : Int -> (a -> E.Encoder) -> a -> E.Encoder -> E.Encoder
+encodeField ix encode a e =
+    E.sequence [ e, E.pair E.int encode ( ix, a ) ]
+
+
+encodeFieldMaybe : Int -> (a -> E.Encoder) -> Maybe a -> E.Encoder -> E.Encoder
+encodeFieldMaybe ix encode maybe =
+    case maybe of
+        Nothing ->
+            identity
+
+        Just a ->
+            encodeField ix encode a
 
 
 encodeMaybe : (a -> E.Encoder) -> E.Encoder -> Maybe a -> E.Encoder

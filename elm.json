@@ -17,6 +17,7 @@
         "elm-toulouse/cbor": "1.1.0 <= v < 2.0.0"
     },
     "test-dependencies": {
-        "elm-explorations/test": "2.0.0 <= v < 3.0.0"
+        "elm-explorations/test": "2.0.0 <= v < 3.0.0",
+        "jxxcarlson/hex": "3.0.0 < v <= 4.0.0"
     }
 }
