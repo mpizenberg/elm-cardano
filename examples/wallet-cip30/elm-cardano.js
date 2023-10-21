@@ -5,6 +5,9 @@ function initElmCardanoJs(app) {
             if (value.requestType == "cip30-discover") {
                 const wallets = await concurrentHandleCip30Discover()
                 app.ports.fromWallet.send({responseType: "cip30-discover", wallets})
+            } else if (value.requestType == "cip30-enable") {
+                const {descriptor, api, walletHandle} = await enableCip30Wallet(value.id, value.extensions)
+                app.ports.fromWallet.send({responseType: "cip30-enable", descriptor, api, walletHandle})
             }
         } catch (error) {
             console.log("Hum .........", error)
@@ -48,6 +51,21 @@ function initElmCardanoJs(app) {
         const endTime = performance.now()
         console.log(`${walletId} discovered in ${endTime - startTime} ms:`)
         return descriptor
+    }
+
+    async function enableCip30Wallet(walletId, extensionsIds) {
+        const extensions = extensionsIds.map((cipId) => ({cip: cipId}))
+        if (walletId in window.cardano) {
+            // TODO handle potential APIError
+            const walletHandle = window.cardano[walletId]
+            const api = await walletHandle.enable({extensions})
+            // const api = await walletHandle.enable(extensions) // Eternl incorrect handle of CIP30 enable
+            const descriptor = await walletDescriptor(walletId)
+            return {descriptor, api, walletHandle}
+        } else {
+            // TODO: return error saying there is no wallet with this id
+            throw new Error("Wallet ID does not correspond to any installed wallet: " + walletId)
+        }
     }
 
     function exposed(params) {}

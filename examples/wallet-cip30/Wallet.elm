@@ -4,7 +4,9 @@ module Wallet exposing
     , Cip30Wallet
     , Cip30WalletDescriptor
     , cip30ResponseDecoder
+    , cip30WalletDescriptor
     , discoverCip30Wallets
+    , enableCip30Wallet
     , encodeCip30Request
     )
 
@@ -145,7 +147,7 @@ type Cip30Response
 
 
 type ApiError
-    = ApiError
+    = ApiError String
 
 
 cip30ResponseDecoder : Decoder Cip30Response
@@ -158,7 +160,7 @@ cip30ResponseDecoder =
                         discoverDecoder
 
                     "cip30-enable" ->
-                        enableDecoder ()
+                        enableDecoder
 
                     "cip30-api" ->
                         apiDecoder ()
@@ -196,9 +198,22 @@ cip30DescriptorDecoder =
         (JDecode.field "supportedExtensions" (JDecode.list JDecode.int))
 
 
-enableDecoder : () -> Decoder Cip30Response
-enableDecoder _ =
-    Debug.todo "enableDecoder -> EnablingError {id} ApiError | EnabledCip30Wallet Cip30Wallet"
+enableDecoder : Decoder Cip30Response
+enableDecoder =
+    -- TODO: Handle the potential errors
+    JDecode.map EnabledCip30Wallet <|
+        JDecode.map3
+            -- Explicit constructor to avoid messing with fields order
+            (\descriptor api walletHandle ->
+                Cip30Wallet
+                    { descriptor = descriptor
+                    , api = api
+                    , walletHandle = walletHandle
+                    }
+            )
+            (JDecode.field "descriptor" cip30DescriptorDecoder)
+            (JDecode.field "api" JDecode.value)
+            (JDecode.field "walletHandle" JDecode.value)
 
 
 apiDecoder : () -> Decoder Cip30Response
