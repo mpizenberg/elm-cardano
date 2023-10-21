@@ -3,10 +3,10 @@ module ElmCardano.Transaction exposing
     , TransactionBody
     , Value(..), MintedValue, PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
-    , Datum(..), Input, OutputReference, Output(..)
+    , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..), fromCbor, toCbor
+    , DatumOption(..), KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..), fromCbor, toCbor
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -386,10 +386,9 @@ type StakeCredential
 
 {-| Nickname for data stored in a eUTxO.
 -}
-type Datum
-    = NoDatum
-    | DatumHash Blake2b_256
-    | InlineDatum Data
+type DatumOption
+    = DatumHash Blake2b_256
+    | Datum Data
 
 
 {-| An input eUTxO for a transaction.
@@ -417,7 +416,7 @@ type Output
     | PostAlonzo
         { address : Bytes
         , value : Value
-        , datum : Maybe Datum
+        , datumOption : Maybe DatumOption
         , referenceScript : Maybe Blake2b_224
         }
 
@@ -606,12 +605,31 @@ encodeOutput output =
                 , E.break
                 ]
 
-            PostAlonzo { address, value, datum, referenceScript } ->
+            PostAlonzo { address, value, datumOption, referenceScript } ->
                 [ E.beginDict
                     |> encodeField 0 E.bytes address
                     |> encodeField 1 encodeValue value
-                    |> encodeFieldMaybe 2 (\_ -> todo "") datum
+                    |> encodeFieldMaybe 2 encodeDatumOption datumOption
                     |> encodeFieldMaybe 3 (\_ -> todo "") referenceScript
+                , E.break
+                ]
+
+
+encodeDatumOption : DatumOption -> E.Encoder
+encodeDatumOption datumOption =
+    E.sequence <|
+        case datumOption of
+            DatumHash hash ->
+                [ E.beginList
+                , E.int 0
+                , E.bytes hash
+                , E.break
+                ]
+
+            Datum datum ->
+                [ E.beginList
+                , E.int 1
+                , todo "plutus data"
                 , E.break
                 ]
 

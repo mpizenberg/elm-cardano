@@ -3,6 +3,8 @@ module ElmCardano.Core exposing (Coin, Data(..), NetworkId(..), PosixTime)
 {-| Essential elements for Cardano smart contracts that don't have a dedicated module.
 -}
 
+import Bytes exposing (Bytes)
+
 
 {-| Number of milliseconds since 00:00:00 UTC on 1 January 1970.
 -}
@@ -27,3 +29,4 @@ type Data
         , anyConstructor : Maybe Int
         , fields : List Data
         }
+    | BData Bytes

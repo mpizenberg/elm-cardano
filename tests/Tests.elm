@@ -32,10 +32,6 @@ toBytes =
 
 
 fromString : String -> Bytes
-fromString s =
-    case Hex.Convert.toBytes s of
-        Just x ->
-            x
-
-        Nothing ->
-            toBytes [ 0x00 ]
+fromString =
+    Hex.Convert.toBytes
+        >> Maybe.withDefault (toBytes [ 0x00 ])
