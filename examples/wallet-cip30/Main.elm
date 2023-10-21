@@ -29,6 +29,7 @@ type Msg
     | DiscoverButtonClicked
     | ConnectButtonClicked { id : String, extensions : List Int }
     | GetNetworkIdButtonClicked Wallet.Cip30Wallet
+    | GetUtxosButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -73,6 +74,15 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.WalletUtxos { walletId, utxos }) ->
+                    let
+                        utxosStr =
+                            String.join "\n" utxos
+                    in
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr }
+                    , Cmd.none
+                    )
+
                 Err error ->
                     let
                         _ =
@@ -92,6 +102,12 @@ update msg model =
 
         GetNetworkIdButtonClicked wallet ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getNetworkId wallet)) )
+
+        GetUtxosButtonClicked wallet ->
+            -- Gero does not paginate
+            -- Flint does not paginate
+            -- NuFi does not paginate
+            ( model, toWallet <| Wallet.encodeCip30Request <| Wallet.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -189,4 +205,5 @@ viewConnectedWallets wallets =
 walletActions : Wallet.Cip30Wallet -> List (Html Msg)
 walletActions wallet =
     [ Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
+    , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
     ]

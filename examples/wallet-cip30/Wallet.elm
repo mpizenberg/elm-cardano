@@ -9,9 +9,10 @@ module Wallet exposing
     , enableCip30Wallet
     , encodeCip30Request
     , getNetworkId
+    , getUtxos
     )
 
-import Json.Decode as JDecode exposing (Decoder, Value)
+import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
 
 
@@ -51,7 +52,7 @@ type Cip30Request
         { id : String
         , api : Value
         , method : String
-        , args : List ( String, Value )
+        , args : List Value
         }
 
 
@@ -77,18 +78,17 @@ getNetworkId wallet =
 
 getUtxos : Cip30Wallet -> { amount : Maybe TODO, paginate : Maybe Paginate } -> Cip30Request
 getUtxos wallet { amount, paginate } =
-    case ( amount, paginate ) of
-        ( Nothing, Nothing ) ->
-            cip30ApiRequest wallet "getUtxos" []
+    cip30ApiRequest wallet
+        "getUtxos"
+        [ encodeMaybe encodeLimitAmount amount
+        , encodeMaybe encodePaginate paginate
+        ]
 
-        ( Just limitAmount, Nothing ) ->
-            cip30ApiRequest wallet "getUtxos" [ ( "amount", encodeLimitAmount limitAmount ) ]
 
-        ( Nothing, Just thePage ) ->
-            cip30ApiRequest wallet "getUtxos" [ ( "paginate", encodePaginate thePage ) ]
-
-        ( Just limitAmount, Just thePage ) ->
-            cip30ApiRequest wallet "getUtxos" [ ( "amount", encodeLimitAmount limitAmount ), ( "paginate", encodePaginate thePage ) ]
+encodeMaybe : (a -> Value) -> Maybe a -> Value
+encodeMaybe encode maybe =
+    Maybe.map encode maybe
+        |> Maybe.withDefault JEncode.null
 
 
 
@@ -121,7 +121,7 @@ encodeLimitAmount _ =
     Debug.todo "encodeLimitAmount"
 
 
-cip30ApiRequest : Cip30Wallet -> String -> List ( String, Value ) -> Cip30Request
+cip30ApiRequest : Cip30Wallet -> String -> List Value -> Cip30Request
 cip30ApiRequest (Cip30Wallet { descriptor, api }) method args =
     Cip30ApiRequest
         { id = descriptor.id
@@ -151,7 +151,7 @@ encodeCip30Request request =
                 , ( "id", JEncode.string id )
                 , ( "api", api )
                 , ( "method", JEncode.string method )
-                , ( "args", JEncode.object args )
+                , ( "args", JEncode.list identity args )
                 ]
 
 
@@ -160,6 +160,7 @@ type Cip30Response
     | EnablingError { id : String } ApiError
     | EnabledCip30Wallet Cip30Wallet
     | NetworkId { walletId : String, networkId : Int }
+    | WalletUtxos { walletId : String, utxos : List String }
     | UnhandledResponseType String
 
 
@@ -244,6 +245,11 @@ apiDecoder method walletId =
         "getNetworkId" ->
             JDecode.map (\n -> NetworkId { walletId = walletId, networkId = n })
                 (JDecode.field "response" JDecode.int)
+
+        "getUtxos" ->
+            JDecode.list (JDecode.succeed "TODO: utxo decoder")
+                |> JDecode.field "response"
+                |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
 
         _ ->
             JDecode.fail ("Unknown API call: " ++ method)

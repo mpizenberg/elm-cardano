@@ -61,8 +61,8 @@ function initElmCardanoJs(app) {
         if (walletId in window.cardano) {
             // TODO handle potential APIError
             const walletHandle = window.cardano[walletId]
-            const api = await walletHandle.enable({extensions})
-            // const api = await walletHandle.enable(extensions) // Eternl incorrect handle of CIP30 enable
+            // const api = await walletHandle.enable({extensions}) // Eternl incorrect handle of CIP30 enable
+            const api = await walletHandle.enable(extensions) // Eternl incorrect handle of CIP30 enable
             const descriptor = await walletDescriptor(walletId)
             return {descriptor, api, walletHandle}
         } else {
@@ -73,7 +73,9 @@ function initElmCardanoJs(app) {
 
     async function handleApiRequest({id, api, method, args}) {
         if (id in window.cardano) {
-            const response = await api[method](args)
+            // Replace "null" by "undefined" in the args array
+            correctArgs = args.map(item => item === null ? undefined : item)
+            const response = await api[method](...correctArgs)
             return {
                 responseType: "cip30-api",
                 walletId: id,
