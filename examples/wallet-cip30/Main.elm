@@ -28,6 +28,7 @@ type Msg
     = WalletMsg Value
     | DiscoverButtonClicked
     | ConnectButtonClicked { id : String, extensions : List Int }
+    | GetNetworkIdButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -37,12 +38,13 @@ type Msg
 type alias Model =
     { availableWallets : List Wallet.Cip30WalletDescriptor
     , connectedWallets : Dict String Wallet.Cip30Wallet
+    , lastApiResponse : String
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { availableWallets = [], connectedWallets = Dict.empty }
+    ( { availableWallets = [], connectedWallets = Dict.empty, lastApiResponse = "" }
     , toWallet <| Wallet.encodeCip30Request Wallet.discoverCip30Wallets
     )
 
@@ -53,7 +55,7 @@ init _ =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    case Debug.log "msg" msg of
+    case msg of
         WalletMsg value ->
             case JDecode.decodeValue Wallet.cip30ResponseDecoder value of
                 Ok (Wallet.AvailableCip30Wallets wallets) ->
@@ -66,6 +68,19 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.NetworkId { walletId, networkId }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId }
+                    , Cmd.none
+                    )
+
+                Err error ->
+                    let
+                        _ =
+                            JDecode.errorToString error
+                                |> Debug.log "Decoding error:"
+                    in
+                    ( model, Cmd.none )
+
                 _ ->
                     ( model, Cmd.none )
 
@@ -74,6 +89,9 @@ update msg model =
 
         ConnectButtonClicked { id, extensions } ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.enableCip30Wallet { id = id, extensions = extensions })) )
+
+        GetNetworkIdButtonClicked wallet ->
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getNetworkId wallet)) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -97,6 +115,7 @@ addEnabledWallet wallet { availableWallets, connectedWallets } =
     in
     { availableWallets = updatedAvailableWallets
     , connectedWallets = Dict.insert id wallet connectedWallets
+    , lastApiResponse = ""
     }
 
 
@@ -113,6 +132,8 @@ view model =
         , viewAvailableWallets model.availableWallets
         , div [] [ text "Connected wallets:" ]
         , viewConnectedWallets model.connectedWallets
+        , div [] [ text "Last API request response:" ]
+        , Html.pre [] [ text model.lastApiResponse ]
         ]
 
 
@@ -161,5 +182,11 @@ viewConnectedWallets wallets =
     in
     Dict.values wallets
         |> List.map (\w -> ( Wallet.cip30WalletDescriptor w, w ))
-        |> List.map (\( d, w ) -> div [] [ walletIcon d, text (walletDescription d) ])
+        |> List.map (\( d, w ) -> div [] (walletIcon d :: text (walletDescription d) :: walletActions w))
         |> div []
+
+
+walletActions : Wallet.Cip30Wallet -> List (Html Msg)
+walletActions wallet =
+    [ Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
+    ]

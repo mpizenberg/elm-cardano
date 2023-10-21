@@ -8,6 +8,7 @@ module Wallet exposing
     , discoverCip30Wallets
     , enableCip30Wallet
     , encodeCip30Request
+    , getNetworkId
     )
 
 import Json.Decode as JDecode exposing (Decoder, Value)
@@ -90,6 +91,22 @@ getUtxos wallet { amount, paginate } =
             cip30ApiRequest wallet "getUtxos" [ ( "amount", encodeLimitAmount limitAmount ), ( "paginate", encodePaginate thePage ) ]
 
 
+
+-- api.getExtensions() // avoid for now
+-- api.getNetworkId()
+-- api.getUtxos(amount: cbor\ = undefined, paginate: Paginate = undefined)
+-- api.getCollateral(params: { amount: cbor\ })
+-- api.getBalance()
+-- api.getUsedAddresses(paginate: Paginate = undefined)
+-- api.getUnusedAddresses()
+-- api.getChangeAddress()
+-- api.getRewardAddresses()
+--
+-- api.signTx(tx: cbor\, partialSign: bool = false)
+-- api.signData(addr: Address, payload: Bytes)
+-- api.submitTx(tx: cbor\)
+
+
 type alias Paginate =
     { page : Int, limit : Int }
 
@@ -163,7 +180,12 @@ cip30ResponseDecoder =
                         enableDecoder
 
                     "cip30-api" ->
-                        apiDecoder ()
+                        JDecode.field "method" JDecode.string
+                            |> JDecode.andThen
+                                (\method ->
+                                    JDecode.field "walletId" JDecode.string
+                                        |> JDecode.andThen (apiDecoder method)
+                                )
 
                     _ ->
                         JDecode.succeed (UnhandledResponseType responseType)
@@ -216,22 +238,12 @@ enableDecoder =
             (JDecode.field "walletHandle" JDecode.value)
 
 
-apiDecoder : () -> Decoder Cip30Response
-apiDecoder _ =
-    Debug.todo "apiDecoder -> depends on the method"
+apiDecoder : String -> String -> Decoder Cip30Response
+apiDecoder method walletId =
+    case method of
+        "getNetworkId" ->
+            JDecode.map (\n -> NetworkId { walletId = walletId, networkId = n })
+                (JDecode.field "response" JDecode.int)
 
-
-
--- api.getExtensions()
--- api.getNetworkId()
--- api.getUtxos(amount: cbor\ = undefined, paginate: Paginate = undefined)
--- api.getCollateral(params: { amount: cbor\ })
--- api.getBalance()
--- api.getUsedAddresses(paginate: Paginate = undefined)
--- api.getUnusedAddresses()
--- api.getChangeAddress()
--- api.getRewardAddresses()
---
--- api.signTx(tx: cbor\, partialSign: bool = false)
--- api.signData(addr: Address, payload: Bytes)
--- api.submitTx(tx: cbor\)
+        _ ->
+            JDecode.fail ("Unknown API call: " ++ method)
