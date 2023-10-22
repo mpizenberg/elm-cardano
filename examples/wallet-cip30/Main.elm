@@ -34,6 +34,7 @@ type Msg
     | GetUsedAddressesButtonClicked Wallet.Cip30Wallet
     | GetUnusedAddressesButtonClicked Wallet.Cip30Wallet
     | GetChangeAddressButtonClicked Wallet.Cip30Wallet
+    | GetRewardAddressesButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -110,6 +111,11 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.RewardAddresses { walletId, rewardAddresses }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses }
+                    , Cmd.none
+                    )
+
                 Ok (Wallet.UnhandledResponseType _) ->
                     Debug.todo "Handle unhandled response types"
 
@@ -154,6 +160,9 @@ update msg model =
 
         GetChangeAddressButtonClicked wallet ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getChangeAddress wallet)) )
+
+        GetRewardAddressesButtonClicked wallet ->
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getRewardAddresses wallet)) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -256,4 +265,5 @@ walletActions wallet =
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
     , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
+    , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
     ]
