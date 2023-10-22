@@ -42,13 +42,12 @@ function initElmCardanoJs(app) {
         for (const key of ["name", "icon", "apiVersion", "isEnabled"]) {
             if (!(key in wallet)) throw new Error("Unknown key: " + key)
         }
-        const extensions = wallet.supportedExtensions || [];
         const descriptor = {
             id : walletId,
             name : wallet.name,
             icon : wallet.icon,
             apiVersion : wallet.apiVersion,
-            supportedExtensions : extensions.map(({cip}) => cip), // extract CIP integer ids
+            supportedExtensions : wallet.supportedExtensions || [],
             isEnabled : await wallet.isEnabled(),
         }
         const endTime = performance.now()

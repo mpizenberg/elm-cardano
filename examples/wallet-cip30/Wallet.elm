@@ -250,7 +250,7 @@ cip30DescriptorDecoder =
         (JDecode.field "icon" JDecode.string)
         (JDecode.field "apiVersion" JDecode.string)
         (JDecode.field "isEnabled" JDecode.bool)
-        (JDecode.field "supportedExtensions" (JDecode.list JDecode.int))
+        (JDecode.field "supportedExtensions" (JDecode.list extensionDecoder))
 
 
 enableDecoder : Decoder Cip30Response
