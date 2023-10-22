@@ -10,6 +10,7 @@ module Wallet exposing
     , encodeCip30Request
     , getBalance
     , getNetworkId
+    , getUnusedAddresses
     , getUsedAddresses
     , getUtxos
     )
@@ -106,10 +107,14 @@ getUsedAddresses wallet { paginate } =
     cip30ApiRequest wallet "getUsedAddresses" [ encodeMaybe encodePaginate paginate ]
 
 
+getUnusedAddresses : Cip30Wallet -> Cip30Request
+getUnusedAddresses wallet =
+    cip30ApiRequest wallet "getUnusedAddresses" []
+
+
 
 -- api.getExtensions() // avoid for now
 -- api.getCollateral(params: { amount: cbor\ })
--- api.getUsedAddresses(paginate: Paginate = undefined)
 -- api.getUnusedAddresses()
 -- api.getChangeAddress()
 -- api.getRewardAddresses()
@@ -175,6 +180,7 @@ type Cip30Response
     | WalletUtxos { walletId : String, utxos : List String }
     | WalletBalance { walletId : String, balance : CborItem }
     | UsedAddresses { walletId : String, usedAddresses : List String }
+    | UnusedAddresses { walletId : String, unusedAddresses : List String }
     | UnhandledResponseType String
 
 
@@ -273,8 +279,12 @@ apiDecoder method walletId =
             JDecode.map (\r -> UsedAddresses { walletId = walletId, usedAddresses = r })
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
+        "getUnusedAddresses" ->
+            JDecode.map (\r -> UnusedAddresses { walletId = walletId, unusedAddresses = r })
+                (JDecode.field "response" <| JDecode.list JDecode.string)
+
         _ ->
-            JDecode.fail ("Unknown API call: " ++ method)
+            JDecode.succeed <| UnhandledResponseType ("Unknown API call: " ++ method)
 
 
 hexCborDecoder : Cbor.Decode.Decoder a -> Decoder a

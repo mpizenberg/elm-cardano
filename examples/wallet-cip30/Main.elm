@@ -32,6 +32,7 @@ type Msg
     | GetUtxosButtonClicked Wallet.Cip30Wallet
     | GetBalanceButtonClicked Wallet.Cip30Wallet
     | GetUsedAddressesButtonClicked Wallet.Cip30Wallet
+    | GetUnusedAddressesButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -98,6 +99,11 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.UnusedAddresses { walletId, unusedAddresses }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses }
+                    , Cmd.none
+                    )
+
                 Ok (Wallet.UnhandledResponseType _) ->
                     Debug.todo "Handle unhandled response types"
 
@@ -130,6 +136,15 @@ update msg model =
 
         GetUsedAddressesButtonClicked wallet ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUsedAddresses wallet { paginate = Nothing })) )
+
+        GetUnusedAddressesButtonClicked wallet ->
+            -- Lace does not return any unused address
+            -- Flint returns the same for unused address as used address
+            -- Typhon returns the same for unused address and used address
+            -- Eternl returns the same
+            -- Eternl and Typhon do not return the same addresses while being on the same wallet?
+            -- Nami returns no unused address
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUnusedAddresses wallet)) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -230,4 +245,5 @@ walletActions wallet =
     , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
+    , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
     ]
