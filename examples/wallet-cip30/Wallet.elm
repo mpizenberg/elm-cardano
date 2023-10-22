@@ -9,6 +9,7 @@ module Wallet exposing
     , enableCip30Wallet
     , encodeCip30Request
     , getBalance
+    , getChangeAddress
     , getNetworkId
     , getUnusedAddresses
     , getUsedAddresses
@@ -112,10 +113,14 @@ getUnusedAddresses wallet =
     cip30ApiRequest wallet "getUnusedAddresses" []
 
 
+getChangeAddress : Cip30Wallet -> Cip30Request
+getChangeAddress wallet =
+    cip30ApiRequest wallet "getChangeAddress" []
+
+
 
 -- api.getExtensions() // avoid for now
 -- api.getCollateral(params: { amount: cbor\ })
--- api.getUnusedAddresses()
 -- api.getChangeAddress()
 -- api.getRewardAddresses()
 --
@@ -181,6 +186,7 @@ type Cip30Response
     | WalletBalance { walletId : String, balance : CborItem }
     | UsedAddresses { walletId : String, usedAddresses : List String }
     | UnusedAddresses { walletId : String, unusedAddresses : List String }
+    | ChangeAddress { walletId : String, changeAddress : String }
     | UnhandledResponseType String
 
 
@@ -282,6 +288,10 @@ apiDecoder method walletId =
         "getUnusedAddresses" ->
             JDecode.map (\r -> UnusedAddresses { walletId = walletId, unusedAddresses = r })
                 (JDecode.field "response" <| JDecode.list JDecode.string)
+
+        "getChangeAddress" ->
+            JDecode.map (\r -> ChangeAddress { walletId = walletId, changeAddress = r })
+                (JDecode.field "response" JDecode.string)
 
         _ ->
             JDecode.succeed <| UnhandledResponseType ("Unknown API call: " ++ method)

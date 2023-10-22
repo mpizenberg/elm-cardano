@@ -33,6 +33,7 @@ type Msg
     | GetBalanceButtonClicked Wallet.Cip30Wallet
     | GetUsedAddressesButtonClicked Wallet.Cip30Wallet
     | GetUnusedAddressesButtonClicked Wallet.Cip30Wallet
+    | GetChangeAddressButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -104,6 +105,11 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.ChangeAddress { walletId, changeAddress }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress }
+                    , Cmd.none
+                    )
+
                 Ok (Wallet.UnhandledResponseType _) ->
                     Debug.todo "Handle unhandled response types"
 
@@ -145,6 +151,9 @@ update msg model =
             -- Eternl and Typhon do not return the same addresses while being on the same wallet?
             -- Nami returns no unused address
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUnusedAddresses wallet)) )
+
+        GetChangeAddressButtonClicked wallet ->
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getChangeAddress wallet)) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -246,4 +255,5 @@ walletActions wallet =
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
+    , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
     ]
