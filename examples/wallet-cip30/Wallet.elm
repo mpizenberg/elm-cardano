@@ -8,10 +8,14 @@ module Wallet exposing
     , discoverCip30Wallets
     , enableCip30Wallet
     , encodeCip30Request
+    , getBalance
     , getNetworkId
     , getUtxos
     )
 
+import Cbor exposing (CborItem)
+import Cbor.Decode
+import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
 
@@ -91,10 +95,13 @@ encodeMaybe encode maybe =
         |> Maybe.withDefault JEncode.null
 
 
+getBalance : Cip30Wallet -> Cip30Request
+getBalance wallet =
+    cip30ApiRequest wallet "getBalance" []
+
+
 
 -- api.getExtensions() // avoid for now
--- api.getNetworkId()
--- api.getUtxos(amount: cbor\ = undefined, paginate: Paginate = undefined)
 -- api.getCollateral(params: { amount: cbor\ })
 -- api.getBalance()
 -- api.getUsedAddresses(paginate: Paginate = undefined)
@@ -161,6 +168,7 @@ type Cip30Response
     | EnabledCip30Wallet Cip30Wallet
     | NetworkId { walletId : String, networkId : Int }
     | WalletUtxos { walletId : String, utxos : List String }
+    | WalletBalance { walletId : String, balance : CborItem }
     | UnhandledResponseType String
 
 
@@ -251,5 +259,28 @@ apiDecoder method walletId =
                 |> JDecode.field "response"
                 |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
 
+        "getBalance" ->
+            JDecode.map (\b -> WalletBalance { walletId = walletId, balance = b })
+                (JDecode.field "response" <| hexCborDecoder Cbor.Decode.any)
+
         _ ->
             JDecode.fail ("Unknown API call: " ++ method)
+
+
+hexCborDecoder : Cbor.Decode.Decoder a -> Decoder a
+hexCborDecoder decoder =
+    JDecode.string
+        |> JDecode.andThen
+            (\str ->
+                case Hex.Convert.toBytes str of
+                    Just bytes ->
+                        case Cbor.Decode.decode decoder bytes of
+                            Just a ->
+                                JDecode.succeed a
+
+                            Nothing ->
+                                JDecode.fail "Failed to decode CBOR"
+
+                    Nothing ->
+                        JDecode.fail "Invalid hex bytes"
+            )

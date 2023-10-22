@@ -30,6 +30,7 @@ type Msg
     | ConnectButtonClicked { id : String, extensions : List Int }
     | GetNetworkIdButtonClicked Wallet.Cip30Wallet
     | GetUtxosButtonClicked Wallet.Cip30Wallet
+    | GetBalanceButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -83,6 +84,11 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.WalletBalance { walletId, balance }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", balance:\n" ++ Debug.toString balance }
+                    , Cmd.none
+                    )
+
                 Err error ->
                     let
                         _ =
@@ -108,6 +114,10 @@ update msg model =
             -- Flint does not paginate
             -- NuFi does not paginate
             ( model, toWallet <| Wallet.encodeCip30Request <| Wallet.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
+
+        GetBalanceButtonClicked wallet ->
+            -- Eternl has a weird response
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getBalance wallet)) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -206,4 +216,5 @@ walletActions : Wallet.Cip30Wallet -> List (Html Msg)
 walletActions wallet =
     [ Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
     , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
+    , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     ]
