@@ -66,6 +66,9 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.EnablingError _ _) ->
+                    Debug.todo "Handle enable() errors"
+
                 Ok (Wallet.EnabledCip30Wallet wallet) ->
                     ( addEnabledWallet wallet model
                     , Cmd.none
@@ -95,8 +98,8 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok _ ->
-                    ( model, Cmd.none )
+                Ok (Wallet.UnhandledResponseType _) ->
+                    Debug.todo "Handle unhandled response types"
 
                 Err error ->
                     let
