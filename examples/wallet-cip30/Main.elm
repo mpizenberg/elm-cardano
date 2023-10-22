@@ -28,6 +28,7 @@ type Msg
     = WalletMsg Value
     | DiscoverButtonClicked
     | ConnectButtonClicked { id : String, extensions : List Int }
+    | GetExtensionsButtonClicked Wallet.Cip30Wallet
     | GetNetworkIdButtonClicked Wallet.Cip30Wallet
     | GetUtxosButtonClicked Wallet.Cip30Wallet
     | GetBalanceButtonClicked Wallet.Cip30Wallet
@@ -74,6 +75,11 @@ update msg model =
 
                 Ok (Wallet.EnabledCip30Wallet wallet) ->
                     ( addEnabledWallet wallet model
+                    , Cmd.none
+                    )
+
+                Ok (Wallet.Extensions { walletId, extensions }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", extensions: [" ++ String.join ", " (List.map String.fromInt extensions) ++ "]" }
                     , Cmd.none
                     )
 
@@ -132,6 +138,9 @@ update msg model =
 
         ConnectButtonClicked { id, extensions } ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.enableCip30Wallet { id = id, extensions = extensions })) )
+
+        GetExtensionsButtonClicked wallet ->
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getExtensions wallet)) )
 
         GetNetworkIdButtonClicked wallet ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getNetworkId wallet)) )
@@ -259,7 +268,8 @@ viewConnectedWallets wallets =
 
 walletActions : Wallet.Cip30Wallet -> List (Html Msg)
 walletActions wallet =
-    [ Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
+    [ Html.button [ onClick <| GetExtensionsButtonClicked wallet ] [ text "getExtensions" ]
+    , Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
     , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]

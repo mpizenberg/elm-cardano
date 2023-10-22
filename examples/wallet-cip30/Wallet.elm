@@ -10,6 +10,7 @@ module Wallet exposing
     , encodeCip30Request
     , getBalance
     , getChangeAddress
+    , getExtensions
     , getNetworkId
     , getRewardAddresses
     , getUnusedAddresses
@@ -125,9 +126,7 @@ getRewardAddresses wallet =
 
 
 
--- api.getExtensions() // avoid for now
 -- api.getCollateral(params: { amount: cbor\ })
--- api.getRewardAddresses()
 --
 -- api.signTx(tx: cbor\, partialSign: bool = false)
 -- api.signData(addr: Address, payload: Bytes)
@@ -186,6 +185,7 @@ type Cip30Response
     = AvailableCip30Wallets (List Cip30WalletDescriptor)
     | EnablingError { id : String } ApiError
     | EnabledCip30Wallet Cip30Wallet
+    | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
     | WalletUtxos { walletId : String, utxos : List String }
     | WalletBalance { walletId : String, balance : CborItem }
@@ -274,6 +274,10 @@ enableDecoder =
 apiDecoder : String -> String -> Decoder Cip30Response
 apiDecoder method walletId =
     case method of
+        "getExtensions" ->
+            JDecode.map (\r -> Extensions { walletId = walletId, extensions = r })
+                (JDecode.field "response" <| JDecode.list extensionDecoder)
+
         "getNetworkId" ->
             JDecode.map (\n -> NetworkId { walletId = walletId, networkId = n })
                 (JDecode.field "response" JDecode.int)
@@ -305,6 +309,11 @@ apiDecoder method walletId =
 
         _ ->
             JDecode.succeed <| UnhandledResponseType ("Unknown API call: " ++ method)
+
+
+extensionDecoder : Decoder Int
+extensionDecoder =
+    JDecode.field "cip" JDecode.int
 
 
 hexCborDecoder : Cbor.Decode.Decoder a -> Decoder a
