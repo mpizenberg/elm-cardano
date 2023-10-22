@@ -31,6 +31,7 @@ type Msg
     | GetNetworkIdButtonClicked Wallet.Cip30Wallet
     | GetUtxosButtonClicked Wallet.Cip30Wallet
     | GetBalanceButtonClicked Wallet.Cip30Wallet
+    | GetUsedAddressesButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -89,15 +90,20 @@ update msg model =
                     , Cmd.none
                     )
 
+                Ok (Wallet.UsedAddresses { walletId, usedAddresses }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses }
+                    , Cmd.none
+                    )
+
+                Ok _ ->
+                    ( model, Cmd.none )
+
                 Err error ->
                     let
                         _ =
                             JDecode.errorToString error
                                 |> Debug.log "Decoding error:"
                     in
-                    ( model, Cmd.none )
-
-                _ ->
                     ( model, Cmd.none )
 
         DiscoverButtonClicked ->
@@ -118,6 +124,9 @@ update msg model =
         GetBalanceButtonClicked wallet ->
             -- Eternl has a weird response
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getBalance wallet)) )
+
+        GetUsedAddressesButtonClicked wallet ->
+            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUsedAddresses wallet { paginate = Nothing })) )
 
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
@@ -217,4 +226,5 @@ walletActions wallet =
     [ Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
     , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
+    , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
     ]
