@@ -492,26 +492,26 @@ encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
 
 
 encodeTransactionBody : TransactionBody -> E.Encoder
-encodeTransactionBody body =
-    E.beginDict
-        |> encodeField 0 encodeInputs body.inputs
-        |> encodeField 1 encodeOutputs body.outputs
-        |> encodeField 2 E.int body.fee
-        |> encodeFieldMaybe 3 E.int body.ttl
-        |> encodeFieldMaybe 4 encodeCertificates body.certificates
-        |> encodeFieldMaybe 5 (\_ -> todo "") body.withdrawals
-        |> encodeFieldMaybe 6 (\_ -> todo "") body.update
-        |> encodeFieldMaybe 7 (\_ -> todo "") body.auxiliaryDataHash
-        |> encodeFieldMaybe 8 E.int body.validityIntervalStart
-        |> encodeFieldMaybe 9 (\_ -> todo "") body.mint
-        |> encodeFieldMaybe 11 E.bytes body.scriptDataHash
-        |> encodeFieldMaybe 13 encodeInputs body.collateral
-        |> encodeFieldMaybe 14 encodeRequiredSigners body.requiredSigners
-        |> encodeFieldMaybe 15 encodeNetworkId body.networkId
-        |> encodeFieldMaybe 16 encodeOutput body.collateralReturn
-        |> encodeFieldMaybe 17 E.int body.totalCollateral
-        |> encodeFieldMaybe 18 encodeInputs body.referenceInputs
-        |> (\b -> E.sequence [ b, E.break ])
+encodeTransactionBody =
+    E.record E.int <|
+        E.fields
+            >> E.field 0 encodeInputs .inputs
+            >> E.field 1 encodeOutputs .outputs
+            >> E.field 2 E.int .fee
+            >> E.optionalField 3 E.int .ttl
+            >> E.optionalField 4 encodeCertificates .certificates
+            >> E.optionalField 5 (\_ -> todo "") .withdrawals
+            >> E.optionalField 6 (\_ -> todo "") .update
+            >> E.optionalField 7 (\_ -> todo "") .auxiliaryDataHash
+            >> E.optionalField 8 E.int .validityIntervalStart
+            >> E.optionalField 9 (\_ -> todo "") .mint
+            >> E.optionalField 11 E.bytes .scriptDataHash
+            >> E.optionalField 13 encodeInputs .collateral
+            >> E.optionalField 14 encodeRequiredSigners .requiredSigners
+            >> E.optionalField 15 encodeNetworkId .networkId
+            >> E.optionalField 16 encodeOutput .collateralReturn
+            >> E.optionalField 17 E.int .totalCollateral
+            >> E.optionalField 18 encodeInputs .referenceInputs
 
 
 encodeNetworkId : NetworkId -> E.Encoder
@@ -526,16 +526,16 @@ encodeNetworkId networkId =
 
 
 encodeWitnessSet : WitnessSet -> E.Encoder
-encodeWitnessSet witnessSet =
-    E.beginDict
-        |> encodeFieldMaybe 0 encodeVKeyWitnesses witnessSet.vkeywitness
-        |> encodeFieldMaybe 1 (\scripts -> todo "") witnessSet.nativeScripts
-        |> encodeFieldMaybe 2 encodeBootstrapWitnesses witnessSet.bootstrapWitness
-        |> encodeFieldMaybe 3 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV1Script
-        |> encodeFieldMaybe 4 (\data -> E.list encodeData data) witnessSet.plutusData
-        |> encodeFieldMaybe 5 (\redeemers -> E.list encodeRedeemer redeemers) witnessSet.redeemer
-        |> encodeFieldMaybe 6 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV2Script
-        |> (\b -> E.sequence [ b, E.break ])
+encodeWitnessSet =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
+            >> E.optionalField 1 (\scripts -> todo "") .nativeScripts
+            >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
+            >> E.optionalField 3 (\scripts -> E.list E.bytes scripts) .plutusV1Script
+            >> E.optionalField 4 (\data -> E.list encodeData data) .plutusData
+            >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
+            >> E.optionalField 6 (\scripts -> E.list E.bytes scripts) .plutusV2Script
 
 
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
@@ -595,9 +595,9 @@ encodeOutputs outputs =
 
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
-    E.sequence <|
-        case output of
-            Legacy { address, amount, datumHash } ->
+    case output of
+        Legacy { address, amount, datumHash } ->
+            E.sequence
                 [ E.beginList
                 , E.bytes address
                 , encodeValue amount
@@ -605,14 +605,17 @@ encodeOutput output =
                 , E.break
                 ]
 
-            PostAlonzo { address, value, datumOption, referenceScript } ->
-                [ E.beginDict
-                    |> encodeField 0 E.bytes address
-                    |> encodeField 1 encodeValue value
-                    |> encodeFieldMaybe 2 encodeDatumOption datumOption
-                    |> encodeFieldMaybe 3 (\_ -> todo "") referenceScript
-                , E.break
-                ]
+        PostAlonzo fields ->
+            let
+                encodePostAlonzo =
+                    E.record E.int <|
+                        E.fields
+                            >> E.field 0 E.bytes .address
+                            >> E.field 1 encodeValue .value
+                            >> E.optionalField 2 encodeDatumOption .datumOption
+                            >> E.optionalField 3 (\_ -> todo "") .referenceScript
+            in
+            encodePostAlonzo fields
 
 
 encodeDatumOption : DatumOption -> E.Encoder
@@ -718,21 +721,6 @@ encodeNullable apply value =
 encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
 encodeOptional apply value =
     encodeMaybe apply (E.sequence []) value
-
-
-encodeField : Int -> (a -> E.Encoder) -> a -> E.Encoder -> E.Encoder
-encodeField ix encode a e =
-    E.sequence [ e, E.pair E.int encode ( ix, a ) ]
-
-
-encodeFieldMaybe : Int -> (a -> E.Encoder) -> Maybe a -> E.Encoder -> E.Encoder
-encodeFieldMaybe ix encode maybe =
-    case maybe of
-        Nothing ->
-            identity
-
-        Just a ->
-            encodeField ix encode a
 
 
 encodeMaybe : (a -> E.Encoder) -> E.Encoder -> Maybe a -> E.Encoder
