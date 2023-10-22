@@ -5,10 +5,12 @@ module ElmCardano.Transaction.Builder exposing
     , complete
     , fee
     , input
+    , inputData
     , new
     , output
     , payToAddress
     , payToContract
+    , redeemer
     , referenceInput
     , requiredSigner
     , scriptDataHash
@@ -17,7 +19,7 @@ module ElmCardano.Transaction.Builder exposing
 
 import Bytes exposing (Bytes)
 import ElmCardano.Core exposing (Coin, Data)
-import ElmCardano.Transaction exposing (DatumOption(..), Input, Output(..), Transaction, TransactionBody, Value(..), toCbor)
+import ElmCardano.Transaction exposing (DatumOption(..), Input, Output(..), Redeemer, Transaction, TransactionBody, Value(..), WitnessSet, toCbor)
 
 
 type Tx
@@ -68,9 +70,41 @@ updateBody apply inner =
         }
 
 
+updateWitnessSet : (WitnessSet -> WitnessSet) -> Transaction -> Tx
+updateWitnessSet apply inner =
+    Tx
+        { inner
+            | witnessSet = apply inner.witnessSet
+        }
+
+
 input : Input -> Tx -> Tx
 input newInput (Tx inner) =
     inner |> updateBody (addInput newInput)
+
+
+inputData : Data -> Tx -> Tx
+inputData data (Tx inner) =
+    inner |> updateWitnessSet (addInputData data)
+
+
+addInputData : Data -> WitnessSet -> WitnessSet
+addInputData data witnessSet =
+    { witnessSet
+        | plutusData = prependMaybeList data witnessSet.plutusData
+    }
+
+
+redeemer : Redeemer -> Tx -> Tx
+redeemer r (Tx inner) =
+    inner |> updateWitnessSet (addRedeemer r)
+
+
+addRedeemer : Redeemer -> WitnessSet -> WitnessSet
+addRedeemer r witnessSet =
+    { witnessSet
+        | redeemer = prependMaybeList r witnessSet.redeemer
+    }
 
 
 addInput : Input -> TransactionBody -> TransactionBody
@@ -141,11 +175,7 @@ collateral newInput (Tx inner) =
 addCollateral : Input -> TransactionBody -> TransactionBody
 addCollateral newInput body =
     { body
-        | collateral =
-            body.collateral
-                |> Maybe.withDefault []
-                |> (::) newInput
-                |> Just
+        | collateral = prependMaybeList newInput body.collateral
     }
 
 
@@ -157,11 +187,7 @@ requiredSigner signer (Tx inner) =
 addRequiredSigner : Bytes -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
-        | requiredSigners =
-            body.requiredSigners
-                |> Maybe.withDefault []
-                |> (::) signer
-                |> Just
+        | requiredSigners = prependMaybeList signer body.requiredSigners
     }
 
 
@@ -195,14 +221,18 @@ referenceInput newInput (Tx inner) =
 addReferenceInput : Input -> TransactionBody -> TransactionBody
 addReferenceInput newInput body =
     { body
-        | collateral =
-            body.referenceInputs
-                |> Maybe.withDefault []
-                |> (::) newInput
-                |> Just
+        | collateral = prependMaybeList newInput body.referenceInputs
     }
 
 
 complete : Tx -> Bytes
 complete (Tx inner) =
     inner |> toCbor
+
+
+prependMaybeList : a -> Maybe (List a) -> Maybe (List a)
+prependMaybeList value list =
+    list
+        |> Maybe.withDefault []
+        |> (::) value
+        |> Just

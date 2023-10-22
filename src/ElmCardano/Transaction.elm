@@ -1,12 +1,12 @@
 module ElmCardano.Transaction exposing
     ( Transaction
-    , TransactionBody
+    , TransactionBody, WitnessSet
     , Value(..), MintedValue, PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , DatumOption(..), KeyValuePair(..), Metadatum(..), NativeScript(..), RedeemerTag(..), Script(..), fromCbor, toCbor
+    , DatumOption(..), KeyValuePair(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), fromCbor, toCbor
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -532,8 +532,8 @@ encodeWitnessSet witnessSet =
         |> encodeFieldMaybe 1 (\scripts -> todo "") witnessSet.nativeScripts
         |> encodeFieldMaybe 2 encodeBootstrapWitnesses witnessSet.bootstrapWitness
         |> encodeFieldMaybe 3 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV1Script
-        |> encodeFieldMaybe 4 (\data -> todo "") witnessSet.plutusData
-        |> encodeFieldMaybe 5 (\redeemers -> todo "") witnessSet.redeemer
+        |> encodeFieldMaybe 4 (\data -> E.list encodeData data) witnessSet.plutusData
+        |> encodeFieldMaybe 5 (\redeemers -> E.list encodeRedeemer redeemers) witnessSet.redeemer
         |> encodeFieldMaybe 6 (\scripts -> E.list E.bytes scripts) witnessSet.plutusV2Script
         |> (\b -> E.sequence [ b, E.break ])
 
@@ -629,9 +629,53 @@ encodeDatumOption datumOption =
             Datum datum ->
                 [ E.beginList
                 , E.int 1
-                , todo "plutus data"
+                , encodeData datum
                 , E.break
                 ]
+
+
+encodeData : Data -> E.Encoder
+encodeData data =
+    todo "encode plutus data"
+
+
+encodeRedeemer : Redeemer -> E.Encoder
+encodeRedeemer { tag, index, data, exUnits } =
+    E.sequence
+        [ E.beginList
+        , encodeRedeemerTag tag
+        , E.int index
+        , encodeData data
+        , encodeExUnits exUnits
+        , E.break
+        ]
+
+
+encodeRedeemerTag : RedeemerTag -> E.Encoder
+encodeRedeemerTag redeemerTag =
+    E.int <|
+        case redeemerTag of
+            Spend ->
+                0
+
+            Mint ->
+                1
+
+            Cert ->
+                2
+
+            Reward ->
+                3
+
+
+encodeExUnits : ExUnits -> E.Encoder
+encodeExUnits exUnits =
+    E.sequence
+        [ E.beginList
+        , E.int exUnits.mem
+        , E.int exUnits.steps
+        , E.break
+        ]
 
 
 encodeCertificates : List Certificate -> E.Encoder

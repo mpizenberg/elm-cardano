@@ -1,8 +1,8 @@
 module ElmCardano.TransactionTests exposing (..)
 
 import Bytes exposing (Bytes)
-import Bytes.Encode as E
 import ElmCardano.Core exposing (Data(..), NetworkId(..))
+import ElmCardano.Transaction exposing (RedeemerTag(..))
 import ElmCardano.Transaction.Builder as Tx
 import Expect
 import Hex.Convert
@@ -23,11 +23,18 @@ suite =
                     Tx.new
                         |> Tx.input { transactionId = transactionId, outputIndex = 1 }
                         |> Tx.input { transactionId = transactionId, outputIndex = 0 }
+                        |> Tx.inputData (Constr { tag = 121, anyConstructor = Nothing, fields = [] })
+                        |> Tx.redeemer
+                            { tag = Spend
+                            , index = 0
+                            , data = Constr { tag = 121, anyConstructor = Nothing, fields = [] }
+                            , exUnits = { mem = 49435, steps = 18305237 }
+                            }
                         |> Tx.payToContract
                             (fromString "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
                             50000000
                             (Constr
-                                { tag = 0
+                                { tag = 121
                                 , anyConstructor = Nothing
                                 , fields = [ BData (fromString "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") ]
                                 }
