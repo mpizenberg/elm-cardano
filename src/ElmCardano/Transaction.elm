@@ -1,7 +1,7 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
-    , Value(..), MintedValue, PolicyId, adaAssetName
+    , Value(..), PolicyId, adaAssetName
     , Address, Credential(..), StakeCredential(..)
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
@@ -317,15 +317,6 @@ type Value
     | Multiasset Coin (Multiasset Coin)
 
 
-{-| A multi-asset value that can be found when minting transaction.
-
-Note that because of historical reasons, this is slightly different from Value found in transaction outputs.
-
--}
-type MintedValue
-    = MintedValue
-
-
 {-| The policy id of a Cardano Token. Ada ("") is a special case since it cannot be minted.
 -}
 type alias PolicyId =
@@ -529,10 +520,10 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (\scripts -> todo "") .nativeScripts
+            >> E.optionalField 1 (\_ -> todo "") .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (\scripts -> E.list E.bytes scripts) .plutusV1Script
-            >> E.optionalField 4 (\data -> E.list encodeData data) .plutusData
+            >> E.optionalField 4 (encodeList encodeData) .plutusData
             >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
             >> E.optionalField 6 (\scripts -> E.list E.bytes scripts) .plutusV2Script
 
@@ -590,11 +581,21 @@ encodeOutput : Output -> E.Encoder
 encodeOutput output =
     case output of
         Legacy { address, amount, datumHash } ->
+            let
+                optionalDatumHash =
+                    case datumHash of
+                        Just h ->
+                            [ E.bytes h ]
+
+                        Nothing ->
+                            []
+            in
             E.list identity
-                [ E.bytes address
-                , encodeValue amount
-                , encodeOptional E.bytes datumHash
-                ]
+                ([ E.bytes address
+                 , encodeValue amount
+                 ]
+                    ++ optionalDatumHash
+                )
 
         PostAlonzo fields ->
             let
@@ -630,11 +631,29 @@ encodeDatumOption datumOption =
 encodeData : Data -> E.Encoder
 encodeData data =
     case data of
-        Constr { tag, anyConstructor, fields } ->
-            E.tagged (Unknown tag) (E.list encodeData) fields
+        Constr { tag, fields } ->
+            let
+                -- TODO: we probably don't need to do this
+                -- I (rvcas) only did this to match the tx in the unit test
+                encoder =
+                    if List.length fields == 0 then
+                        E.list encodeData
+
+                    else
+                        encodeList encodeData
+            in
+            E.tagged (Unknown tag) encoder fields
 
         BData bdata ->
             E.bytes bdata
+
+
+encodeList : (a -> E.Encoder) -> List a -> E.Encoder
+encodeList encoder =
+    List.map encoder
+        >> List.foldr (::) [ E.break ]
+        >> (::) E.beginList
+        >> E.sequence
 
 
 encodeRedeemer : Redeemer -> E.Encoder
@@ -693,7 +712,7 @@ encodeValue value =
         Coin amount ->
             E.int amount
 
-        Multiasset amount multiasset ->
+        Multiasset amount _ ->
             E.sequence
                 [ E.beginList
                 , E.int amount
@@ -707,11 +726,6 @@ encodeValue value =
 encodeNullable : (a -> E.Encoder) -> Maybe a -> E.Encoder
 encodeNullable apply value =
     encodeMaybe apply E.null value
-
-
-encodeOptional : (a -> E.Encoder) -> Maybe a -> E.Encoder
-encodeOptional apply value =
-    encodeMaybe apply (E.sequence []) value
 
 
 encodeMaybe : (a -> E.Encoder) -> E.Encoder -> Maybe a -> E.Encoder

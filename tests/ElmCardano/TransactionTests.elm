@@ -39,7 +39,7 @@ suite =
                                 , fields = [ BData (fromString "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") ]
                                 }
                             )
-                        |> Tx.payToAddress (fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 194759750
+                        |> Tx.payToAddress (fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
                         |> Tx.fee 182302
                         |> Tx.scriptDataHash (fromString "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
