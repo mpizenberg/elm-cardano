@@ -30,8 +30,9 @@ module ElmCardano.Transaction exposing
 import Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
+import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
-import ElmCardano.Core exposing (Coin, Data, NetworkId(..))
+import ElmCardano.Core exposing (Coin, Data(..), NetworkId(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 
 
@@ -632,14 +633,22 @@ encodeDatumOption datumOption =
             Datum datum ->
                 [ E.beginList
                 , E.int 1
-                , encodeData datum
+                , datum
+                    |> encodeData
+                    |> E.encode
+                    |> E.tagged Cbor E.bytes
                 , E.break
                 ]
 
 
 encodeData : Data -> E.Encoder
 encodeData data =
-    todo "encode plutus data"
+    case data of
+        Constr { tag, anyConstructor, fields } ->
+            E.tagged (Unknown tag) (E.list encodeData) fields
+
+        BData bdata ->
+            E.bytes bdata
 
 
 encodeRedeemer : Redeemer -> E.Encoder
