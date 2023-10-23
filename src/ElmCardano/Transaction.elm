@@ -6,7 +6,7 @@ module ElmCardano.Transaction exposing
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , DatumOption(..), KeyValuePair(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), fromCbor, toCbor
+    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), fromCbor, toCbor
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -30,10 +30,12 @@ module ElmCardano.Transaction exposing
 import Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
+import Cbor.Encode.Extra as E
 import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
 import ElmCardano.Core exposing (Coin, Data(..), NetworkId(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
+import ElmCardano.KeyValuePair as KeyValuePair exposing (KeyValuePair)
 
 
 {-| A Cardano transaction.
@@ -51,23 +53,21 @@ type alias Transaction =
 type alias TransactionBody =
     { inputs : List Input -- 0
     , outputs : List Output -- 1
-    , fee : Int -- 2
+    , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
-    , certificates : Maybe (List Certificate) -- 4
-    , withdrawals : Maybe (KeyValuePair RewardAccount Coin) -- 5
+    , certificates : List Certificate -- 4
+    , withdrawals : KeyValuePair RewardAccount Coin -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe Bytes -- 7
+    , auxiliaryDataHash : Maybe Blake2b_256 -- 7
     , validityIntervalStart : Maybe Int -- 8
-    , mint : Maybe (Multiasset Coin) -- 9
+    , mint : Multiasset Coin -- 9
     , scriptDataHash : Maybe Bytes -- 11
-    , collateral : Maybe (List Input) -- 13
-
-    -- TODO: what hash algo for these bytes
-    , requiredSigners : Maybe (List Bytes) -- 14
+    , collateral : List Input -- 13
+    , requiredSigners : List Blake2b_224 -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Coin -- 17
-    , referenceInputs : Maybe (List Input) -- 18
+    , referenceInputs : List Input -- 18
     }
 
 
@@ -218,11 +218,6 @@ type Metadatum
 
 type alias RewardAccount =
     Bytes
-
-
-type KeyValuePair k v
-    = Def (List ( k, v ))
-    | Indef (List ( k, v ))
 
 
 type alias PlutusScript =
@@ -487,21 +482,21 @@ encodeTransactionBody =
         E.fields
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
-            >> E.field 2 E.int .fee
+            >> E.optionalField 2 E.int .fee
             >> E.optionalField 3 E.int .ttl
-            >> E.optionalField 4 encodeCertificates .certificates
-            >> E.optionalField 5 (\_ -> todo "") .withdrawals
-            >> E.optionalField 6 (\_ -> todo "") .update
-            >> E.optionalField 7 (\_ -> todo "") .auxiliaryDataHash
+            >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
+            >> E.nonEmptyField 5 KeyValuePair.isEmpty (\_ -> todo "KeyValuePair.toCbor") .withdrawals
+            >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
+            >> E.optionalField 7 E.bytes .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.optionalField 9 (\_ -> todo "") .mint
+            >> E.nonEmptyField 9 KeyValuePair.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
             >> E.optionalField 11 E.bytes .scriptDataHash
-            >> E.optionalField 13 encodeInputs .collateral
-            >> E.optionalField 14 encodeRequiredSigners .requiredSigners
+            >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
+            >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
             >> E.optionalField 15 encodeNetworkId .networkId
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
-            >> E.optionalField 18 encodeInputs .referenceInputs
+            >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
 
 
 encodeNetworkId : NetworkId -> E.Encoder

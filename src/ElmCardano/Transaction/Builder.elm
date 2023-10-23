@@ -20,7 +20,19 @@ module ElmCardano.Transaction.Builder exposing
 
 import Bytes exposing (Bytes)
 import ElmCardano.Core exposing (Coin, Data)
-import ElmCardano.Transaction exposing (DatumOption(..), Input, Output(..), Redeemer, Transaction, TransactionBody, Value(..), WitnessSet, toCbor)
+import ElmCardano.KeyValuePair exposing (KeyValuePair(..))
+import ElmCardano.Transaction
+    exposing
+        ( DatumOption(..)
+        , Input
+        , Output(..)
+        , Redeemer
+        , Transaction
+        , TransactionBody
+        , Value(..)
+        , WitnessSet
+        , toCbor
+        )
 
 
 type Tx
@@ -33,21 +45,21 @@ new =
         { body =
             { inputs = []
             , outputs = []
-            , fee = 0
+            , fee = Nothing
             , ttl = Nothing
-            , certificates = Nothing
-            , withdrawals = Nothing
+            , certificates = []
+            , withdrawals = Def []
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
-            , mint = Nothing
+            , mint = Def []
             , scriptDataHash = Nothing
-            , collateral = Nothing
-            , requiredSigners = Nothing
+            , collateral = []
+            , requiredSigners = []
             , networkId = Nothing
             , collateralReturn = Nothing
             , totalCollateral = Nothing
-            , referenceInputs = Nothing
+            , referenceInputs = []
             }
         , witnessSet =
             { vkeywitness = Nothing
@@ -160,7 +172,7 @@ fee amount (Tx inner) =
 
 addFee : Int -> TransactionBody -> TransactionBody
 addFee amount body =
-    { body | fee = amount }
+    { body | fee = Just amount }
 
 
 scriptDataHash : Bytes -> Tx -> Tx
@@ -181,7 +193,7 @@ collateral newInput (Tx inner) =
 addCollateral : Input -> TransactionBody -> TransactionBody
 addCollateral newInput body =
     { body
-        | collateral = prependMaybeList newInput body.collateral
+        | collateral = newInput :: body.collateral
     }
 
 
@@ -193,7 +205,7 @@ requiredSigner signer (Tx inner) =
 addRequiredSigner : Bytes -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
-        | requiredSigners = prependMaybeList signer body.requiredSigners
+        | requiredSigners = signer :: body.requiredSigners
     }
 
 
@@ -234,7 +246,7 @@ referenceInput newInput (Tx inner) =
 addReferenceInput : Input -> TransactionBody -> TransactionBody
 addReferenceInput newInput body =
     { body
-        | referenceInputs = prependMaybeList newInput body.referenceInputs
+        | referenceInputs = newInput :: body.referenceInputs
     }
 
 
