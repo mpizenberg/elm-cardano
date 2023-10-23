@@ -13,8 +13,16 @@ jobs:
       - uses: actions/checkout@v3.5.1
       - uses: mpizenberg/elm-tooling-action@v1.5
         with:
-          cache-key: elm-home-${{ hashFiles('elm-tooling.json', 'elm.json') }}
-          cache-restore-key: elm-home
-      - run: elm make
+          cache-key: elm-home-tests${{ hashFiles('elm-tooling.json', 'elm.json') }}
+          cache-restore-key: elm-home-tests
       - run: elm-test-rs
+  
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.1
+      - uses: mpizenberg/elm-tooling-action@v1.5
+        with:
+          cache-key: elm-home-format${{ hashFiles('elm-tooling.json', 'elm.json') }}
+          cache-restore-key: elm-home-format
       - run: elm-format src/ tests/ --validate
