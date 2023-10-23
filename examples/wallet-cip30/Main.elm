@@ -4,6 +4,7 @@ import Browser
 import Bytes.Encode
 import Dict exposing (Dict)
 import ElmCardano.Cip30 as Cip30
+import ElmCardano.Transaction as Transaction
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
@@ -31,7 +32,8 @@ type Msg
     | ConnectButtonClicked { id : String, extensions : List Int }
     | GetExtensionsButtonClicked Cip30.Wallet
     | GetNetworkIdButtonClicked Cip30.Wallet
-    | GetUtxosButtonClicked Cip30.Wallet
+    | GetUtxosPaginateButtonClicked Cip30.Wallet
+    | GetUtxosAmountButtonClicked Cip30.Wallet
     | GetBalanceButtonClicked Cip30.Wallet
     | GetUsedAddressesButtonClicked Cip30.Wallet
     | GetUnusedAddressesButtonClicked Cip30.Wallet
@@ -157,11 +159,17 @@ update msg model =
         GetNetworkIdButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getNetworkId wallet)) )
 
-        GetUtxosButtonClicked wallet ->
+        GetUtxosPaginateButtonClicked wallet ->
             -- Gero does not paginate
             -- Flint does not paginate
             -- NuFi does not paginate
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
+
+        GetUtxosAmountButtonClicked wallet ->
+            -- Lace picks at random (fun!)
+            -- Gero does not handle the amount parameter
+            -- NuFi does not handle the amount parameter
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (Transaction.Coin 14000000), paginate = Nothing } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response
@@ -302,7 +310,8 @@ walletActions : Cip30.Wallet -> List (Html Msg)
 walletActions wallet =
     [ Html.button [ onClick <| GetExtensionsButtonClicked wallet ] [ text "getExtensions" ]
     , Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
-    , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
+    , Html.button [ onClick <| GetUtxosPaginateButtonClicked wallet ] [ text "getUtxos(paginate:2)" ]
+    , Html.button [ onClick <| GetUtxosAmountButtonClicked wallet ] [ text "getUtxos(amount:14ada)" ]
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]

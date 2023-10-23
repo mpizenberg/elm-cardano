@@ -22,7 +22,8 @@ module ElmCardano.Cip30 exposing
 import Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
 import Cbor.Decode
-import ElmCardano.Transaction as Transaction exposing (Transaction)
+import Cbor.Encode
+import ElmCardano.Transaction as Transaction
 import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
@@ -88,13 +89,20 @@ getNetworkId wallet =
     apiRequest wallet "getNetworkId" []
 
 
-getUtxos : Wallet -> { amount : Maybe TODO, paginate : Maybe Paginate } -> Request
+getUtxos : Wallet -> { amount : Maybe Transaction.Value, paginate : Maybe Paginate } -> Request
 getUtxos wallet { amount, paginate } =
     apiRequest wallet
         "getUtxos"
-        [ encodeMaybe encodeLimitAmount amount
+        [ encodeMaybe (\a -> Transaction.encodeValue a |> encodeCborHex) amount
         , encodeMaybe encodePaginate paginate
         ]
+
+
+encodeCborHex : Cbor.Encode.Encoder -> Value
+encodeCborHex cborEncoder =
+    Cbor.Encode.encode cborEncoder
+        |> Hex.Convert.toString
+        |> JEncode.string
 
 
 encodeMaybe : (a -> Value) -> Maybe a -> Value

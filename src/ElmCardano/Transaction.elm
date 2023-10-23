@@ -6,7 +6,7 @@ module ElmCardano.Transaction exposing
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, serialize
+    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, encodeValue, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
