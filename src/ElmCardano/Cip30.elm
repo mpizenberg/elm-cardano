@@ -197,7 +197,6 @@ encodeRequest request =
 
 type Response
     = AvailableWallets (List WalletDescriptor)
-    | EnablingError { id : String } ApiError
     | EnabledWallet Wallet
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
@@ -209,6 +208,7 @@ type Response
     | ChangeAddress { walletId : String, changeAddress : String }
     | RewardAddresses { walletId : String, rewardAddresses : List String }
     | SignedData { walletId : String, signedData : DataSignature }
+    | Error String
     | UnhandledResponseType String
 
 
@@ -222,10 +222,6 @@ type alias DataSignature =
     { signature : CborItem
     , key : CborItem
     }
-
-
-type ApiError
-    = ApiError String
 
 
 responseDecoder : Decoder Response
@@ -248,6 +244,10 @@ responseDecoder =
                                         |> JDecode.andThen (apiDecoder method)
                                 )
 
+                    "cip30-error" ->
+                        JDecode.field "error" JDecode.string
+                            |> JDecode.map Error
+
                     _ ->
                         JDecode.succeed (UnhandledResponseType responseType)
             )
@@ -263,7 +263,7 @@ discoverDecoder =
 descriptorDecoder : Decoder WalletDescriptor
 descriptorDecoder =
     JDecode.map6
-        -- Explicit constructor with names instead of using Cip30WalletDescriptor constructor
+        -- Explicit constructor to avoid messing with fields order
         (\id name icon apiVersion isEnabled supportedExtensions ->
             { id = id
             , name = name
@@ -283,7 +283,6 @@ descriptorDecoder =
 
 enableDecoder : Decoder Response
 enableDecoder =
-    -- TODO: Handle the potential errors
     JDecode.map EnabledWallet <|
         JDecode.map3
             -- Explicit constructor to avoid messing with fields order

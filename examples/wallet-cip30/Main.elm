@@ -52,12 +52,13 @@ type alias Model =
     , connectedWallets : Dict String Cip30.Wallet
     , rewardAddress : Maybe { walletId : String, address : String }
     , lastApiResponse : String
+    , lastError : String
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "" }
+    ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "", lastError = "" }
     , toWallet <| Cip30.encodeRequest Cip30.discoverWallets
     )
 
@@ -72,12 +73,9 @@ update msg model =
         WalletMsg value ->
             case JDecode.decodeValue Cip30.responseDecoder value of
                 Ok (Cip30.AvailableWallets wallets) ->
-                    ( { model | availableWallets = wallets }
+                    ( { model | availableWallets = wallets, lastError = "" }
                     , Cmd.none
                     )
-
-                Ok (Cip30.EnablingError _ _) ->
-                    Debug.todo "Handle enable() errors"
 
                 Ok (Cip30.EnabledWallet wallet) ->
                     ( addEnabledWallet wallet model
@@ -85,12 +83,18 @@ update msg model =
                     )
 
                 Ok (Cip30.Extensions { walletId, extensions }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", extensions: [" ++ String.join ", " (List.map String.fromInt extensions) ++ "]" }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", extensions: [" ++ String.join ", " (List.map String.fromInt extensions) ++ "]"
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
                 Ok (Cip30.NetworkId { walletId, networkId }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
@@ -105,7 +109,10 @@ update msg model =
                                     List.map Debug.toString utxosList
                                         |> String.join "\n"
                     in
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
@@ -120,27 +127,42 @@ update msg model =
                                     List.map Debug.toString utxos
                                         |> String.join "\n"
                     in
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
                 Ok (Cip30.WalletBalance { walletId, balance }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", balance:\n" ++ Debug.toString balance }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", balance:\n" ++ Debug.toString balance
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
                 Ok (Cip30.UsedAddresses { walletId, usedAddresses }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
                 Ok (Cip30.UnusedAddresses { walletId, unusedAddresses }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
                 Ok (Cip30.ChangeAddress { walletId, changeAddress }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
@@ -148,25 +170,27 @@ update msg model =
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
+                        , lastError = ""
                       }
                     , Cmd.none
                     )
 
                 Ok (Cip30.SignedData { walletId, signedData }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", signed data:\n" ++ Debug.toString signedData }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", signed data:\n" ++ Debug.toString signedData
+                        , lastError = ""
+                      }
                     , Cmd.none
                     )
 
-                Ok (Cip30.UnhandledResponseType _) ->
-                    Debug.todo "Handle unhandled response types"
+                Ok (Cip30.Error error) ->
+                    ( { model | lastError = error }, Cmd.none )
+
+                Ok (Cip30.UnhandledResponseType error) ->
+                    ( { model | lastError = error }, Cmd.none )
 
                 Err error ->
-                    let
-                        _ =
-                            JDecode.errorToString error
-                                |> Debug.log "Decoding error:"
-                    in
-                    ( model, Cmd.none )
+                    ( { model | lastError = JDecode.errorToString error }, Cmd.none )
 
         DiscoverButtonClicked ->
             ( model, toWallet <| Cip30.encodeRequest Cip30.discoverWallets )
@@ -262,6 +286,7 @@ addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
     , connectedWallets = Dict.insert id wallet connectedWallets
     , rewardAddress = rewardAddress
     , lastApiResponse = ""
+    , lastError = ""
     }
 
 
@@ -280,6 +305,8 @@ view model =
         , viewConnectedWallets model.connectedWallets
         , div [] [ text "Last API request response:" ]
         , Html.pre [] [ text model.lastApiResponse ]
+        , div [] [ text "Last error:" ]
+        , Html.pre [] [ text model.lastError ]
         ]
 
 
