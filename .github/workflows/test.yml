@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.1
+      - uses: mpizenberg/elm-tooling-action@v1.2
+      - run: elm make
+      - run: elm-test-rs
+      - run: elm-format src/ tests/ --validate
