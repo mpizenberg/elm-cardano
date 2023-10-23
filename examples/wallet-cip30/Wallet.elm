@@ -16,8 +16,10 @@ module Wallet exposing
     , getUnusedAddresses
     , getUsedAddresses
     , getUtxos
+    , signData
     )
 
+import Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Hex.Convert
@@ -125,11 +127,15 @@ getRewardAddresses wallet =
     cip30ApiRequest wallet "getRewardAddresses" []
 
 
+signData : Cip30Wallet -> { addr : String, payload : Bytes } -> Cip30Request
+signData wallet { addr, payload } =
+    cip30ApiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Hex.Convert.toString payload ]
+
+
 
 -- api.getCollateral(params: { amount: cbor\ })
 --
 -- api.signTx(tx: cbor\, partialSign: bool = false)
--- api.signData(addr: Address, payload: Bytes)
 -- api.submitTx(tx: cbor\)
 
 
@@ -193,7 +199,14 @@ type Cip30Response
     | UnusedAddresses { walletId : String, unusedAddresses : List String }
     | ChangeAddress { walletId : String, changeAddress : String }
     | RewardAddresses { walletId : String, rewardAddresses : List String }
+    | SignedData { walletId : String, signedData : DataSignature }
     | UnhandledResponseType String
+
+
+type alias DataSignature =
+    { signature : CborItem
+    , key : CborItem
+    }
 
 
 type ApiError
@@ -307,6 +320,10 @@ apiDecoder method walletId =
             JDecode.map (\r -> RewardAddresses { walletId = walletId, rewardAddresses = r })
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
+        "signData" ->
+            JDecode.map (\r -> SignedData { walletId = walletId, signedData = r })
+                (JDecode.field "response" <| dataSignatureDecoder)
+
         _ ->
             JDecode.succeed <| UnhandledResponseType ("Unknown API call: " ++ method)
 
@@ -314,6 +331,13 @@ apiDecoder method walletId =
 extensionDecoder : Decoder Int
 extensionDecoder =
     JDecode.field "cip" JDecode.int
+
+
+dataSignatureDecoder : Decoder DataSignature
+dataSignatureDecoder =
+    JDecode.map2 DataSignature
+        (JDecode.field "signature" <| hexCborDecoder Cbor.Decode.any)
+        (JDecode.field "key" <| hexCborDecoder Cbor.Decode.any)
 
 
 hexCborDecoder : Cbor.Decode.Decoder a -> Decoder a

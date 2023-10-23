@@ -1,6 +1,7 @@
 port module Main exposing (..)
 
 import Browser
+import Bytes.Encode
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
@@ -36,6 +37,7 @@ type Msg
     | GetUnusedAddressesButtonClicked Wallet.Cip30Wallet
     | GetChangeAddressButtonClicked Wallet.Cip30Wallet
     | GetRewardAddressesButtonClicked Wallet.Cip30Wallet
+    | SignDataButtonClicked Wallet.Cip30Wallet
 
 
 
@@ -45,13 +47,14 @@ type Msg
 type alias Model =
     { availableWallets : List Wallet.Cip30WalletDescriptor
     , connectedWallets : Dict String Wallet.Cip30Wallet
+    , rewardAddress : Maybe { walletId : String, address : String }
     , lastApiResponse : String
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { availableWallets = [], connectedWallets = Dict.empty, lastApiResponse = "" }
+    ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "" }
     , toWallet <| Wallet.encodeCip30Request Wallet.discoverCip30Wallets
     )
 
@@ -118,7 +121,15 @@ update msg model =
                     )
 
                 Ok (Wallet.RewardAddresses { walletId, rewardAddresses }) ->
-                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses }
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
+                        , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
+                      }
+                    , Cmd.none
+                    )
+
+                Ok (Wallet.SignedData { walletId, signedData }) ->
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", signed data:\n" ++ Debug.toString signedData }
                     , Cmd.none
                     )
 
@@ -173,9 +184,29 @@ update msg model =
         GetRewardAddressesButtonClicked wallet ->
             ( model, toWallet (Wallet.encodeCip30Request (Wallet.getRewardAddresses wallet)) )
 
+        SignDataButtonClicked wallet ->
+            -- Nami refuses to sign with stake key? It says my password is wrong.
+            case model.rewardAddress of
+                Nothing ->
+                    ( { model | lastApiResponse = "Click on getRewardAddresses for this wallet first." }, Cmd.none )
+
+                Just { walletId, address } ->
+                    if walletId /= .id (Wallet.cip30WalletDescriptor wallet) then
+                        ( { model | lastApiResponse = "Click on getRewardAddresses for this wallet first." }, Cmd.none )
+
+                    else
+                        ( model
+                        , toWallet <|
+                            Wallet.encodeCip30Request <|
+                                Wallet.signData wallet
+                                    { addr = address
+                                    , payload = Bytes.Encode.encode (Bytes.Encode.unsignedInt8 42)
+                                    }
+                        )
+
 
 addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
-addEnabledWallet wallet { availableWallets, connectedWallets } =
+addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
     -- Modify the available wallets with the potentially new "enabled" status
     let
         { id, isEnabled } =
@@ -195,6 +226,7 @@ addEnabledWallet wallet { availableWallets, connectedWallets } =
     in
     { availableWallets = updatedAvailableWallets
     , connectedWallets = Dict.insert id wallet connectedWallets
+    , rewardAddress = rewardAddress
     , lastApiResponse = ""
     }
 
@@ -276,4 +308,5 @@ walletActions wallet =
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
     , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
     , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
+    , Html.button [ onClick <| SignDataButtonClicked wallet ] [ text "signData" ]
     ]
