@@ -482,13 +482,11 @@ fromCbor bytes =
 
 encodeTransaction : Transaction -> E.Encoder
 encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
-    E.sequence
-        [ E.beginList
-        , encodeTransactionBody body
+    E.list identity
+        [ encodeTransactionBody body
         , encodeWitnessSet witnessSet
         , E.bool isValid
         , encodeNullable encodeAuxiliaryData auxiliaryData
-        , E.break
         ]
 
 
@@ -546,11 +544,9 @@ encodeVKeyWitnesses v =
 
 encodeVKeyWitness : VKeyWitness -> E.Encoder
 encodeVKeyWitness v =
-    E.sequence
-        [ E.beginList
-        , E.bytes v.vkey
-        , E.bytes v.signature
-        , E.break
+    E.list E.bytes
+        [ v.vkey
+        , v.signature
         ]
 
 
@@ -561,11 +557,9 @@ encodeBootstrapWitnesses b =
 
 encodeBootstrapWitness : BootstrapWitness -> E.Encoder
 encodeBootstrapWitness b =
-    E.sequence
-        [ E.beginList
-        , E.bytes b.publicKey
-        , E.bytes b.signature
-        , E.break
+    E.list E.bytes
+        [ b.publicKey
+        , b.signature
         ]
 
 
@@ -581,11 +575,9 @@ encodeInputs inputs =
 
 encodeInput : Input -> E.Encoder
 encodeInput { transactionId, outputIndex } =
-    E.sequence
-        [ E.beginList
-        , E.bytes transactionId
+    E.list identity
+        [ E.bytes transactionId
         , E.int outputIndex
-        , E.break
         ]
 
 
@@ -598,12 +590,10 @@ encodeOutput : Output -> E.Encoder
 encodeOutput output =
     case output of
         Legacy { address, amount, datumHash } ->
-            E.sequence
-                [ E.beginList
-                , E.bytes address
+            E.list identity
+                [ E.bytes address
                 , encodeValue amount
                 , encodeOptional E.bytes datumHash
-                , E.break
                 ]
 
         PostAlonzo fields ->
@@ -621,23 +611,19 @@ encodeOutput output =
 
 encodeDatumOption : DatumOption -> E.Encoder
 encodeDatumOption datumOption =
-    E.sequence <|
+    E.list identity <|
         case datumOption of
             DatumHash hash ->
-                [ E.beginList
-                , E.int 0
+                [ E.int 0
                 , E.bytes hash
-                , E.break
                 ]
 
             Datum datum ->
-                [ E.beginList
-                , E.int 1
+                [ E.int 1
                 , datum
                     |> encodeData
                     |> E.encode
                     |> E.tagged Cbor E.bytes
-                , E.break
                 ]
 
 
@@ -653,13 +639,11 @@ encodeData data =
 
 encodeRedeemer : Redeemer -> E.Encoder
 encodeRedeemer { tag, index, data, exUnits } =
-    E.sequence
-        [ E.beginList
-        , encodeRedeemerTag tag
+    E.list identity
+        [ encodeRedeemerTag tag
         , E.int index
         , encodeData data
         , encodeExUnits exUnits
-        , E.break
         ]
 
 
@@ -682,11 +666,9 @@ encodeRedeemerTag redeemerTag =
 
 encodeExUnits : ExUnits -> E.Encoder
 encodeExUnits exUnits =
-    E.sequence
-        [ E.beginList
-        , E.int exUnits.mem
-        , E.int exUnits.steps
-        , E.break
+    E.list E.int
+        [ exUnits.mem
+        , exUnits.steps
         ]
 
 

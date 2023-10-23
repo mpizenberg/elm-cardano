@@ -14,6 +14,7 @@ module ElmCardano.Transaction.Builder exposing
     , referenceInput
     , requiredSigner
     , scriptDataHash
+    , toString
     , totalCollateral
     )
 
@@ -60,6 +61,11 @@ new =
         , isValid = True
         , auxiliaryData = Nothing
         }
+
+
+toString : Tx -> String
+toString (Tx inner) =
+    Debug.toString inner
 
 
 updateBody : (TransactionBody -> TransactionBody) -> Transaction -> Tx
@@ -192,15 +198,22 @@ addRequiredSigner signer body =
 
 
 collateralReturn : Bytes -> Coin -> Tx -> Tx
-collateralReturn address amount tx =
-    tx
-        |> output
-            (Legacy
-                { address = address
-                , amount = Coin amount
-                , datumHash = Nothing
-                }
+collateralReturn address amount (Tx inner) =
+    inner
+        |> updateBody
+            (addCollateralReturn
+                (Legacy
+                    { address = address
+                    , amount = Coin amount
+                    , datumHash = Nothing
+                    }
+                )
             )
+
+
+addCollateralReturn : Output -> TransactionBody -> TransactionBody
+addCollateralReturn return body =
+    { body | collateralReturn = Just return }
 
 
 totalCollateral : Int -> Tx -> Tx
@@ -221,7 +234,7 @@ referenceInput newInput (Tx inner) =
 addReferenceInput : Input -> TransactionBody -> TransactionBody
 addReferenceInput newInput body =
     { body
-        | collateral = prependMaybeList newInput body.referenceInputs
+        | referenceInputs = prependMaybeList newInput body.referenceInputs
     }
 
 
