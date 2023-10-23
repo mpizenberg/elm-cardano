@@ -30,10 +30,6 @@ import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
 
 
-type TODO
-    = TODO
-
-
 {-| The type returned when asking for available wallets.
 -}
 type alias WalletDescriptor =
@@ -205,7 +201,6 @@ type Response
     | EnabledWallet Wallet
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
-      -- TODO: change utxos into Maybe (List Utxo)
     | WalletUtxos { walletId : String, utxos : Maybe (List Utxo) }
     | Collateral { walletId : String, collateral : Maybe (List Utxo) }
     | WalletBalance { walletId : String, balance : CborItem }
