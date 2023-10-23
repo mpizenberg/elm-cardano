@@ -1,7 +1,7 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
-    , Value(..), PolicyId, adaAssetName
+    , Value(..), PolicyId, AssetName, adaAssetName
     , Address, Credential(..), StakeCredential(..)
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
@@ -15,7 +15,7 @@ module ElmCardano.Transaction exposing
 
 @docs TransactionBody, WitnessSet
 
-@docs Value, MintedValue, PolicyId, adaAssetName
+@docs Value, MintedValue, PolicyId, AssetName, adaAssetName
 
 @docs Address, Credential, StakeCredential
 
@@ -28,15 +28,16 @@ module ElmCardano.Transaction exposing
 -}
 
 import Bytes exposing (Bytes)
+import BytesMap exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
+import Dict exposing (Dict)
 import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
-import ElmCardano.KeyValuePair as KeyValuePair exposing (KeyValuePair)
 
 
 {-| A Cardano transaction.
@@ -57,7 +58,7 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : KeyValuePair RewardAccount Coin -- 5
+    , withdrawals : BytesMap Coin -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe Blake2b_256 -- 7
     , validityIntervalStart : Maybe Int -- 8
@@ -94,11 +95,11 @@ type alias AuxiliaryData =
 
 
 type alias Multiasset a =
-    KeyValuePair PolicyId (KeyValuePair AssetName a)
+    BytesMap (BytesMap a)
 
 
 type alias Update =
-    { proposedProtocolParameterUpdates : KeyValuePair GenesisHash ProtocolParamUpdate
+    { proposedProtocolParameterUpdates : BytesMap ProtocolParamUpdate
     , epoch : Epoch
     }
 
@@ -193,16 +194,12 @@ type alias RationalNumber =
     }
 
 
-type alias GenesisHash =
-    Bytes
-
-
 type alias Epoch =
     Int
 
 
 type alias Metadata =
-    KeyValuePair MetadatumLabel Metadatum
+    Dict MetadatumLabel Metadatum
 
 
 type alias MetadatumLabel =
@@ -214,11 +211,7 @@ type Metadatum
     | Bytes Bytes
     | String String
     | List (List Metadatum)
-    | Map (KeyValuePair Metadatum Metadatum)
-
-
-type alias RewardAccount =
-    Bytes
+    | Map (List ( Metadatum, Metadatum ))
 
 
 type alias PlutusScript =
@@ -484,11 +477,11 @@ encodeTransactionBody =
             >> E.optionalField 2 E.int .fee
             >> E.optionalField 3 E.int .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 KeyValuePair.isEmpty (\_ -> todo "KeyValuePair.toCbor") .withdrawals
+            >> E.nonEmptyField 5 BytesMap.isEmpty (\_ -> todo "BytesMap.toCbor") .withdrawals
             >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
             >> E.optionalField 7 E.bytes .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 KeyValuePair.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
+            >> E.nonEmptyField 9 BytesMap.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
             >> E.optionalField 11 E.bytes .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners

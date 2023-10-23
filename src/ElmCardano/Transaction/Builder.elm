@@ -19,9 +19,9 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes exposing (Bytes)
+import BytesMap
 import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
-import ElmCardano.KeyValuePair exposing (KeyValuePair(..))
 import ElmCardano.Transaction
     exposing
         ( DatumOption(..)
@@ -49,11 +49,11 @@ new =
             , fee = Nothing
             , ttl = Nothing
             , certificates = []
-            , withdrawals = Def []
+            , withdrawals = BytesMap.empty
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
-            , mint = Def []
+            , mint = BytesMap.empty
             , scriptDataHash = Nothing
             , collateral = []
             , requiredSigners = []
