@@ -6,7 +6,7 @@ module ElmCardano.Transaction exposing
     , Input, OutputReference, Output(..)
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), fromCbor, toCbor
+    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -209,10 +209,10 @@ type alias MetadatumLabel =
 
 
 type Metadatum
-    = MInt Int
-    | MBytes Bytes
-    | Text String
-    | MList (List Metadatum)
+    = Int Int
+    | Bytes Bytes
+    | String String
+    | List (List Metadatum)
     | Map (KeyValuePair Metadatum Metadatum)
 
 
@@ -254,9 +254,7 @@ type alias VKeyWitness =
 <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
 -}
 type NativeScript
-    = ScriptPubkey
-        -- TODO: AddrKeyHash
-        Bytes
+    = ScriptPubkey Blake2b_224
     | ScriptAll (List NativeScript)
     | ScriptAny (List NativeScript)
     | ScriptNofK Int (List NativeScript)
@@ -398,7 +396,7 @@ type Output
     = Legacy
         { address : Bytes
         , amount : Value
-        , datumHash : Maybe Bytes
+        , datumHash : Maybe Blake2b_256
         }
     | PostAlonzo
         { address : Bytes
@@ -456,24 +454,24 @@ type Certificate
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
 
-toCbor : Transaction -> Bytes
-toCbor tx =
-    tx |> encodeTransaction |> E.encode
+serialize : Transaction -> Bytes
+serialize =
+    encodeTransaction >> E.encode
 
 
-fromCbor : Bytes -> Maybe Transaction
-fromCbor bytes =
-    D.decode decodeTransaction bytes
+deserialize : Bytes -> Maybe Transaction
+deserialize =
+    D.decode decodeTransaction
 
 
 encodeTransaction : Transaction -> E.Encoder
-encodeTransaction { body, witnessSet, isValid, auxiliaryData } =
-    E.list identity
-        [ encodeTransactionBody body
-        , encodeWitnessSet witnessSet
-        , E.bool isValid
-        , encodeNullable encodeAuxiliaryData auxiliaryData
-        ]
+encodeTransaction =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeTransactionBody .body
+            >> E.elem encodeWitnessSet .witnessSet
+            >> E.elem E.bool .isValid
+            >> E.elem (E.maybe encodeAuxiliaryData) .auxiliaryData
 
 
 encodeTransactionBody : TransactionBody -> E.Encoder
@@ -529,11 +527,11 @@ encodeVKeyWitnesses v =
 
 
 encodeVKeyWitness : VKeyWitness -> E.Encoder
-encodeVKeyWitness v =
-    E.list E.bytes
-        [ v.vkey
-        , v.signature
-        ]
+encodeVKeyWitness =
+    E.tuple <|
+        E.elems
+            >> E.elem E.bytes .vkey
+            >> E.elem E.bytes .signature
 
 
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
@@ -542,11 +540,11 @@ encodeBootstrapWitnesses b =
 
 
 encodeBootstrapWitness : BootstrapWitness -> E.Encoder
-encodeBootstrapWitness b =
-    E.list E.bytes
-        [ b.publicKey
-        , b.signature
-        ]
+encodeBootstrapWitness =
+    E.tuple <|
+        E.elems
+            >> E.elem E.bytes .publicKey
+            >> E.elem E.bytes .signature
 
 
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
@@ -560,11 +558,11 @@ encodeInputs inputs =
 
 
 encodeInput : Input -> E.Encoder
-encodeInput { transactionId, outputIndex } =
-    E.list identity
-        [ E.bytes transactionId
-        , E.int outputIndex
-        ]
+encodeInput =
+    E.tuple <|
+        E.elems
+            >> E.elem E.bytes .transactionId
+            >> E.elem E.int .outputIndex
 
 
 encodeOutputs : List Output -> E.Encoder
@@ -575,34 +573,24 @@ encodeOutputs outputs =
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
     case output of
-        Legacy { address, amount, datumHash } ->
-            let
-                optionalDatumHash =
-                    case datumHash of
-                        Just h ->
-                            [ E.bytes h ]
-
-                        Nothing ->
-                            []
-            in
-            E.list identity
-                ([ E.bytes address
-                 , encodeValue amount
-                 ]
-                    ++ optionalDatumHash
+        Legacy fields ->
+            E.tuple
+                (E.elems
+                    >> E.elem E.bytes .address
+                    >> E.elem encodeValue .amount
+                    >> E.optionalElem E.bytes fields.datumHash
                 )
+                fields
 
         PostAlonzo fields ->
-            let
-                encodePostAlonzo =
-                    E.record E.int <|
-                        E.fields
-                            >> E.field 0 E.bytes .address
-                            >> E.field 1 encodeValue .value
-                            >> E.optionalField 2 encodeDatumOption .datumOption
-                            >> E.optionalField 3 (\_ -> todo "") .referenceScript
-            in
-            encodePostAlonzo fields
+            E.record E.int
+                (E.fields
+                    >> E.field 0 E.bytes .address
+                    >> E.field 1 encodeValue .value
+                    >> E.optionalField 2 encodeDatumOption .datumOption
+                    >> E.optionalField 3 (\_ -> todo "encodeReferenceScript") .referenceScript
+                )
+                fields
 
 
 encodeDatumOption : DatumOption -> E.Encoder
@@ -652,13 +640,13 @@ encodeList encoder =
 
 
 encodeRedeemer : Redeemer -> E.Encoder
-encodeRedeemer { tag, index, data, exUnits } =
-    E.list identity
-        [ encodeRedeemerTag tag
-        , E.int index
-        , encodeData data
-        , encodeExUnits exUnits
-        ]
+encodeRedeemer =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeRedeemerTag .tag
+            >> E.elem E.int .index
+            >> E.elem encodeData .data
+            >> E.elem encodeExUnits .exUnits
 
 
 encodeRedeemerTag : RedeemerTag -> E.Encoder
@@ -679,16 +667,16 @@ encodeRedeemerTag redeemerTag =
 
 
 encodeExUnits : ExUnits -> E.Encoder
-encodeExUnits exUnits =
-    E.list E.int
-        [ exUnits.mem
-        , exUnits.steps
-        ]
+encodeExUnits =
+    E.tuple <|
+        E.elems
+            >> E.elem E.int .mem
+            >> E.elem E.int .steps
 
 
 encodeCertificates : List Certificate -> E.Encoder
-encodeCertificates certificates =
-    E.list encodeCertificate certificates
+encodeCertificates =
+    E.list encodeCertificate
 
 
 encodeCertificate : Certificate -> E.Encoder
@@ -697,8 +685,8 @@ encodeCertificate _ =
 
 
 encodeRequiredSigners : List Bytes -> E.Encoder
-encodeRequiredSigners requiredSigners =
-    E.list E.bytes requiredSigners
+encodeRequiredSigners =
+    E.list E.bytes
 
 
 encodeValue : Value -> E.Encoder
@@ -714,20 +702,6 @@ encodeValue value =
                 , todo "encode multiasset"
                 , E.break
                 ]
-
-
-{-| Encode things shown in the cddl as `x // null`.
--}
-encodeNullable : (a -> E.Encoder) -> Maybe a -> E.Encoder
-encodeNullable apply value =
-    encodeMaybe apply E.null value
-
-
-encodeMaybe : (a -> E.Encoder) -> E.Encoder -> Maybe a -> E.Encoder
-encodeMaybe apply default value =
-    value
-        |> Maybe.map apply
-        |> Maybe.withDefault default
 
 
 decodeTransaction : D.Decoder Transaction

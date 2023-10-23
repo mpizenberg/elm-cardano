@@ -31,7 +31,7 @@ import ElmCardano.Transaction
         , TransactionBody
         , Value(..)
         , WitnessSet
-        , toCbor
+        , serialize
         )
 
 
@@ -252,7 +252,7 @@ addReferenceInput newInput body =
 
 complete : Tx -> Bytes
 complete (Tx inner) =
-    inner |> toCbor
+    serialize inner
 
 
 prependMaybeList : a -> Maybe (List a) -> Maybe (List a)
