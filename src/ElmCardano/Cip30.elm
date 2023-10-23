@@ -157,11 +157,6 @@ encodePaginate { page, limit } =
     JEncode.object [ ( "page", JEncode.int page ), ( "limit", JEncode.int limit ) ]
 
 
-encodeLimitAmount : TODO -> Value
-encodeLimitAmount _ =
-    Debug.todo "encodeLimitAmount"
-
-
 apiRequest : Wallet -> String -> List Value -> Request
 apiRequest (Wallet { descriptor, api }) method args =
     ApiRequest
