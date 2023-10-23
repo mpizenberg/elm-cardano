@@ -2,12 +2,12 @@ port module Main exposing (..)
 
 import Browser
 import Bytes.Encode
+import Cip30
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
 import Json.Decode as JDecode exposing (Value, value)
-import Wallet
 
 
 main =
@@ -29,15 +29,15 @@ type Msg
     = WalletMsg Value
     | DiscoverButtonClicked
     | ConnectButtonClicked { id : String, extensions : List Int }
-    | GetExtensionsButtonClicked Wallet.Cip30Wallet
-    | GetNetworkIdButtonClicked Wallet.Cip30Wallet
-    | GetUtxosButtonClicked Wallet.Cip30Wallet
-    | GetBalanceButtonClicked Wallet.Cip30Wallet
-    | GetUsedAddressesButtonClicked Wallet.Cip30Wallet
-    | GetUnusedAddressesButtonClicked Wallet.Cip30Wallet
-    | GetChangeAddressButtonClicked Wallet.Cip30Wallet
-    | GetRewardAddressesButtonClicked Wallet.Cip30Wallet
-    | SignDataButtonClicked Wallet.Cip30Wallet
+    | GetExtensionsButtonClicked Cip30.Wallet
+    | GetNetworkIdButtonClicked Cip30.Wallet
+    | GetUtxosButtonClicked Cip30.Wallet
+    | GetBalanceButtonClicked Cip30.Wallet
+    | GetUsedAddressesButtonClicked Cip30.Wallet
+    | GetUnusedAddressesButtonClicked Cip30.Wallet
+    | GetChangeAddressButtonClicked Cip30.Wallet
+    | GetRewardAddressesButtonClicked Cip30.Wallet
+    | SignDataButtonClicked Cip30.Wallet
 
 
 
@@ -45,8 +45,8 @@ type Msg
 
 
 type alias Model =
-    { availableWallets : List Wallet.Cip30WalletDescriptor
-    , connectedWallets : Dict String Wallet.Cip30Wallet
+    { availableWallets : List Cip30.WalletDescriptor
+    , connectedWallets : Dict String Cip30.Wallet
     , rewardAddress : Maybe { walletId : String, address : String }
     , lastApiResponse : String
     }
@@ -55,7 +55,7 @@ type alias Model =
 init : () -> ( Model, Cmd Msg )
 init _ =
     ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "" }
-    , toWallet <| Wallet.encodeCip30Request Wallet.discoverCip30Wallets
+    , toWallet <| Cip30.encodeRequest Cip30.discoverWallets
     )
 
 
@@ -67,31 +67,31 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         WalletMsg value ->
-            case JDecode.decodeValue Wallet.cip30ResponseDecoder value of
-                Ok (Wallet.AvailableCip30Wallets wallets) ->
+            case JDecode.decodeValue Cip30.responseDecoder value of
+                Ok (Cip30.AvailableWallets wallets) ->
                     ( { model | availableWallets = wallets }
                     , Cmd.none
                     )
 
-                Ok (Wallet.EnablingError _ _) ->
+                Ok (Cip30.EnablingError _ _) ->
                     Debug.todo "Handle enable() errors"
 
-                Ok (Wallet.EnabledCip30Wallet wallet) ->
+                Ok (Cip30.EnabledWallet wallet) ->
                     ( addEnabledWallet wallet model
                     , Cmd.none
                     )
 
-                Ok (Wallet.Extensions { walletId, extensions }) ->
+                Ok (Cip30.Extensions { walletId, extensions }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", extensions: [" ++ String.join ", " (List.map String.fromInt extensions) ++ "]" }
                     , Cmd.none
                     )
 
-                Ok (Wallet.NetworkId { walletId, networkId }) ->
+                Ok (Cip30.NetworkId { walletId, networkId }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId }
                     , Cmd.none
                     )
 
-                Ok (Wallet.WalletUtxos { walletId, utxos }) ->
+                Ok (Cip30.WalletUtxos { walletId, utxos }) ->
                     let
                         utxosStr =
                             String.join "\n" utxos
@@ -100,27 +100,27 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Wallet.WalletBalance { walletId, balance }) ->
+                Ok (Cip30.WalletBalance { walletId, balance }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", balance:\n" ++ Debug.toString balance }
                     , Cmd.none
                     )
 
-                Ok (Wallet.UsedAddresses { walletId, usedAddresses }) ->
+                Ok (Cip30.UsedAddresses { walletId, usedAddresses }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses }
                     , Cmd.none
                     )
 
-                Ok (Wallet.UnusedAddresses { walletId, unusedAddresses }) ->
+                Ok (Cip30.UnusedAddresses { walletId, unusedAddresses }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses }
                     , Cmd.none
                     )
 
-                Ok (Wallet.ChangeAddress { walletId, changeAddress }) ->
+                Ok (Cip30.ChangeAddress { walletId, changeAddress }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress }
                     , Cmd.none
                     )
 
-                Ok (Wallet.RewardAddresses { walletId, rewardAddresses }) ->
+                Ok (Cip30.RewardAddresses { walletId, rewardAddresses }) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
@@ -128,12 +128,12 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Wallet.SignedData { walletId, signedData }) ->
+                Ok (Cip30.SignedData { walletId, signedData }) ->
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", signed data:\n" ++ Debug.toString signedData }
                     , Cmd.none
                     )
 
-                Ok (Wallet.UnhandledResponseType _) ->
+                Ok (Cip30.UnhandledResponseType _) ->
                     Debug.todo "Handle unhandled response types"
 
                 Err error ->
@@ -145,29 +145,29 @@ update msg model =
                     ( model, Cmd.none )
 
         DiscoverButtonClicked ->
-            ( model, toWallet <| Wallet.encodeCip30Request Wallet.discoverCip30Wallets )
+            ( model, toWallet <| Cip30.encodeRequest Cip30.discoverWallets )
 
         ConnectButtonClicked { id, extensions } ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.enableCip30Wallet { id = id, extensions = extensions })) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.enableWallet { id = id, extensions = extensions })) )
 
         GetExtensionsButtonClicked wallet ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getExtensions wallet)) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getExtensions wallet)) )
 
         GetNetworkIdButtonClicked wallet ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getNetworkId wallet)) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getNetworkId wallet)) )
 
         GetUtxosButtonClicked wallet ->
             -- Gero does not paginate
             -- Flint does not paginate
             -- NuFi does not paginate
-            ( model, toWallet <| Wallet.encodeCip30Request <| Wallet.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
         GetBalanceButtonClicked wallet ->
-            -- Eternl has a weird response
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getBalance wallet)) )
+            -- Eternl has sometimes? a weird response
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getBalance wallet)) )
 
         GetUsedAddressesButtonClicked wallet ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUsedAddresses wallet { paginate = Nothing })) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getUsedAddresses wallet { paginate = Nothing })) )
 
         GetUnusedAddressesButtonClicked wallet ->
             -- Lace does not return any unused address
@@ -176,43 +176,42 @@ update msg model =
             -- Eternl returns the same
             -- Eternl and Typhon do not return the same addresses while being on the same wallet?
             -- Nami returns no unused address
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getUnusedAddresses wallet)) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getUnusedAddresses wallet)) )
 
         GetChangeAddressButtonClicked wallet ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getChangeAddress wallet)) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getChangeAddress wallet)) )
 
         GetRewardAddressesButtonClicked wallet ->
-            ( model, toWallet (Wallet.encodeCip30Request (Wallet.getRewardAddresses wallet)) )
+            ( model, toWallet (Cip30.encodeRequest (Cip30.getRewardAddresses wallet)) )
 
         SignDataButtonClicked wallet ->
-            -- Nami refuses to sign with stake key? It says my password is wrong.
             case model.rewardAddress of
                 Nothing ->
                     ( { model | lastApiResponse = "Click on getRewardAddresses for this wallet first." }, Cmd.none )
 
                 Just { walletId, address } ->
-                    if walletId /= .id (Wallet.cip30WalletDescriptor wallet) then
+                    if walletId /= .id (Cip30.walletDescriptor wallet) then
                         ( { model | lastApiResponse = "Click on getRewardAddresses for this wallet first." }, Cmd.none )
 
                     else
                         ( model
                         , toWallet <|
-                            Wallet.encodeCip30Request <|
-                                Wallet.signData wallet
+                            Cip30.encodeRequest <|
+                                Cip30.signData wallet
                                     { addr = address
                                     , payload = Bytes.Encode.encode (Bytes.Encode.unsignedInt8 42)
                                     }
                         )
 
 
-addEnabledWallet : Wallet.Cip30Wallet -> Model -> Model
+addEnabledWallet : Cip30.Wallet -> Model -> Model
 addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
     -- Modify the available wallets with the potentially new "enabled" status
     let
         { id, isEnabled } =
-            Wallet.cip30WalletDescriptor wallet
+            Cip30.walletDescriptor wallet
 
-        updatedAvailableWallets : List Wallet.Cip30WalletDescriptor
+        updatedAvailableWallets : List Cip30.WalletDescriptor
         updatedAvailableWallets =
             availableWallets
                 |> List.map
@@ -249,10 +248,10 @@ view model =
         ]
 
 
-viewAvailableWallets : List Wallet.Cip30WalletDescriptor -> Html Msg
+viewAvailableWallets : List Cip30.WalletDescriptor -> Html Msg
 viewAvailableWallets wallets =
     let
-        walletDescription : Wallet.Cip30WalletDescriptor -> String
+        walletDescription : Cip30.WalletDescriptor -> String
         walletDescription w =
             "id: "
                 ++ w.id
@@ -265,11 +264,11 @@ viewAvailableWallets wallets =
                 ++ ", supportedExtensions: "
                 ++ Debug.toString w.supportedExtensions
 
-        walletIcon : Wallet.Cip30WalletDescriptor -> Html Msg
+        walletIcon : Cip30.WalletDescriptor -> Html Msg
         walletIcon { icon } =
             Html.img [ src icon, height 32 ] []
 
-        enableButton : Wallet.Cip30WalletDescriptor -> Html Msg
+        enableButton : Cip30.WalletDescriptor -> Html Msg
         enableButton { id, supportedExtensions } =
             Html.button [ onClick (ConnectButtonClicked { id = id, extensions = supportedExtensions }) ] [ text "connect" ]
     in
@@ -278,27 +277,27 @@ viewAvailableWallets wallets =
         |> div []
 
 
-viewConnectedWallets : Dict String Wallet.Cip30Wallet -> Html Msg
+viewConnectedWallets : Dict String Cip30.Wallet -> Html Msg
 viewConnectedWallets wallets =
     let
-        walletDescription : Wallet.Cip30WalletDescriptor -> String
+        walletDescription : Cip30.WalletDescriptor -> String
         walletDescription w =
             "id: "
                 ++ w.id
                 ++ ", name: "
                 ++ w.name
 
-        walletIcon : Wallet.Cip30WalletDescriptor -> Html Msg
+        walletIcon : Cip30.WalletDescriptor -> Html Msg
         walletIcon { icon } =
             Html.img [ src icon, height 32 ] []
     in
     Dict.values wallets
-        |> List.map (\w -> ( Wallet.cip30WalletDescriptor w, w ))
+        |> List.map (\w -> ( Cip30.walletDescriptor w, w ))
         |> List.map (\( d, w ) -> div [] (walletIcon d :: text (walletDescription d) :: walletActions w))
         |> div []
 
 
-walletActions : Wallet.Cip30Wallet -> List (Html Msg)
+walletActions : Cip30.Wallet -> List (Html Msg)
 walletActions wallet =
     [ Html.button [ onClick <| GetExtensionsButtonClicked wallet ] [ text "getExtensions" ]
     , Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]

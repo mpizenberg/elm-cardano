@@ -1,13 +1,11 @@
-module Wallet exposing
-    ( Cip30Request
-    , Cip30Response(..)
-    , Cip30Wallet
-    , Cip30WalletDescriptor
-    , cip30ResponseDecoder
-    , cip30WalletDescriptor
-    , discoverCip30Wallets
-    , enableCip30Wallet
-    , encodeCip30Request
+module Cip30 exposing
+    ( Request
+    , Response(..)
+    , Wallet
+    , WalletDescriptor
+    , discoverWallets
+    , enableWallet
+    , encodeRequest
     , getBalance
     , getChangeAddress
     , getExtensions
@@ -16,7 +14,9 @@ module Wallet exposing
     , getUnusedAddresses
     , getUsedAddresses
     , getUtxos
+    , responseDecoder
     , signData
+    , walletDescriptor
     )
 
 import Bytes exposing (Bytes)
@@ -33,7 +33,7 @@ type TODO
 
 {-| The type returned when asking for available wallets.
 -}
-type alias Cip30WalletDescriptor =
+type alias WalletDescriptor =
     { id : String
     , name : String
     , icon : String
@@ -43,23 +43,23 @@ type alias Cip30WalletDescriptor =
     }
 
 
-type Cip30Wallet
-    = Cip30Wallet
-        { descriptor : Cip30WalletDescriptor
+type Wallet
+    = Wallet
+        { descriptor : WalletDescriptor
         , api : Value
         , walletHandle : Value
         }
 
 
-cip30WalletDescriptor : Cip30Wallet -> Cip30WalletDescriptor
-cip30WalletDescriptor (Cip30Wallet { descriptor }) =
+walletDescriptor : Wallet -> WalletDescriptor
+walletDescriptor (Wallet { descriptor }) =
     descriptor
 
 
-type Cip30Request
-    = DiscoverCip30Wallets
-    | Cip30Enable { id : String, extensions : List Int }
-    | Cip30ApiRequest
+type Request
+    = DiscoverWallets
+    | Enable { id : String, extensions : List Int }
+    | ApiRequest
         { id : String
         , api : Value
         , method : String
@@ -67,29 +67,29 @@ type Cip30Request
         }
 
 
-discoverCip30Wallets : Cip30Request
-discoverCip30Wallets =
-    DiscoverCip30Wallets
+discoverWallets : Request
+discoverWallets =
+    DiscoverWallets
 
 
-enableCip30Wallet : { id : String, extensions : List Int } -> Cip30Request
-enableCip30Wallet idAndExtensions =
-    Cip30Enable idAndExtensions
+enableWallet : { id : String, extensions : List Int } -> Request
+enableWallet idAndExtensions =
+    Enable idAndExtensions
 
 
-getExtensions : Cip30Wallet -> Cip30Request
+getExtensions : Wallet -> Request
 getExtensions wallet =
-    cip30ApiRequest wallet "getExtensions" []
+    apiRequest wallet "getExtensions" []
 
 
-getNetworkId : Cip30Wallet -> Cip30Request
+getNetworkId : Wallet -> Request
 getNetworkId wallet =
-    cip30ApiRequest wallet "getNetworkId" []
+    apiRequest wallet "getNetworkId" []
 
 
-getUtxos : Cip30Wallet -> { amount : Maybe TODO, paginate : Maybe Paginate } -> Cip30Request
+getUtxos : Wallet -> { amount : Maybe TODO, paginate : Maybe Paginate } -> Request
 getUtxos wallet { amount, paginate } =
-    cip30ApiRequest wallet
+    apiRequest wallet
         "getUtxos"
         [ encodeMaybe encodeLimitAmount amount
         , encodeMaybe encodePaginate paginate
@@ -102,34 +102,34 @@ encodeMaybe encode maybe =
         |> Maybe.withDefault JEncode.null
 
 
-getBalance : Cip30Wallet -> Cip30Request
+getBalance : Wallet -> Request
 getBalance wallet =
-    cip30ApiRequest wallet "getBalance" []
+    apiRequest wallet "getBalance" []
 
 
-getUsedAddresses : Cip30Wallet -> { paginate : Maybe Paginate } -> Cip30Request
+getUsedAddresses : Wallet -> { paginate : Maybe Paginate } -> Request
 getUsedAddresses wallet { paginate } =
-    cip30ApiRequest wallet "getUsedAddresses" [ encodeMaybe encodePaginate paginate ]
+    apiRequest wallet "getUsedAddresses" [ encodeMaybe encodePaginate paginate ]
 
 
-getUnusedAddresses : Cip30Wallet -> Cip30Request
+getUnusedAddresses : Wallet -> Request
 getUnusedAddresses wallet =
-    cip30ApiRequest wallet "getUnusedAddresses" []
+    apiRequest wallet "getUnusedAddresses" []
 
 
-getChangeAddress : Cip30Wallet -> Cip30Request
+getChangeAddress : Wallet -> Request
 getChangeAddress wallet =
-    cip30ApiRequest wallet "getChangeAddress" []
+    apiRequest wallet "getChangeAddress" []
 
 
-getRewardAddresses : Cip30Wallet -> Cip30Request
+getRewardAddresses : Wallet -> Request
 getRewardAddresses wallet =
-    cip30ApiRequest wallet "getRewardAddresses" []
+    apiRequest wallet "getRewardAddresses" []
 
 
-signData : Cip30Wallet -> { addr : String, payload : Bytes } -> Cip30Request
+signData : Wallet -> { addr : String, payload : Bytes } -> Request
 signData wallet { addr, payload } =
-    cip30ApiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Hex.Convert.toString payload ]
+    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Hex.Convert.toString payload ]
 
 
 
@@ -153,9 +153,9 @@ encodeLimitAmount _ =
     Debug.todo "encodeLimitAmount"
 
 
-cip30ApiRequest : Cip30Wallet -> String -> List Value -> Cip30Request
-cip30ApiRequest (Cip30Wallet { descriptor, api }) method args =
-    Cip30ApiRequest
+apiRequest : Wallet -> String -> List Value -> Request
+apiRequest (Wallet { descriptor, api }) method args =
+    ApiRequest
         { id = descriptor.id
         , api = api
         , method = method
@@ -163,21 +163,21 @@ cip30ApiRequest (Cip30Wallet { descriptor, api }) method args =
         }
 
 
-encodeCip30Request : Cip30Request -> Value
-encodeCip30Request request =
+encodeRequest : Request -> Value
+encodeRequest request =
     case request of
-        DiscoverCip30Wallets ->
+        DiscoverWallets ->
             JEncode.object
                 [ ( "requestType", JEncode.string "cip30-discover" ) ]
 
-        Cip30Enable { id, extensions } ->
+        Enable { id, extensions } ->
             JEncode.object
                 [ ( "requestType", JEncode.string "cip30-enable" )
                 , ( "id", JEncode.string id )
                 , ( "extensions", JEncode.list JEncode.int extensions )
                 ]
 
-        Cip30ApiRequest { id, api, method, args } ->
+        ApiRequest { id, api, method, args } ->
             JEncode.object
                 [ ( "requestType", JEncode.string "cip30-api" )
                 , ( "id", JEncode.string id )
@@ -187,10 +187,10 @@ encodeCip30Request request =
                 ]
 
 
-type Cip30Response
-    = AvailableCip30Wallets (List Cip30WalletDescriptor)
+type Response
+    = AvailableWallets (List WalletDescriptor)
     | EnablingError { id : String } ApiError
-    | EnabledCip30Wallet Cip30Wallet
+    | EnabledWallet Wallet
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
     | WalletUtxos { walletId : String, utxos : List String }
@@ -213,8 +213,8 @@ type ApiError
     = ApiError String
 
 
-cip30ResponseDecoder : Decoder Cip30Response
-cip30ResponseDecoder =
+responseDecoder : Decoder Response
+responseDecoder =
     JDecode.field "responseType" JDecode.string
         |> JDecode.andThen
             (\responseType ->
@@ -238,15 +238,15 @@ cip30ResponseDecoder =
             )
 
 
-discoverDecoder : Decoder Cip30Response
+discoverDecoder : Decoder Response
 discoverDecoder =
-    JDecode.list cip30DescriptorDecoder
+    JDecode.list descriptorDecoder
         |> JDecode.field "wallets"
-        |> JDecode.map AvailableCip30Wallets
+        |> JDecode.map AvailableWallets
 
 
-cip30DescriptorDecoder : Decoder Cip30WalletDescriptor
-cip30DescriptorDecoder =
+descriptorDecoder : Decoder WalletDescriptor
+descriptorDecoder =
     JDecode.map6
         -- Explicit constructor with names instead of using Cip30WalletDescriptor constructor
         (\id name icon apiVersion isEnabled supportedExtensions ->
@@ -266,25 +266,25 @@ cip30DescriptorDecoder =
         (JDecode.field "supportedExtensions" (JDecode.list extensionDecoder))
 
 
-enableDecoder : Decoder Cip30Response
+enableDecoder : Decoder Response
 enableDecoder =
     -- TODO: Handle the potential errors
-    JDecode.map EnabledCip30Wallet <|
+    JDecode.map EnabledWallet <|
         JDecode.map3
             -- Explicit constructor to avoid messing with fields order
             (\descriptor api walletHandle ->
-                Cip30Wallet
+                Wallet
                     { descriptor = descriptor
                     , api = api
                     , walletHandle = walletHandle
                     }
             )
-            (JDecode.field "descriptor" cip30DescriptorDecoder)
+            (JDecode.field "descriptor" descriptorDecoder)
             (JDecode.field "api" JDecode.value)
             (JDecode.field "walletHandle" JDecode.value)
 
 
-apiDecoder : String -> String -> Decoder Cip30Response
+apiDecoder : String -> String -> Decoder Response
 apiDecoder method walletId =
     case method of
         "getExtensions" ->
