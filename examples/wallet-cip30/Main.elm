@@ -2,8 +2,8 @@ port module Main exposing (..)
 
 import Browser
 import Bytes.Encode
-import Cip30
 import Dict exposing (Dict)
+import ElmCardano.Cip30 as Cip30
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
@@ -94,7 +94,8 @@ update msg model =
                 Ok (Cip30.WalletUtxos { walletId, utxos }) ->
                     let
                         utxosStr =
-                            String.join "\n" utxos
+                            List.map Debug.toString utxos
+                                |> String.join "\n"
                     in
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr }
                     , Cmd.none

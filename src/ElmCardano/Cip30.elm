@@ -1,4 +1,4 @@
-module Cip30 exposing
+module ElmCardano.Cip30 exposing
     ( Request
     , Response(..)
     , Wallet
@@ -22,6 +22,7 @@ module Cip30 exposing
 import Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
 import Cbor.Decode
+import ElmCardano.Transaction as Transaction exposing (Transaction)
 import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
@@ -193,7 +194,7 @@ type Response
     | EnabledWallet Wallet
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
-    | WalletUtxos { walletId : String, utxos : List String }
+    | WalletUtxos { walletId : String, utxos : List Utxo }
     | WalletBalance { walletId : String, balance : CborItem }
     | UsedAddresses { walletId : String, usedAddresses : List String }
     | UnusedAddresses { walletId : String, unusedAddresses : List String }
@@ -201,6 +202,12 @@ type Response
     | RewardAddresses { walletId : String, rewardAddresses : List String }
     | SignedData { walletId : String, signedData : DataSignature }
     | UnhandledResponseType String
+
+
+type alias Utxo =
+    { outputReference : CborItem -- Transaction.Input
+    , output : CborItem -- Transaction.Output
+    }
 
 
 type alias DataSignature =
@@ -296,7 +303,7 @@ apiDecoder method walletId =
                 (JDecode.field "response" JDecode.int)
 
         "getUtxos" ->
-            JDecode.list (JDecode.succeed "TODO: utxo decoder")
+            JDecode.list utxoDecoder
                 |> JDecode.field "response"
                 |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
 
@@ -331,6 +338,15 @@ apiDecoder method walletId =
 extensionDecoder : Decoder Int
 extensionDecoder =
     JDecode.field "cip" JDecode.int
+
+
+utxoDecoder : Decoder Utxo
+utxoDecoder =
+    hexCborDecoder <|
+        Cbor.Decode.tuple Utxo <|
+            Cbor.Decode.elems
+                >> Cbor.Decode.elem Cbor.Decode.any
+                >> Cbor.Decode.elem Cbor.Decode.any
 
 
 dataSignatureDecoder : Decoder DataSignature
