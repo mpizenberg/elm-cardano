@@ -1,4 +1,4 @@
-module ElmCardano.Hash exposing (Hash, Blake2b_224, Blake2b_256)
+module ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 
 {-| This module defines Hash, a custom type for readability, internally just holding bytes.
 
@@ -10,24 +10,16 @@ The Hash type helps writing functions signatures with more meaningful types than
 
 -}
 
-import Array exposing (Array)
-
-
-{-| The Hash type, with two phantom types for more semantic meaning.
-The `algo` type identifies the hashing algorithm.
-Internally, this is just a byte array.
--}
-type Hash algo
-    = Hash (Array Int)
+import Bytes exposing (Bytes)
 
 
 {-| The Blake2b-224 hash algorithm, typically used for credentials and policy IDs.
 -}
-type Blake2b_224
-    = Blake2b_224
+type alias Blake2b_224 =
+    Bytes
 
 
 {-| The Blake2b-256 hash algorithm, typically used for transaction IDs.
 -}
-type Blake2b_256
-    = Blake2b_256
+type alias Blake2b_256 =
+    Bytes
