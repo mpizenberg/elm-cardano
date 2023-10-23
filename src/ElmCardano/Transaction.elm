@@ -58,7 +58,7 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap Coin -- 5
+    , withdrawals : BytesMap RewardAccount Coin -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe Blake2b_256 -- 7
     , validityIntervalStart : Maybe Int -- 8
@@ -95,11 +95,11 @@ type alias AuxiliaryData =
 
 
 type alias Multiasset a =
-    BytesMap (BytesMap a)
+    BytesMap PolicyId (BytesMap AssetName a)
 
 
 type alias Update =
-    { proposedProtocolParameterUpdates : BytesMap ProtocolParamUpdate
+    { proposedProtocolParameterUpdates : BytesMap Blake2b_224 ProtocolParamUpdate
     , epoch : Epoch
     }
 
@@ -212,6 +212,10 @@ type Metadatum
     | String String
     | List (List Metadatum)
     | Map (List ( Metadatum, Metadatum ))
+
+
+type alias RewardAccount =
+    Bytes
 
 
 type alias PlutusScript =
