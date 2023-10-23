@@ -34,6 +34,7 @@ type Msg
     | GetNetworkIdButtonClicked Cip30.Wallet
     | GetUtxosPaginateButtonClicked Cip30.Wallet
     | GetUtxosAmountButtonClicked Cip30.Wallet
+    | GetCollateralButtonClicked Cip30.Wallet
     | GetBalanceButtonClicked Cip30.Wallet
     | GetUsedAddressesButtonClicked Cip30.Wallet
     | GetUnusedAddressesButtonClicked Cip30.Wallet
@@ -100,6 +101,21 @@ update msg model =
                                 |> String.join "\n"
                     in
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr }
+                    , Cmd.none
+                    )
+
+                Ok (Cip30.Collateral { walletId, collateral }) ->
+                    let
+                        utxosStr =
+                            case collateral of
+                                Nothing ->
+                                    "undefined"
+
+                                Just utxos ->
+                                    List.map Debug.toString utxos
+                                        |> String.join "\n"
+                    in
+                    ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr }
                     , Cmd.none
                     )
 
@@ -170,6 +186,11 @@ update msg model =
             -- Gero does not handle the amount parameter
             -- NuFi does not handle the amount parameter
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (Transaction.Coin 14000000), paginate = Nothing } )
+
+        GetCollateralButtonClicked wallet ->
+            -- Typhon crashes with the amounts
+            -- Nami crashes as the method does not exist
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = Transaction.Coin 3000000 } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response
@@ -312,6 +333,7 @@ walletActions wallet =
     , Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
     , Html.button [ onClick <| GetUtxosPaginateButtonClicked wallet ] [ text "getUtxos(paginate:2)" ]
     , Html.button [ onClick <| GetUtxosAmountButtonClicked wallet ] [ text "getUtxos(amount:14ada)" ]
+    , Html.button [ onClick <| GetCollateralButtonClicked wallet ] [ text "getCollateral(amount:3ada)" ]
     , Html.button [ onClick <| GetBalanceButtonClicked wallet ] [ text "getBalance" ]
     , Html.button [ onClick <| GetUsedAddressesButtonClicked wallet ] [ text "getUsedAddresses" ]
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]

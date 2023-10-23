@@ -8,6 +8,7 @@ module ElmCardano.Cip30 exposing
     , encodeRequest
     , getBalance
     , getChangeAddress
+    , getCollateral
     , getExtensions
     , getNetworkId
     , getRewardAddresses
@@ -98,6 +99,15 @@ getUtxos wallet { amount, paginate } =
         ]
 
 
+getCollateral : Wallet -> { amount : Transaction.Value } -> Request
+getCollateral wallet { amount } =
+    let
+        params =
+            JEncode.object [ ( "amount", Transaction.encodeValue amount |> encodeCborHex ) ]
+    in
+    apiRequest wallet "getCollateral" [ params ]
+
+
 encodeCborHex : Cbor.Encode.Encoder -> Value
 encodeCborHex cborEncoder =
     Cbor.Encode.encode cborEncoder
@@ -142,8 +152,6 @@ signData wallet { addr, payload } =
 
 
 
--- api.getCollateral(params: { amount: cbor\ })
---
 -- api.signTx(tx: cbor\, partialSign: bool = false)
 -- api.submitTx(tx: cbor\)
 
@@ -197,7 +205,9 @@ type Response
     | EnabledWallet Wallet
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
+      -- TODO: change utxos into Maybe (List Utxo)
     | WalletUtxos { walletId : String, utxos : List Utxo }
+    | Collateral { walletId : String, collateral : Maybe (List Utxo) }
     | WalletBalance { walletId : String, balance : CborItem }
     | UsedAddresses { walletId : String, usedAddresses : List String }
     | UnusedAddresses { walletId : String, unusedAddresses : List String }
@@ -309,6 +319,12 @@ apiDecoder method walletId =
             JDecode.list utxoDecoder
                 |> JDecode.field "response"
                 |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
+
+        "getCollateral" ->
+            JDecode.list utxoDecoder
+                |> JDecode.nullable
+                |> JDecode.field "response"
+                |> JDecode.map (\utxos -> Collateral { walletId = walletId, collateral = utxos })
 
         "getBalance" ->
             JDecode.map (\b -> WalletBalance { walletId = walletId, balance = b })
