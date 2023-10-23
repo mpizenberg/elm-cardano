@@ -97,8 +97,13 @@ update msg model =
                 Ok (Cip30.WalletUtxos { walletId, utxos }) ->
                     let
                         utxosStr =
-                            List.map Debug.toString utxos
-                                |> String.join "\n"
+                            case utxos of
+                                Nothing ->
+                                    "undefined"
+
+                                Just utxosList ->
+                                    List.map Debug.toString utxosList
+                                        |> String.join "\n"
                     in
                     ( { model | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr }
                     , Cmd.none

@@ -206,7 +206,7 @@ type Response
     | Extensions { walletId : String, extensions : List Int }
     | NetworkId { walletId : String, networkId : Int }
       -- TODO: change utxos into Maybe (List Utxo)
-    | WalletUtxos { walletId : String, utxos : List Utxo }
+    | WalletUtxos { walletId : String, utxos : Maybe (List Utxo) }
     | Collateral { walletId : String, collateral : Maybe (List Utxo) }
     | WalletBalance { walletId : String, balance : CborItem }
     | UsedAddresses { walletId : String, usedAddresses : List String }
@@ -317,6 +317,7 @@ apiDecoder method walletId =
 
         "getUtxos" ->
             JDecode.list utxoDecoder
+                |> JDecode.nullable
                 |> JDecode.field "response"
                 |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
 
