@@ -81,10 +81,4 @@ function initElmCardanoJs(app) {
             throw new Error("Wallet ID does not correspond to any installed wallet: " + walletId)
         }
     }
-
-    function exposed(params) {}
-  
-    return {
-      exposed: exposed,
-    }
 }
