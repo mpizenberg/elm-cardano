@@ -19,7 +19,8 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes exposing (Bytes)
-import ElmCardano.Core exposing (Coin, Data)
+import ElmCardano.Core exposing (Coin)
+import ElmCardano.Data exposing (Data)
 import ElmCardano.KeyValuePair exposing (KeyValuePair(..))
 import ElmCardano.Transaction
     exposing

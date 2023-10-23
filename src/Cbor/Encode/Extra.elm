@@ -38,3 +38,10 @@ optionalElem encode maybe =
 
         Just e ->
             E.elem encode (always e)
+
+
+{-| Encode an homogeneous list, but as an indefinite list
+-}
+listIndef : (a -> E.Encoder) -> List a -> E.Encoder
+listIndef encode =
+    List.foldr (\x xs -> encode x :: xs) [ E.break ] >> (::) E.beginList >> E.sequence

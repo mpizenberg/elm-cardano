@@ -33,7 +33,8 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
-import ElmCardano.Core exposing (Coin, Data(..), NetworkId(..))
+import ElmCardano.Core exposing (Coin, NetworkId(..))
+import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 import ElmCardano.KeyValuePair as KeyValuePair exposing (KeyValuePair)
 
@@ -516,7 +517,7 @@ encodeWitnessSet =
             >> E.optionalField 1 (\_ -> todo "") .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (\scripts -> E.list E.bytes scripts) .plutusV1Script
-            >> E.optionalField 4 (encodeList encodeData) .plutusData
+            >> E.optionalField 4 (E.listIndef Data.encode) .plutusData
             >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
             >> E.optionalField 6 (\scripts -> E.list E.bytes scripts) .plutusV2Script
 
@@ -605,38 +606,10 @@ encodeDatumOption datumOption =
             Datum datum ->
                 [ E.int 1
                 , datum
-                    |> encodeData
+                    |> Data.encode
                     |> E.encode
                     |> E.tagged Cbor E.bytes
                 ]
-
-
-encodeData : Data -> E.Encoder
-encodeData data =
-    case data of
-        Constr { tag, fields } ->
-            let
-                -- TODO: we probably don't need to do this
-                -- I (rvcas) only did this to match the tx in the unit test
-                encoder =
-                    if List.length fields == 0 then
-                        E.list encodeData
-
-                    else
-                        encodeList encodeData
-            in
-            E.tagged (Unknown tag) encoder fields
-
-        BData bdata ->
-            E.bytes bdata
-
-
-encodeList : (a -> E.Encoder) -> List a -> E.Encoder
-encodeList encoder =
-    List.map encoder
-        >> List.foldr (::) [ E.break ]
-        >> (::) E.beginList
-        >> E.sequence
 
 
 encodeRedeemer : Redeemer -> E.Encoder
@@ -645,7 +618,7 @@ encodeRedeemer =
         E.elems
             >> E.elem encodeRedeemerTag .tag
             >> E.elem E.int .index
-            >> E.elem encodeData .data
+            >> E.elem Data.encode .data
             >> E.elem encodeExUnits .exUnits
 
 

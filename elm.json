@@ -6,6 +6,7 @@
   "version": "1.0.0",
   "exposed-modules": [
     "ElmCardano.Core",
+    "ElmCardano.Data",
     "ElmCardano.Hash",
     "ElmCardano.Interval",
     "ElmCardano.Transaction"
