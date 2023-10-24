@@ -38,7 +38,7 @@ function initElmCardanoJs(app) {
         const startTime = performance.now()
         const wallet = window.cardano[walletId]
         for (const key of ["name", "icon", "apiVersion", "isEnabled"]) {
-            if (!(key in wallet)) throw new Error("Unknown key: " + key)
+            if (!(key in wallet)) throw new Error(`Missing expected key in wallet '${walletId}': ${key}`)
         }
         const descriptor = {
             id : walletId,
