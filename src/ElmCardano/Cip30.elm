@@ -205,16 +205,16 @@ type Response
 
 
 type ApiResponse
-    = Extensions { extensions : List Int }
-    | NetworkId { networkId : Int }
-    | WalletUtxos { utxos : Maybe (List Utxo) }
-    | Collateral { collateral : Maybe (List Utxo) }
-    | WalletBalance { balance : CborItem }
-    | UsedAddresses { usedAddresses : List String }
-    | UnusedAddresses { unusedAddresses : List String }
-    | ChangeAddress { changeAddress : String }
-    | RewardAddresses { rewardAddresses : List String }
-    | SignedData { signedData : DataSignature }
+    = Extensions (List Int)
+    | NetworkId Int
+    | WalletUtxos (Maybe (List Utxo))
+    | Collateral (Maybe (List Utxo))
+    | WalletBalance CborItem
+    | UsedAddresses (List String)
+    | UnusedAddresses (List String)
+    | ChangeAddress String
+    | RewardAddresses (List String)
+    | SignedData DataSignature
 
 
 type alias Utxo =
@@ -307,47 +307,47 @@ apiDecoder : String -> String -> Decoder Response
 apiDecoder method walletId =
     case method of
         "getExtensions" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (Extensions { extensions = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (Extensions r))
                 (JDecode.field "response" <| JDecode.list extensionDecoder)
 
         "getNetworkId" ->
-            JDecode.map (\n -> ApiResponse { walletId = walletId } (NetworkId { networkId = n }))
+            JDecode.map (\n -> ApiResponse { walletId = walletId } (NetworkId n))
                 (JDecode.field "response" JDecode.int)
 
         "getUtxos" ->
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (WalletUtxos { utxos = utxos }))
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (WalletUtxos utxos))
 
         "getCollateral" ->
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (Collateral { collateral = utxos }))
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (Collateral utxos))
 
         "getBalance" ->
-            JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance { balance = b }))
+            JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance b))
                 (JDecode.field "response" <| hexCborDecoder Cbor.Decode.any)
 
         "getUsedAddresses" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (UsedAddresses { usedAddresses = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (UsedAddresses r))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "getUnusedAddresses" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (UnusedAddresses { unusedAddresses = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (UnusedAddresses r))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "getChangeAddress" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (ChangeAddress { changeAddress = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (ChangeAddress r))
                 (JDecode.field "response" JDecode.string)
 
         "getRewardAddresses" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (RewardAddresses { rewardAddresses = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (RewardAddresses r))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "signData" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData { signedData = r }))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData r))
                 (JDecode.field "response" <| dataSignatureDecoder)
 
         _ ->
