@@ -1,5 +1,6 @@
 module ElmCardano.Cip30 exposing
-    ( Request
+    ( ApiResponse(..)
+    , Request
     , Response(..)
     , Wallet
     , WalletDescriptor
@@ -198,17 +199,17 @@ encodeRequest request =
 type Response
     = AvailableWallets (List WalletDescriptor)
     | EnabledWallet Wallet
-    | WalletResponse { walletId : String, response : WalletResponse }
+    | ApiResponse { walletId : String } ApiResponse
     | Error String
     | UnhandledResponseType String
-    
-    
-type WalletResponse 
+
+
+type ApiResponse
     = Extensions { extensions : List Int }
     | NetworkId { networkId : Int }
     | WalletUtxos { utxos : Maybe (List Utxo) }
     | Collateral { collateral : Maybe (List Utxo) }
-    | WalletBalance {  balance : CborItem }
+    | WalletBalance { balance : CborItem }
     | UsedAddresses { usedAddresses : List String }
     | UnusedAddresses { unusedAddresses : List String }
     | ChangeAddress { changeAddress : String }
@@ -306,47 +307,47 @@ apiDecoder : String -> String -> Decoder Response
 apiDecoder method walletId =
     case method of
         "getExtensions" ->
-            JDecode.map (\r -> Extensions { walletId = walletId, extensions = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (Extensions { extensions = r }))
                 (JDecode.field "response" <| JDecode.list extensionDecoder)
 
         "getNetworkId" ->
-            JDecode.map (\n -> NetworkId { walletId = walletId, networkId = n })
+            JDecode.map (\n -> ApiResponse { walletId = walletId } (NetworkId { networkId = n }))
                 (JDecode.field "response" JDecode.int)
 
         "getUtxos" ->
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> WalletUtxos { walletId = walletId, utxos = utxos })
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (WalletUtxos { utxos = utxos }))
 
         "getCollateral" ->
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> Collateral { walletId = walletId, collateral = utxos })
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (Collateral { collateral = utxos }))
 
         "getBalance" ->
-            JDecode.map (\b -> WalletBalance { walletId = walletId, balance = b })
+            JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance { balance = b }))
                 (JDecode.field "response" <| hexCborDecoder Cbor.Decode.any)
 
         "getUsedAddresses" ->
-            JDecode.map (\r -> UsedAddresses { walletId = walletId, usedAddresses = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (UsedAddresses { usedAddresses = r }))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "getUnusedAddresses" ->
-            JDecode.map (\r -> UnusedAddresses { walletId = walletId, unusedAddresses = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (UnusedAddresses { unusedAddresses = r }))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "getChangeAddress" ->
-            JDecode.map (\r -> ChangeAddress { walletId = walletId, changeAddress = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (ChangeAddress { changeAddress = r }))
                 (JDecode.field "response" JDecode.string)
 
         "getRewardAddresses" ->
-            JDecode.map (\r -> RewardAddresses { walletId = walletId, rewardAddresses = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (RewardAddresses { rewardAddresses = r }))
                 (JDecode.field "response" <| JDecode.list JDecode.string)
 
         "signData" ->
-            JDecode.map (\r -> SignedData { walletId = walletId, signedData = r })
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData { signedData = r }))
                 (JDecode.field "response" <| dataSignatureDecoder)
 
         _ ->

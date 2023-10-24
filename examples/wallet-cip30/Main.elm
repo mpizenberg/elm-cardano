@@ -82,7 +82,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.Extensions { walletId, extensions }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.Extensions { extensions })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", extensions: [" ++ String.join ", " (List.map String.fromInt extensions) ++ "]"
                         , lastError = ""
@@ -90,7 +90,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.NetworkId { walletId, networkId }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.NetworkId { networkId })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId
                         , lastError = ""
@@ -98,7 +98,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.WalletUtxos { walletId, utxos }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos { utxos })) ->
                     let
                         utxosStr =
                             case utxos of
@@ -116,7 +116,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.Collateral { walletId, collateral }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral { collateral })) ->
                     let
                         utxosStr =
                             case collateral of
@@ -134,7 +134,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.WalletBalance { walletId, balance }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletBalance { balance })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", balance:\n" ++ Debug.toString balance
                         , lastError = ""
@@ -142,7 +142,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.UsedAddresses { walletId, usedAddresses }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.UsedAddresses { usedAddresses })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses
                         , lastError = ""
@@ -150,7 +150,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.UnusedAddresses { walletId, unusedAddresses }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.UnusedAddresses { unusedAddresses })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses
                         , lastError = ""
@@ -158,7 +158,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ChangeAddress { walletId, changeAddress }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress { changeAddress })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress
                         , lastError = ""
@@ -166,7 +166,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.RewardAddresses { walletId, rewardAddresses }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.RewardAddresses { rewardAddresses })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
@@ -175,7 +175,7 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.SignedData { walletId, signedData }) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SignedData { signedData })) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", signed data:\n" ++ Debug.toString signedData
                         , lastError = ""
