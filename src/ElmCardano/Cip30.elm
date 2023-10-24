@@ -198,18 +198,22 @@ encodeRequest request =
 type Response
     = AvailableWallets (List WalletDescriptor)
     | EnabledWallet Wallet
-    | Extensions { walletId : String, extensions : List Int }
-    | NetworkId { walletId : String, networkId : Int }
-    | WalletUtxos { walletId : String, utxos : Maybe (List Utxo) }
-    | Collateral { walletId : String, collateral : Maybe (List Utxo) }
-    | WalletBalance { walletId : String, balance : CborItem }
-    | UsedAddresses { walletId : String, usedAddresses : List String }
-    | UnusedAddresses { walletId : String, unusedAddresses : List String }
-    | ChangeAddress { walletId : String, changeAddress : String }
-    | RewardAddresses { walletId : String, rewardAddresses : List String }
-    | SignedData { walletId : String, signedData : DataSignature }
+    | WalletResponse { walletId : String, response : WalletResponse }
     | Error String
     | UnhandledResponseType String
+    
+    
+type WalletResponse 
+    = Extensions { extensions : List Int }
+    | NetworkId { networkId : Int }
+    | WalletUtxos { utxos : Maybe (List Utxo) }
+    | Collateral { collateral : Maybe (List Utxo) }
+    | WalletBalance {  balance : CborItem }
+    | UsedAddresses { usedAddresses : List String }
+    | UnusedAddresses { unusedAddresses : List String }
+    | ChangeAddress { changeAddress : String }
+    | RewardAddresses { rewardAddresses : List String }
+    | SignedData { signedData : DataSignature }
 
 
 type alias Utxo =
