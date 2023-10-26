@@ -13,7 +13,7 @@ type alias CoinSelectionResult =
     , changeOutput : Maybe Output
     }
 
--- https://cips.cardano.org/cips/cip2/#largest-first
+-- https://cips.cardano.org/cips/cip2/#largestfirst
 largestFirst :
     List Output
     -> List Output
