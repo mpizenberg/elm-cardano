@@ -17,12 +17,11 @@ The Hash type helps writing functions signatures with more meaningful types than
 -}
 
 import Bytes exposing (Bytes)
-import Bytes.Encode as E
-import Hex.Convert as Hex
+import ComparableBytes exposing (ComparableBytes)
 
 
 type Hash a
-    = HexBytes String
+    = Hash ComparableBytes
 
 
 {-| The Blake2b-224 hash algorithm, typically used for credentials and policy IDs.
@@ -40,30 +39,20 @@ type Blake2b_256
 blake2b_224 : String -> Hash Blake2b_224
 blake2b_224 hexStr =
     -- TODO: add some garanties here about that hex
-    HexBytes hexStr
+    Hash (ComparableBytes.fromStringUnchecked hexStr)
 
 
 blake2b_256 : String -> Hash Blake2b_256
 blake2b_256 hexStr =
     -- TODO: add some garanties here about that hex
-    HexBytes hexStr
-
-
-asHex : Hash a -> String
-asHex (HexBytes hexStr) =
-    hexStr
+    Hash (ComparableBytes.fromStringUnchecked hexStr)
 
 
 asBytes : Hash a -> Bytes
-asBytes (HexBytes hexStr) =
-    unhex hexStr
+asBytes (Hash bytes) =
+    ComparableBytes.asBytes bytes
 
 
-unhex : String -> Bytes
-unhex hexStr =
-    Maybe.withDefault absurd (Hex.toBytes hexStr)
-
-
-absurd : Bytes
-absurd =
-    E.encode (E.sequence [])
+asHex : Hash a -> String
+asHex (Hash bytes) =
+    ComparableBytes.asHex bytes
