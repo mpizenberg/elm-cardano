@@ -1,8 +1,7 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
-import ElmCardano.CoinSelection exposing (largestFirst, CoinSelectionError, CoinSelectionResult)
+import ElmCardano.CoinSelection exposing (largestFirst)
 import ElmCardano.Transaction exposing (Output(..), Value(..))
-import Bytes exposing (Bytes)
 import Expect
 import Test exposing (Test, describe, test)
 import Tests exposing (fromString)
@@ -34,7 +33,7 @@ basicScenarioTest _ =
         result = largestFirst availableUtxo [] requestedOutputs nmax changeAddress
         expectedResult =
             Ok
-                { selectedUtxos = [ availableUtxo |> List.head |> Maybe.withDefault (Legacy { address = fromString "addr1", amount = Coin 50, datumHash = Nothing }) ]
+                { selectedUtxos = [ Legacy { address = fromString "addr1", amount = Coin 50, datumHash = Nothing } ]
                 , requestedOutputs = requestedOutputs
                 , changeOutput = Just (Legacy { address = changeAddress, amount = Coin 20, datumHash = Nothing })
                 }
