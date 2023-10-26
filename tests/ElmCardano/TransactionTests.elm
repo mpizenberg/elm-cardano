@@ -33,8 +33,16 @@ suite =
                         |> Tx.payToContract
                             (Hex.fromString "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
                             50000000
+<<<<<<< HEAD
                             (Constr 0 [ Bytes (Hex.fromString "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") ])
                         |> Tx.payToAddress (Hex.fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
+||||||| parent of 716096c (Replace Bytes by String in Data)
+                            (Constr 0 [ Bytes (fromString "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") ])
+                        |> Tx.payToAddress (fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
+=======
+                            (Constr 0 [ HexBytes "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae" ])
+                        |> Tx.payToAddress (fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
+>>>>>>> 716096c (Replace Bytes by String in Data)
                         |> Tx.fee 182302
                         |> Tx.scriptDataHash (Hex.fromString "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
