@@ -22,18 +22,17 @@ import Bytes exposing (Bytes)
 import BytesMap
 import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
+import ElmCardano.Output exposing (DatumOption(..), Output(..))
 import ElmCardano.Transaction
     exposing
-        ( DatumOption(..)
-        , Input
-        , Output(..)
+        ( Input
         , Redeemer
         , Transaction
         , TransactionBody
-        , Value(..)
         , WitnessSet
         , serialize
         )
+import ElmCardano.Value exposing (Value(..))
 
 
 type Tx

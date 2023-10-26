@@ -1,11 +1,10 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
-    , Value(..), PolicyId, AssetName, adaAssetName
-    , Input, OutputReference, Output(..)
+    , Input, OutputReference
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , DatumOption(..), Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, encodeValue, serialize
+    , Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -38,6 +37,8 @@ import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
+import ElmCardano.Output exposing (Output, encodeOutput)
+import ElmCardano.Value exposing (Multiasset, PolicyId)
 
 
 {-| A Cardano transaction.
@@ -92,10 +93,6 @@ type alias AuxiliaryData =
     , nativeScripts : Maybe (List NativeScript) -- 1
     , plutusScripts : Maybe (List PlutusScript) -- 1
     }
-
-
-type alias Multiasset a =
-    BytesMap PolicyId (BytesMap AssetName a)
 
 
 type alias Update =
@@ -295,47 +292,8 @@ type alias BootstrapWitness =
 
 
 -- Token Values ################################################################
-
-
-{-| A multi-asset output Value. Contains tokens indexed by policy id and asset name.
-
-This type maintains some invariants by construction.
-In particular, a Value will never contain a zero quantity of a particular token.
-
--}
-type Value
-    = Coin Coin
-    | Multiasset Coin (Multiasset Coin)
-
-
-{-| The policy id of a Cardano Token. Ada ("") is a special case since it cannot be minted.
--}
-type alias PolicyId =
-    Blake2b_224
-
-
-type alias AssetName =
-    Bytes
-
-
-{-| Ada, the native currency, isn’t associated with any AssetName (it’s not possible to mint Ada!).
-By convention, it is an empty ByteArray.
--}
-adaAssetName : String
-adaAssetName =
-    ""
-
-
-
 -- Credentials #################################################################
 -- Inputs/Outputs ##############################################################
-
-
-{-| Nickname for data stored in a eUTxO.
--}
-type DatumOption
-    = DatumHash Blake2b_256
-    | Datum Data
 
 
 {-| An input eUTxO for a transaction.
@@ -350,22 +308,6 @@ type alias Input =
 -}
 type alias OutputReference =
     Input
-
-
-{-| The content of a eUTxO.
--}
-type Output
-    = Legacy
-        { address : Bytes
-        , amount : Value
-        , datumHash : Maybe Blake2b_256
-        }
-    | PostAlonzo
-        { address : Bytes
-        , value : Value
-        , datumOption : Maybe DatumOption
-        , referenceScript : Maybe Blake2b_224
-        }
 
 
 
@@ -532,47 +474,6 @@ encodeOutputs outputs =
     E.list encodeOutput outputs
 
 
-encodeOutput : Output -> E.Encoder
-encodeOutput output =
-    case output of
-        Legacy fields ->
-            E.tuple
-                (E.elems
-                    >> E.elem E.bytes .address
-                    >> E.elem encodeValue .amount
-                    >> E.optionalElem E.bytes fields.datumHash
-                )
-                fields
-
-        PostAlonzo fields ->
-            E.record E.int
-                (E.fields
-                    >> E.field 0 E.bytes .address
-                    >> E.field 1 encodeValue .value
-                    >> E.optionalField 2 encodeDatumOption .datumOption
-                    >> E.optionalField 3 (\_ -> todo "encodeReferenceScript") .referenceScript
-                )
-                fields
-
-
-encodeDatumOption : DatumOption -> E.Encoder
-encodeDatumOption datumOption =
-    E.list identity <|
-        case datumOption of
-            DatumHash hash ->
-                [ E.int 0
-                , E.bytes hash
-                ]
-
-            Datum datum ->
-                [ E.int 1
-                , datum
-                    |> Data.encode
-                    |> E.encode
-                    |> E.tagged Cbor E.bytes
-                ]
-
-
 encodeRedeemer : Redeemer -> E.Encoder
 encodeRedeemer =
     E.tuple <|
@@ -621,21 +522,6 @@ encodeCertificate _ =
 encodeRequiredSigners : List Bytes -> E.Encoder
 encodeRequiredSigners =
     E.list E.bytes
-
-
-encodeValue : Value -> E.Encoder
-encodeValue value =
-    case value of
-        Coin amount ->
-            E.int amount
-
-        Multiasset amount _ ->
-            E.sequence
-                [ E.beginList
-                , E.int amount
-                , todo "encode multiasset"
-                , E.break
-                ]
 
 
 decodeTransaction : D.Decoder Transaction
