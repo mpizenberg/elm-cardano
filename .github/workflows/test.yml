@@ -17,6 +17,16 @@ jobs:
           cache-restore-key: elm-home-tests
       - run: elm-test-rs
   
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.1
+      - uses: mpizenberg/elm-tooling-action@v1.5
+        with:
+          cache-key: elm-home-examples${{ hashFiles('elm-tooling.json', 'elm.json') }}
+          cache-restore-key: elm-home-examples
+      - run: cd examples/wallet-cip30 && elm make Main.elm --output /dev/null
+  
   format:
     runs-on: ubuntu-latest
     steps:
@@ -25,4 +35,4 @@ jobs:
         with:
           cache-key: elm-home-format${{ hashFiles('elm-tooling.json', 'elm.json') }}
           cache-restore-key: elm-home-format
-      - run: elm-format src/ tests/ --validate
+      - run: elm-format src/ tests/ examples/ --validate
