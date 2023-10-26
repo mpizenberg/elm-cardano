@@ -3,7 +3,7 @@ module ElmCardano.TransactionTests exposing (..)
 import Bytes exposing (Bytes)
 import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
-import ElmCardano.Transaction exposing (RedeemerTag(..))
+import ElmCardano.Redeemer exposing (RedeemerTag(..))
 import ElmCardano.Transaction.Builder as Tx
 import Hex.Convert.Extra as Hex
 import Test exposing (Test, describe, test)

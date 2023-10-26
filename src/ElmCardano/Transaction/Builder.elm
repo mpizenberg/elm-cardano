@@ -22,10 +22,10 @@ import Bytes exposing (Bytes)
 import BytesMap
 import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
+import ElmCardano.Redeemer exposing (Redeemer)
 import ElmCardano.Transaction
     exposing
-        ( Redeemer
-        , Transaction
+        ( Transaction
         , TransactionBody
         , WitnessSet
         , serialize
