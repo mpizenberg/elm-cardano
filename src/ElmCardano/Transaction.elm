@@ -1,7 +1,6 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
-    , Input, OutputReference
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
     , Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, serialize
@@ -37,7 +36,7 @@ import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
-import ElmCardano.Output exposing (Output, encodeOutput)
+import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
 import ElmCardano.Value exposing (Multiasset, PolicyId)
 
 
@@ -294,23 +293,6 @@ type alias BootstrapWitness =
 -- Token Values ################################################################
 -- Credentials #################################################################
 -- Inputs/Outputs ##############################################################
-
-
-{-| An input eUTxO for a transaction.
--}
-type alias Input =
-    { transactionId : Blake2b_256
-    , outputIndex : Int
-    }
-
-
-{-| The reference for a eUTxO.
--}
-type alias OutputReference =
-    Input
-
-
-
 -- Scripts #####################################################################
 
 
@@ -459,14 +441,6 @@ encodeAuxiliaryData _ =
 encodeInputs : List Input -> E.Encoder
 encodeInputs inputs =
     E.list encodeInput inputs
-
-
-encodeInput : Input -> E.Encoder
-encodeInput =
-    E.tuple <|
-        E.elems
-            >> E.elem E.bytes .transactionId
-            >> E.elem E.int .outputIndex
 
 
 encodeOutputs : List Output -> E.Encoder

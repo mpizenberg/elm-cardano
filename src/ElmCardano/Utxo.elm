@@ -1,4 +1,4 @@
-module ElmCardano.Output exposing (..)
+module ElmCardano.Utxo exposing (..)
 
 {-| Handling outputs.
 -}
@@ -10,6 +10,20 @@ import Cbor.Tag as Tag
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 import ElmCardano.Value exposing (Value, encodeValue)
+
+
+{-| An input eUTxO for a transaction.
+-}
+type alias Input =
+    { transactionId : Blake2b_256
+    , outputIndex : Int
+    }
+
+
+{-| The reference for a eUTxO.
+-}
+type alias OutputReference =
+    Input
 
 
 {-| The content of a eUTxO.
@@ -33,6 +47,14 @@ type Output
 type DatumOption
     = DatumHash Blake2b_256
     | Datum Data
+
+
+encodeInput : Input -> E.Encoder
+encodeInput =
+    E.tuple <|
+        E.elems
+            >> E.elem E.bytes .transactionId
+            >> E.elem E.int .outputIndex
 
 
 encodeOutput : Output -> E.Encoder
