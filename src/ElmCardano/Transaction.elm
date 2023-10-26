@@ -3,7 +3,7 @@ module ElmCardano.Transaction exposing
     , TransactionBody, WitnessSet
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , Metadatum(..), NativeScript(..), Script(..), deserialize, serialize
+    , Metadatum(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -37,6 +37,7 @@ import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
 import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
+import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
 import ElmCardano.Value exposing (Multiasset, PolicyId)
 
@@ -215,46 +216,10 @@ type alias RewardAccount =
     Bytes
 
 
-type alias PlutusScript =
-    Bytes
-
-
-type alias PlutusV1Script =
-    Bytes
-
-
-type alias PlutusV2Script =
-    Bytes
-
-
-
--- script = [ 0, native_script // 1, plutus_v1_script // 2, plutus_v2_script ]
-
-
-{-| <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/babbage/model.rs#L58>
--}
-type Script
-    = Native NativeScript
-    | PlutusV1 PlutusV1Script
-    | PlutusV2 PlutusV2Script
-
-
 type alias VKeyWitness =
     { vkey : Bytes -- 0
     , signature : Bytes
     }
-
-
-{-| A native script
-<https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
--}
-type NativeScript
-    = ScriptPubkey Blake2b_224
-    | ScriptAll (List NativeScript)
-    | ScriptAny (List NativeScript)
-    | ScriptNofK Int (List NativeScript)
-    | InvalidBefore Int
-    | InvalidHereafter Int
 
 
 
