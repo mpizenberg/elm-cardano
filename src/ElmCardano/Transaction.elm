@@ -35,7 +35,7 @@ import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
-import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
+import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
 import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
@@ -62,12 +62,12 @@ type alias TransactionBody =
     , certificates : List Certificate -- 4
     , withdrawals : BytesMap RewardAccount Coin -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe Blake2b_256 -- 7
+    , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
     , validityIntervalStart : Maybe Int -- 8
     , mint : Multiasset Coin -- 9
     , scriptDataHash : Maybe Bytes -- 11
     , collateral : List Input -- 13
-    , requiredSigners : List Blake2b_224 -- 14
+    , requiredSigners : List (Hash Blake2b_224) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Coin -- 17
@@ -97,7 +97,7 @@ type alias AuxiliaryData =
 
 
 type alias Update =
-    { proposedProtocolParameterUpdates : BytesMap Blake2b_224 ProtocolParamUpdate
+    { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
     , epoch : Epoch
     }
 
@@ -274,9 +274,9 @@ Most of the time, they require signatures from specific keys.
 type Certificate
     = CredentialRegistration { delegator : StakeCredential }
     | CredentialDeregistration { delegator : StakeCredential }
-    | CredentialDelegation { delegator : StakeCredential, delegatee : Blake2b_224 }
-    | PoolRegistration { poolId : Blake2b_224, vrf : Blake2b_224 }
-    | PoolDeregistration { poolId : Blake2b_224, epoch : Int }
+    | CredentialDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
+    | PoolRegistration { poolId : Hash Blake2b_224, vrf : Hash Blake2b_224 }
+    | PoolDeregistration { poolId : Hash Blake2b_224, epoch : Int }
     | Governance
     | TreasuryMovement
 
@@ -316,7 +316,7 @@ encodeTransactionBody =
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 BytesMap.isEmpty (\_ -> todo "BytesMap.toCbor") .withdrawals
             >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
-            >> E.optionalField 7 E.bytes .auxiliaryDataHash
+            >> E.optionalField 7 E.bytes (.auxiliaryDataHash >> Maybe.map Hash.asBytes)
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 BytesMap.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
             >> E.optionalField 11 E.bytes .scriptDataHash
@@ -403,9 +403,9 @@ encodeCertificate _ =
     todo "encode certificate"
 
 
-encodeRequiredSigners : List Bytes -> E.Encoder
+encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
 encodeRequiredSigners =
-    E.list E.bytes
+    E.list (E.bytes << Hash.asBytes)
 
 
 decodeTransaction : D.Decoder Transaction

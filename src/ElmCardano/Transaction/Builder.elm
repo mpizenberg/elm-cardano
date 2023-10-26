@@ -22,6 +22,7 @@ import Bytes exposing (Bytes)
 import BytesMap
 import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
+import ElmCardano.Hash exposing (Blake2b_224, Hash)
 import ElmCardano.Redeemer exposing (Redeemer)
 import ElmCardano.Transaction
     exposing
@@ -196,12 +197,12 @@ addCollateral newInput body =
     }
 
 
-requiredSigner : Bytes -> Tx -> Tx
+requiredSigner : Hash Blake2b_224 -> Tx -> Tx
 requiredSigner signer (Tx inner) =
     inner |> updateBody (addRequiredSigner signer)
 
 
-addRequiredSigner : Bytes -> TransactionBody -> TransactionBody
+addRequiredSigner : Hash Blake2b_224 -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
         | requiredSigners = signer :: body.requiredSigners
