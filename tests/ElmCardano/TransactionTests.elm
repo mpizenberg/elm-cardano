@@ -34,7 +34,7 @@ suite =
                         |> Tx.payToContract
                             (fromString "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
                             50000000
-                            (Constr 0 [ Bytes (fromString "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") ])
+                            (Constr 0 [ HexBytes "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae" ])
                         |> Tx.payToAddress (fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
                         |> Tx.fee 182302
                         |> Tx.scriptDataHash (fromString "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")

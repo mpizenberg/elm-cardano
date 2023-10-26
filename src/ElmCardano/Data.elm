@@ -7,6 +7,7 @@ import Bytes.Extra as Bytes
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
+import Hex.Convert as Hex
 
 
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
@@ -16,7 +17,7 @@ type Data
     | Map (List ( Data, Data ))
     | List (List Data)
     | Int Int
-    | Bytes Bytes
+    | HexBytes String
 
 
 encode : Data -> E.Encoder
@@ -93,7 +94,11 @@ encode data =
         Int i ->
             encodeInt i
 
-        Bytes bytes ->
+        HexBytes hexStr ->
+            let
+                bytes =
+                    unhex hexStr
+            in
             if Bytes.width bytes <= 64 then
                 E.bytes bytes
 
@@ -104,3 +109,13 @@ encode data =
                             (\chunk rest -> E.bytes chunk :: rest)
                             [ E.break ]
                             (Bytes.chunksOf 64 bytes)
+
+
+unhex : String -> Bytes
+unhex hexStr =
+    Maybe.withDefault absurd (Hex.toBytes hexStr)
+
+
+absurd : Bytes
+absurd =
+    E.encode (E.sequence [])
