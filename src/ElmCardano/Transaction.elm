@@ -3,7 +3,7 @@ module ElmCardano.Transaction exposing
     , TransactionBody, WitnessSet
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , Metadatum(..), NativeScript(..), Redeemer, RedeemerTag(..), Script(..), deserialize, serialize
+    , Metadatum(..), NativeScript(..), Script(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -36,6 +36,7 @@ import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Core exposing (Coin, NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash exposing (Blake2b_224, Blake2b_256)
+import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
 import ElmCardano.Value exposing (Multiasset, PolicyId)
 
@@ -256,27 +257,6 @@ type NativeScript
     | InvalidHereafter Int
 
 
-type alias Redeemer =
-    { tag : RedeemerTag -- 0
-    , index : Int -- 1
-    , data : Data -- 2
-    , exUnits : ExUnits -- 3
-    }
-
-
-type RedeemerTag
-    = Spend
-    | Mint
-    | Cert
-    | Reward
-
-
-type alias ExUnits =
-    { mem : Int -- 0
-    , steps : Int -- 1
-    }
-
-
 
 -- TODO: what kinds of hashes are these?
 
@@ -446,41 +426,6 @@ encodeInputs inputs =
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
     E.list encodeOutput outputs
-
-
-encodeRedeemer : Redeemer -> E.Encoder
-encodeRedeemer =
-    E.tuple <|
-        E.elems
-            >> E.elem encodeRedeemerTag .tag
-            >> E.elem E.int .index
-            >> E.elem Data.encode .data
-            >> E.elem encodeExUnits .exUnits
-
-
-encodeRedeemerTag : RedeemerTag -> E.Encoder
-encodeRedeemerTag redeemerTag =
-    E.int <|
-        case redeemerTag of
-            Spend ->
-                0
-
-            Mint ->
-                1
-
-            Cert ->
-                2
-
-            Reward ->
-                3
-
-
-encodeExUnits : ExUnits -> E.Encoder
-encodeExUnits =
-    E.tuple <|
-        E.elems
-            >> E.elem E.int .mem
-            >> E.elem E.int .steps
 
 
 encodeCertificates : List Certificate -> E.Encoder
