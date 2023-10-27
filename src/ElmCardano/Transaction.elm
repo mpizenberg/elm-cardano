@@ -89,7 +89,7 @@ type alias WitnessSet =
 
 
 type alias AuxiliaryData =
-    { metadata : Maybe Metadata -- 0
+    { metadata : Maybe (Dict Int Metadatum) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , plutusScripts : Maybe (List PlutusScript) -- 1
     }
@@ -185,14 +185,6 @@ type alias RationalNumber =
     { numerator : Int
     , denominator : Int
     }
-
-
-type alias Metadata =
-    Dict MetadatumLabel Metadatum
-
-
-type alias MetadatumLabel =
-    Int
 
 
 type Metadatum
