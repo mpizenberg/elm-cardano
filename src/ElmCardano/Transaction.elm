@@ -3,7 +3,7 @@ module ElmCardano.Transaction exposing
     , TransactionBody, WitnessSet
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , Metadatum(..), deserialize, serialize
+    , Metadatum(..), NetworkId(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -33,13 +33,12 @@ import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
-import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
-import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
-import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
-import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
+import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
+import ElmCardano.Script exposing (NativeScript, PlutusScript)
+import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
 {-| A Cardano transaction.
@@ -55,24 +54,29 @@ type alias Transaction =
 {-| A Cardano transaction body.
 -}
 type alias TransactionBody =
-    { inputs : List Input -- 0
+    { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap RewardAccount Int -- 5
+    , withdrawals : BytesMap Bytes Int -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
     , validityIntervalStart : Maybe Int -- 8
     , mint : MultiAsset -- 9
     , scriptDataHash : Maybe Bytes -- 11
-    , collateral : List Input -- 13
+    , collateral : List OutputReference -- 13
     , requiredSigners : List (Hash Blake2b_224) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
-    , referenceInputs : List Input -- 18
+    , referenceInputs : List OutputReference -- 18
     }
+
+
+type NetworkId
+    = Testnet -- 0
+    | Mainnet -- 1
 
 
 {-| A Cardano transaction witness set.
@@ -82,15 +86,15 @@ type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
-    , plutusV1Script : Maybe (List PlutusV1Script) -- 3
+    , plutusV1Script : Maybe (List Bytes) -- 3
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
-    , plutusV2Script : Maybe (List PlutusV2Script) -- 6
+    , plutusV2Script : Maybe (List Bytes) -- 6
     }
 
 
 type alias AuxiliaryData =
-    { metadata : Maybe Metadata -- 0
+    { metadata : Maybe (Dict Int Metadatum) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , plutusScripts : Maybe (List PlutusScript) -- 1
     }
@@ -98,7 +102,7 @@ type alias AuxiliaryData =
 
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
-    , epoch : Epoch
+    , epoch : Int
     }
 
 
@@ -118,7 +122,7 @@ type alias ProtocolParamUpdate =
     , -- #[n(6)]
       poolDeposit : Maybe Int
     , -- #[n(7)]
-      maximumEpoch : Maybe Epoch
+      maximumEpoch : Maybe Int
     , -- #[n(8)]
       desiredNumberOfStakePools : Maybe Int
     , -- #[n(9)]
@@ -152,14 +156,10 @@ type alias ProtocolParamUpdate =
 
 type alias CostModels =
     { -- #[n(0)]
-      plutusV1 : Maybe CostModel
+      plutusV1 : Maybe (List Int)
     , -- #[n(1)]
-      plutusV2 : Maybe CostModel
+      plutusV2 : Maybe (List Int)
     }
-
-
-type alias CostModel =
-    List Int
 
 
 type alias ExUnitPrices =
@@ -192,28 +192,12 @@ type alias RationalNumber =
     }
 
 
-type alias Epoch =
-    Int
-
-
-type alias Metadata =
-    Dict MetadatumLabel Metadatum
-
-
-type alias MetadatumLabel =
-    Int
-
-
 type Metadatum
     = Int Int
     | Bytes Bytes
     | String String
     | List (List Metadatum)
     | Map (List ( Metadatum, Metadatum ))
-
-
-type alias RewardAccount =
-    Bytes
 
 
 type alias VKeyWitness =
@@ -235,9 +219,6 @@ type alias BootstrapWitness =
 
 
 
--- Token Values ################################################################
--- Credentials #################################################################
--- Inputs/Outputs ##############################################################
 -- Scripts #####################################################################
 
 
@@ -348,7 +329,7 @@ encodeWitnessSet =
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (\scripts -> E.list Bytes.toCbor scripts) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
+            >> E.optionalField 5 (\redeemers -> E.list Redeemer.encode redeemers) .redeemer
             >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
 
 
@@ -383,9 +364,9 @@ encodeAuxiliaryData _ =
     todo "encode auxiliary data"
 
 
-encodeInputs : List Input -> E.Encoder
+encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.list encodeInput inputs
+    E.list encodeOutputReference inputs
 
 
 encodeOutputs : List Output -> E.Encoder

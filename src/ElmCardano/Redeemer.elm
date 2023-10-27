@@ -1,4 +1,14 @@
-module ElmCardano.Redeemer exposing (..)
+module ElmCardano.Redeemer exposing
+    ( Redeemer, RedeemerTag(..), ExUnits
+    , encode, encodeTag, encodeExUnits
+    )
+
+{-| Redeemer
+
+@docs Redeemer, RedeemerTag, ExUnits
+@docs encode, encodeTag, encodeExUnits
+
+-}
 
 import Cbor.Encode as E
 import ElmCardano.Data as Data exposing (Data)
@@ -25,18 +35,18 @@ type alias ExUnits =
     }
 
 
-encodeRedeemer : Redeemer -> E.Encoder
-encodeRedeemer =
+encode : Redeemer -> E.Encoder
+encode =
     E.tuple <|
         E.elems
-            >> E.elem encodeRedeemerTag .tag
+            >> E.elem encodeTag .tag
             >> E.elem E.int .index
             >> E.elem Data.toCbor .data
             >> E.elem encodeExUnits .exUnits
 
 
-encodeRedeemerTag : RedeemerTag -> E.Encoder
-encodeRedeemerTag redeemerTag =
+encodeTag : RedeemerTag -> E.Encoder
+encodeTag redeemerTag =
     E.int <|
         case redeemerTag of
             Spend ->
