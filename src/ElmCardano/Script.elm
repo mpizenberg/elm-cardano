@@ -1,8 +1,8 @@
-module ElmCardano.Script exposing (Script(..), NativeScript(..), PlutusScript, PlutusV1Script, PlutusV2Script)
+module ElmCardano.Script exposing (Script(..), NativeScript(..), PlutusScript)
 
 {-| Script
 
-@docs Script, NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script
+@docs Script, NativeScript, PlutusScript
 
 -}
 
@@ -20,8 +20,7 @@ import ElmCardano.Hash exposing (Blake2b_224, Hash)
 
 type Script
     = Native NativeScript
-    | PlutusV1 PlutusV1Script
-    | PlutusV2 PlutusV2Script
+    | Plutus PlutusScript
 
 
 {-| A native script
@@ -37,12 +36,6 @@ type NativeScript
 
 
 type alias PlutusScript =
-    Bytes
-
-
-type alias PlutusV1Script =
-    Bytes
-
-
-type alias PlutusV2Script =
-    Bytes
+    { version : Int
+    , script : Bytes
+    }

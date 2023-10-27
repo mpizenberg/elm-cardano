@@ -37,7 +37,7 @@ import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
+import ElmCardano.Script exposing (NativeScript, PlutusScript)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
 
 
@@ -81,10 +81,10 @@ type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
-    , plutusV1Script : Maybe (List PlutusV1Script) -- 3
+    , plutusV1Script : Maybe (List Bytes) -- 3
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
-    , plutusV2Script : Maybe (List PlutusV2Script) -- 6
+    , plutusV2Script : Maybe (List Bytes) -- 6
     }
 
 
