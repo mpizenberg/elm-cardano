@@ -1,4 +1,10 @@
-module ElmCardano.Script exposing (..)
+module ElmCardano.Script exposing (Script(..), NativeScript(..), PlutusScript, PlutusV1Script, PlutusV2Script)
+
+{-| Script
+
+@docs Script, NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script
+
+-}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import ElmCardano.Hash exposing (Blake2b_224, Hash)

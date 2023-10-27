@@ -1,4 +1,4 @@
-module ElmCardano.Address exposing (..)
+module ElmCardano.Address exposing (Address, Credential(..), StakeCredential(..))
 
 {-| Handling Cardano addresses
 -}

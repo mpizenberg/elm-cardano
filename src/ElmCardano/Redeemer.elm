@@ -1,4 +1,14 @@
-module ElmCardano.Redeemer exposing (..)
+module ElmCardano.Redeemer exposing
+    ( Redeemer, RedeemerTag(..), ExUnits
+    , encodeRedeemer, encodeRedeemerTag, encodeExUnits
+    )
+
+{-| Redeemer
+
+@docs Redeemer, RedeemerTag, ExUnits
+@docs encodeRedeemer, encodeRedeemerTag, encodeExUnits
+
+-}
 
 import Cbor.Encode as E
 import ElmCardano.Data as Data exposing (Data)

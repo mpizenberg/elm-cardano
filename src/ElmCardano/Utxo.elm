@@ -1,6 +1,13 @@
-module ElmCardano.Utxo exposing (..)
+module ElmCardano.Utxo exposing
+    ( Input, OutputReference, Output(..), DatumOption(..)
+    , encodeInput, encodeOutput, encodeDatumOption
+    )
 
 {-| Handling outputs.
+
+@docs Input, OutputReference, Output, DatumOption
+@docs encodeInput, encodeOutput, encodeDatumOption
+
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)

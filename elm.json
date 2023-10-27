@@ -8,7 +8,6 @@
     "Bytes.Comparable",
     "BytesMap",
     "ElmCardano.Cip30",
-    "ElmCardano.Core",
     "ElmCardano.Data",
     "ElmCardano.Hash",
     "ElmCardano.Interval",
