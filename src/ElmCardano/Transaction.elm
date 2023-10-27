@@ -514,7 +514,7 @@ encodeWitnessSet =
             >> E.optionalField 1 (\_ -> todo "") .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (\scripts -> E.list E.bytes scripts) .plutusV1Script
-            >> E.optionalField 4 (E.listIndef Data.encode) .plutusData
+            >> E.optionalField 4 (E.indefiniteList Data.encode) .plutusData
             >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
             >> E.optionalField 6 (\scripts -> E.list E.bytes scripts) .plutusV2Script
 
@@ -576,7 +576,7 @@ encodeOutput output =
                 (E.elems
                     >> E.elem E.bytes .address
                     >> E.elem encodeValue .amount
-                    >> E.optionalElem E.bytes fields.datumHash
+                    >> E.optionalElem E.bytes .datumHash
                 )
                 fields
 
