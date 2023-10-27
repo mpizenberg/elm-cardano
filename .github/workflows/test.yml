@@ -7,6 +7,16 @@ on:
   pull_request:
 
 jobs:
+  make:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3.5.1
+      - uses: mpizenberg/elm-tooling-action@v1.5
+        with:
+          cache-key: elm-home-make${{ hashFiles('elm-tooling.json', 'elm.json') }}
+          cache-restore-key: elm-home-make
+      - run: elm make
+
   test:
     runs-on: ubuntu-latest
     steps:
