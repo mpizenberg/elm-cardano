@@ -59,7 +59,7 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap RewardAccount Int -- 5
+    , withdrawals : BytesMap Bytes Int -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
     , validityIntervalStart : Maybe Int -- 8
@@ -193,10 +193,6 @@ type Metadatum
     | String String
     | List (List Metadatum)
     | Map (List ( Metadatum, Metadatum ))
-
-
-type alias RewardAccount =
-    Bytes
 
 
 type alias VKeyWitness =
