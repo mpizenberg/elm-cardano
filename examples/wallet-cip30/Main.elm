@@ -4,7 +4,7 @@ import Browser
 import Bytes.Encode
 import Dict exposing (Dict)
 import ElmCardano.Cip30 as Cip30
-import ElmCardano.Transaction as Transaction
+import ElmCardano.Value as ECValue
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
@@ -214,12 +214,12 @@ update msg model =
             -- Lace picks at random (fun!)
             -- Gero does not handle the amount parameter
             -- NuFi does not handle the amount parameter
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (Transaction.Coin 14000000), paginate = Nothing } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
             -- Typhon crashes with the amounts
             -- Nami crashes as the method does not exist
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = Transaction.Coin 3000000 } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace 3000000 } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response
