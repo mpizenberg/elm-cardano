@@ -36,7 +36,7 @@ import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
-import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
+import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
 
@@ -352,7 +352,7 @@ encodeWitnessSet =
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (\scripts -> E.list Bytes.toCbor scripts) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
+            >> E.optionalField 5 (\redeemers -> E.list Redeemer.encode redeemers) .redeemer
             >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
 
 

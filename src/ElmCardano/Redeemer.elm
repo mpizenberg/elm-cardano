@@ -1,12 +1,12 @@
 module ElmCardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
-    , encodeRedeemer, encodeRedeemerTag, encodeExUnits
+    , encode, encodeTag, encodeExUnits
     )
 
 {-| Redeemer
 
 @docs Redeemer, RedeemerTag, ExUnits
-@docs encodeRedeemer, encodeRedeemerTag, encodeExUnits
+@docs encode, encodeTag, encodeExUnits
 
 -}
 
@@ -35,18 +35,18 @@ type alias ExUnits =
     }
 
 
-encodeRedeemer : Redeemer -> E.Encoder
-encodeRedeemer =
+encode : Redeemer -> E.Encoder
+encode =
     E.tuple <|
         E.elems
-            >> E.elem encodeRedeemerTag .tag
+            >> E.elem encodeTag .tag
             >> E.elem E.int .index
             >> E.elem Data.toCbor .data
             >> E.elem encodeExUnits .exUnits
 
 
-encodeRedeemerTag : RedeemerTag -> E.Encoder
-encodeRedeemerTag redeemerTag =
+encodeTag : RedeemerTag -> E.Encoder
+encodeTag redeemerTag =
     E.int <|
         case redeemerTag of
             Spend ->
