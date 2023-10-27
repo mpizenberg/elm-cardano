@@ -97,7 +97,7 @@ type alias AuxiliaryData =
 
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
-    , epoch : Epoch
+    , epoch : Int
     }
 
 
@@ -117,7 +117,7 @@ type alias ProtocolParamUpdate =
     , -- #[n(6)]
       poolDeposit : Maybe Int
     , -- #[n(7)]
-      maximumEpoch : Maybe Epoch
+      maximumEpoch : Maybe Int
     , -- #[n(8)]
       desiredNumberOfStakePools : Maybe Int
     , -- #[n(9)]
@@ -185,10 +185,6 @@ type alias RationalNumber =
     { numerator : Int
     , denominator : Int
     }
-
-
-type alias Epoch =
-    Int
 
 
 type alias Metadata =
