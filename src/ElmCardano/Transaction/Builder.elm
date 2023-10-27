@@ -20,9 +20,9 @@ module ElmCardano.Transaction.Builder exposing
 
 import Bytes exposing (Bytes)
 import BytesMap
-import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
 import ElmCardano.Hash exposing (Blake2b_224, Hash)
+import ElmCardano.MultiAsset as MultiAsset
 import ElmCardano.Redeemer exposing (Redeemer)
 import ElmCardano.Transaction
     exposing
@@ -32,7 +32,7 @@ import ElmCardano.Transaction
         , serialize
         )
 import ElmCardano.Utxo exposing (DatumOption(..), Input, Output(..))
-import ElmCardano.Value exposing (Value(..))
+import ElmCardano.Value as Value
 
 
 type Tx
@@ -52,7 +52,7 @@ new =
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
-            , mint = BytesMap.empty
+            , mint = MultiAsset.empty
             , scriptDataHash = Nothing
             , collateral = []
             , requiredSigners = []
@@ -130,26 +130,26 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Bytes -> Coin -> Data -> Tx -> Tx
+payToContract : Bytes -> Int -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
             (PostAlonzo
                 { address = address
-                , value = Coin amount
+                , value = Value.onlyLovelace amount
                 , datumOption = Just (Datum datum)
                 , referenceScript = Nothing
                 }
             )
 
 
-payToAddress : Bytes -> Coin -> Tx -> Tx
+payToAddress : Bytes -> Int -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
             (Legacy
                 { address = address
-                , amount = Coin amount
+                , amount = Value.onlyLovelace amount
                 , datumHash = Nothing
                 }
             )
@@ -209,14 +209,14 @@ addRequiredSigner signer body =
     }
 
 
-collateralReturn : Bytes -> Coin -> Tx -> Tx
+collateralReturn : Bytes -> Int -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody
             (addCollateralReturn
                 (Legacy
                     { address = address
-                    , amount = Coin amount
+                    , amount = Value.onlyLovelace amount
                     , datumHash = Nothing
                     }
                 )

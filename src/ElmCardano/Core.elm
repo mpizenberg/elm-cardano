@@ -1,4 +1,4 @@
-module ElmCardano.Core exposing (Coin, NetworkId(..), PosixTime)
+module ElmCardano.Core exposing (NetworkId(..), PosixTime)
 
 {-| Essential elements for Cardano smart contracts that don't have a dedicated module.
 -}
@@ -13,7 +13,3 @@ type PosixTime
 type NetworkId
     = Testnet -- 0
     | Mainnet -- 1
-
-
-type alias Coin =
-    Int
