@@ -151,14 +151,10 @@ type alias ProtocolParamUpdate =
 
 type alias CostModels =
     { -- #[n(0)]
-      plutusV1 : Maybe CostModel
+      plutusV1 : Maybe (List Int)
     , -- #[n(1)]
-      plutusV2 : Maybe CostModel
+      plutusV2 : Maybe (List Int)
     }
-
-
-type alias CostModel =
-    List Int
 
 
 type alias ExUnitPrices =
