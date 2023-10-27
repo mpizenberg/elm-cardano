@@ -3,7 +3,7 @@ module ElmCardano.Transaction exposing
     , TransactionBody, WitnessSet
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , Metadatum(..), deserialize, serialize
+    , Metadatum(..), NetworkId(..), deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -33,7 +33,6 @@ import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
-import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
@@ -326,6 +325,11 @@ encodeTransactionBody =
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
+
+
+type NetworkId
+    = Testnet -- 0
+    | Mainnet -- 1
 
 
 encodeNetworkId : NetworkId -> E.Encoder

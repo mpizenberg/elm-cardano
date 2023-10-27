@@ -1,10 +1,10 @@
 module ElmCardano.TransactionTests exposing (..)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
 import ElmCardano.Hash as Hash
 import ElmCardano.Redeemer exposing (RedeemerTag(..))
+import ElmCardano.Transaction exposing (NetworkId(..))
 import ElmCardano.Transaction.Builder as Tx
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
