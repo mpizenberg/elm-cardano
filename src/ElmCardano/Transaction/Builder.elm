@@ -31,7 +31,7 @@ import ElmCardano.Transaction
         , WitnessSet
         , serialize
         )
-import ElmCardano.Utxo exposing (DatumOption(..), Input, Output(..))
+import ElmCardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
 import ElmCardano.Value as Value
 
 
@@ -96,7 +96,7 @@ updateWitnessSet apply inner =
         }
 
 
-input : Input -> Tx -> Tx
+input : OutputReference -> Tx -> Tx
 input newInput (Tx inner) =
     inner |> updateBody (addInput newInput)
 
@@ -125,7 +125,7 @@ addRedeemer r witnessSet =
     }
 
 
-addInput : Input -> TransactionBody -> TransactionBody
+addInput : OutputReference -> TransactionBody -> TransactionBody
 addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
@@ -185,12 +185,12 @@ addScriptDataHash dataHash body =
     { body | scriptDataHash = Just dataHash }
 
 
-collateral : Input -> Tx -> Tx
+collateral : OutputReference -> Tx -> Tx
 collateral newInput (Tx inner) =
     inner |> updateBody (addCollateral newInput)
 
 
-addCollateral : Input -> TransactionBody -> TransactionBody
+addCollateral : OutputReference -> TransactionBody -> TransactionBody
 addCollateral newInput body =
     { body
         | collateral = newInput :: body.collateral
@@ -238,12 +238,12 @@ addTotalCollateral amount body =
     { body | totalCollateral = Just amount }
 
 
-referenceInput : Input -> Tx -> Tx
+referenceInput : OutputReference -> Tx -> Tx
 referenceInput newInput (Tx inner) =
     inner |> updateBody (addReferenceInput newInput)
 
 
-addReferenceInput : Input -> TransactionBody -> TransactionBody
+addReferenceInput : OutputReference -> TransactionBody -> TransactionBody
 addReferenceInput newInput body =
     { body
         | referenceInputs = newInput :: body.referenceInputs

@@ -38,7 +38,7 @@ import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import ElmCardano.Script exposing (NativeScript, PlutusScript)
-import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
+import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
 {-| A Cardano transaction.
@@ -54,7 +54,7 @@ type alias Transaction =
 {-| A Cardano transaction body.
 -}
 type alias TransactionBody =
-    { inputs : List Input -- 0
+    { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
@@ -65,12 +65,12 @@ type alias TransactionBody =
     , validityIntervalStart : Maybe Int -- 8
     , mint : MultiAsset -- 9
     , scriptDataHash : Maybe Bytes -- 11
-    , collateral : List Input -- 13
+    , collateral : List OutputReference -- 13
     , requiredSigners : List (Hash Blake2b_224) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
-    , referenceInputs : List Input -- 18
+    , referenceInputs : List OutputReference -- 18
     }
 
 
@@ -364,9 +364,9 @@ encodeAuxiliaryData _ =
     todo "encode auxiliary data"
 
 
-encodeInputs : List Input -> E.Encoder
+encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.list encodeInput inputs
+    E.list encodeOutputReference inputs
 
 
 encodeOutputs : List Output -> E.Encoder

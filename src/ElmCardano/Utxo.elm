@@ -1,12 +1,12 @@
 module ElmCardano.Utxo exposing
-    ( Input, OutputReference, Output(..), DatumOption(..)
-    , encodeInput, encodeOutput, encodeDatumOption
+    ( OutputReference, Output(..), DatumOption(..)
+    , encodeOutputReference, encodeOutput, encodeDatumOption
     )
 
 {-| Handling outputs.
 
-@docs Input, OutputReference, Output, DatumOption
-@docs encodeInput, encodeOutput, encodeDatumOption
+@docs OutputReference, Output, DatumOption
+@docs encodeOutputReference, encodeOutput, encodeDatumOption
 
 -}
 
@@ -19,18 +19,12 @@ import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.Value as Value exposing (Value)
 
 
-{-| An input eUTxO for a transaction.
--}
-type alias Input =
-    { transactionId : Hash Blake2b_256
-    , outputIndex : Int
-    }
-
-
 {-| The reference for a eUTxO.
 -}
 type alias OutputReference =
-    Input
+    { transactionId : Hash Blake2b_256
+    , outputIndex : Int
+    }
 
 
 {-| The content of a eUTxO.
@@ -56,8 +50,8 @@ type DatumOption
     | Datum Data
 
 
-encodeInput : Input -> E.Encoder
-encodeInput =
+encodeOutputReference : OutputReference -> E.Encoder
+encodeOutputReference =
     E.tuple <|
         E.elems
             >> E.elem Hash.encode .transactionId
