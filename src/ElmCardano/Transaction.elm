@@ -74,6 +74,11 @@ type alias TransactionBody =
     }
 
 
+type NetworkId
+    = Testnet -- 0
+    | Mainnet -- 1
+
+
 {-| A Cardano transaction witness set.
 <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L763>
 -}
@@ -302,11 +307,6 @@ encodeTransactionBody =
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
-
-
-type NetworkId
-    = Testnet -- 0
-    | Mainnet -- 1
 
 
 encodeNetworkId : NetworkId -> E.Encoder
