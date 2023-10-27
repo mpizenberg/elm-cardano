@@ -1,12 +1,11 @@
 module ElmCardano.TransactionTests exposing (..)
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
 import ElmCardano.Hash as Hash
 import ElmCardano.Redeemer exposing (RedeemerTag(..))
 import ElmCardano.Transaction.Builder as Tx
-import Hex.Convert.Extra as Hex
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
 
@@ -32,15 +31,15 @@ suite =
                             , exUnits = { mem = 49435, steps = 18305237 }
                             }
                         |> Tx.payToContract
-                            (Hex.fromString "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
+                            (Bytes.fromStringUnchecked "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
                             50000000
-                            (Constr 0 [ HexBytes "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae" ])
-                        |> Tx.payToAddress (Hex.fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
+                            (Constr 0 [ Bytes <| Bytes.fromStringUnchecked "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae" ])
+                        |> Tx.payToAddress (Bytes.fromStringUnchecked "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
                         |> Tx.fee 182302
-                        |> Tx.scriptDataHash (Hex.fromString "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
+                        |> Tx.scriptDataHash (Bytes.fromStringUnchecked "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
                         |> Tx.requiredSigner (Hash.blake2b_224 "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae")
-                        |> Tx.collateralReturn (Hex.fromString "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1897506351
+                        |> Tx.collateralReturn (Bytes.fromStringUnchecked "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1897506351
                         |> Tx.totalCollateral 273453
                         |> Tx.referenceInput { transactionId = Hash.blake2b_256 "517b059959fc8ee584689f71cf1d9bb94fc36802aec0faa7fd96182c0ab090c4", outputIndex = 0 }
                         |> Tx.complete

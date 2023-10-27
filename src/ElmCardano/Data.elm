@@ -1,13 +1,11 @@
 module ElmCardano.Data exposing (..)
 
-import Bytes exposing (Bytes)
-import Bytes.Extra as Bytes
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Hex.Convert as Hex
 
 
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
@@ -17,11 +15,11 @@ type Data
     | Map (List ( Data, Data ))
     | List (List Data)
     | Int Int
-    | HexBytes String
+    | Bytes Bytes
 
 
-encode : Data -> E.Encoder
-encode data =
+toCbor : Data -> E.Encoder
+toCbor data =
     let
         -- NOTE: 'Data' lists are weirdly encoded:
         --
@@ -34,7 +32,7 @@ encode data =
                     E.length 0
 
                 _ ->
-                    E.indefiniteList encode xs
+                    E.indefiniteList toCbor xs
     in
     case data of
         Constr ix fields ->
@@ -54,7 +52,7 @@ encode data =
                     { ix = ix, fields = fields }
 
         Map xs ->
-            E.associativeList encode encode xs
+            E.associativeList toCbor toCbor xs
 
         List xs ->
             encodeList xs
@@ -75,25 +73,21 @@ encode data =
         Int i ->
             E.int i
 
-        HexBytes hexStr ->
-            let
-                bytes =
-                    unhex hexStr
-            in
+        Bytes bytes ->
             if Bytes.width bytes <= 64 then
-                E.bytes bytes
+                E.bytes (Bytes.toBytes bytes)
 
             else
                 E.sequence <|
                     E.beginBytes
                         :: List.foldr
-                            (\chunk rest -> E.bytes chunk :: rest)
+                            (\chunk rest -> E.bytes (Bytes.toBytes chunk) :: rest)
                             [ E.break ]
                             (Bytes.chunksOf 64 bytes)
 
 
-decode : D.Decoder Data
-decode =
+fromCbor : D.Decoder Data
+fromCbor =
     D.any
         |> D.andThen
             (\any ->
@@ -119,7 +113,7 @@ fromCborItem item =
             Just (Int i)
 
         CborBytes bs ->
-            Just (HexBytes <| Hex.toString bs)
+            Just (Bytes <| Bytes.fromBytes bs)
 
         CborTag (Tag.Unknown n) tagged ->
             if n == 102 then
@@ -179,13 +173,3 @@ collectCborItems st items =
         head :: tail ->
             fromCborItem head
                 |> Maybe.andThen (\s -> collectCborItems (s :: st) tail)
-
-
-unhex : String -> Bytes
-unhex hexStr =
-    Maybe.withDefault absurd (Hex.toBytes hexStr)
-
-
-absurd : Bytes
-absurd =
-    E.encode (E.sequence [])

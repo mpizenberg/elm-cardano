@@ -21,7 +21,7 @@ module ElmCardano.Cip30 exposing
     , walletDescriptor
     )
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Cbor.Encode
@@ -145,7 +145,7 @@ getRewardAddresses wallet =
 
 signData : Wallet -> { addr : String, payload : Bytes } -> Request
 signData wallet { addr, payload } =
-    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Hex.Convert.toString payload ]
+    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
 
 
 

@@ -31,7 +31,7 @@ encodeRedeemer =
         E.elems
             >> E.elem encodeRedeemerTag .tag
             >> E.elem E.int .index
-            >> E.elem Data.encode .data
+            >> E.elem Data.toCbor .data
             >> E.elem encodeExUnits .exUnits
 
 

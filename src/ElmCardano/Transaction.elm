@@ -24,7 +24,7 @@ module ElmCardano.Transaction exposing
 
 -}
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import BytesMap exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
@@ -287,12 +287,12 @@ type Certificate
 
 serialize : Transaction -> Bytes
 serialize =
-    encodeTransaction >> E.encode
+    encodeTransaction >> E.encode >> Bytes.fromBytes
 
 
 deserialize : Bytes -> Maybe Transaction
 deserialize =
-    D.decode decodeTransaction
+    Bytes.toBytes >> D.decode decodeTransaction
 
 
 encodeTransaction : Transaction -> E.Encoder
@@ -319,7 +319,7 @@ encodeTransactionBody =
             >> E.optionalField 7 Hash.encode .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
-            >> E.optionalField 11 E.bytes .scriptDataHash
+            >> E.optionalField 11 Bytes.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
             >> E.optionalField 15 encodeNetworkId .networkId
@@ -346,10 +346,10 @@ encodeWitnessSet =
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
             >> E.optionalField 1 (\_ -> todo "") .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (\scripts -> E.list E.bytes scripts) .plutusV1Script
-            >> E.optionalField 4 (E.indefiniteList Data.encode) .plutusData
+            >> E.optionalField 3 (\scripts -> E.list Bytes.toCbor scripts) .plutusV1Script
+            >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
             >> E.optionalField 5 (\redeemers -> E.list encodeRedeemer redeemers) .redeemer
-            >> E.optionalField 6 (\scripts -> E.list E.bytes scripts) .plutusV2Script
+            >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
 
 
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
@@ -361,8 +361,8 @@ encodeVKeyWitness : VKeyWitness -> E.Encoder
 encodeVKeyWitness =
     E.tuple <|
         E.elems
-            >> E.elem E.bytes .vkey
-            >> E.elem E.bytes .signature
+            >> E.elem Bytes.toCbor .vkey
+            >> E.elem Bytes.toCbor .signature
 
 
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
@@ -374,8 +374,8 @@ encodeBootstrapWitness : BootstrapWitness -> E.Encoder
 encodeBootstrapWitness =
     E.tuple <|
         E.elems
-            >> E.elem E.bytes .publicKey
-            >> E.elem E.bytes .signature
+            >> E.elem Bytes.toCbor .publicKey
+            >> E.elem Bytes.toCbor .signature
 
 
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder

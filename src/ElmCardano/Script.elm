@@ -1,6 +1,6 @@
 module ElmCardano.Script exposing (..)
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import ElmCardano.Hash exposing (Blake2b_224)
 
 

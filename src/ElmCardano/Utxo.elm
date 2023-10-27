@@ -3,7 +3,7 @@ module ElmCardano.Utxo exposing (..)
 {-| Handling outputs.
 -}
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
@@ -63,7 +63,7 @@ encodeOutput output =
         Legacy fields ->
             E.tuple
                 (E.elems
-                    >> E.elem E.bytes .address
+                    >> E.elem Bytes.toCbor .address
                     >> E.elem Value.encode .amount
                     >> E.optionalElem Hash.encode .datumHash
                 )
@@ -72,7 +72,7 @@ encodeOutput output =
         PostAlonzo fields ->
             E.record E.int
                 (E.fields
-                    >> E.field 0 E.bytes .address
+                    >> E.field 0 Bytes.toCbor .address
                     >> E.field 1 Value.encode .value
                     >> E.optionalField 2 encodeDatumOption .datumOption
                     >> E.optionalField 3 (\_ -> Debug.todo "encodeReferenceScript") .referenceScript
@@ -92,7 +92,7 @@ encodeDatumOption datumOption =
             Datum datum ->
                 [ E.int 1
                 , datum
-                    |> Data.encode
+                    |> Data.toCbor
                     |> E.encode
                     |> E.tagged Tag.Cbor E.bytes
                 ]
