@@ -316,7 +316,7 @@ encodeTransactionBody =
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 BytesMap.isEmpty (\_ -> todo "BytesMap.toCbor") .withdrawals
             >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
-            >> E.optionalField 7 E.bytes (.auxiliaryDataHash >> Maybe.map Hash.asBytes)
+            >> E.optionalField 7 Hash.encode .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
             >> E.optionalField 11 E.bytes .scriptDataHash
@@ -405,7 +405,7 @@ encodeCertificate _ =
 
 encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
 encodeRequiredSigners =
-    E.list (E.bytes << Hash.asBytes)
+    E.list Hash.encode
 
 
 decodeTransaction : D.Decoder Transaction

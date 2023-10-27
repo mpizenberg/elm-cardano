@@ -53,7 +53,7 @@ encodeInput : Input -> E.Encoder
 encodeInput =
     E.tuple <|
         E.elems
-            >> E.elem E.bytes (.transactionId >> Hash.asBytes)
+            >> E.elem Hash.encode .transactionId
             >> E.elem E.int .outputIndex
 
 
@@ -65,7 +65,7 @@ encodeOutput output =
                 (E.elems
                     >> E.elem E.bytes .address
                     >> E.elem Value.encode .amount
-                    >> E.optionalElem (Hash.asBytes >> E.bytes) .datumHash
+                    >> E.optionalElem Hash.encode .datumHash
                 )
                 fields
 
@@ -86,7 +86,7 @@ encodeDatumOption datumOption =
         case datumOption of
             DatumHash hash ->
                 [ E.int 0
-                , E.bytes (Hash.asBytes hash)
+                , Hash.encode hash
                 ]
 
             Datum datum ->

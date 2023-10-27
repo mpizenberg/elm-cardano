@@ -1,7 +1,8 @@
 module ElmCardano.Hash exposing
     ( Hash, Blake2b_224, Blake2b_256
     , blake2b_224, blake2b_256
-    , asBytes, asHex
+    , toBytes, toString
+    , encode
     )
 
 {-| This module defines Hash, a custom type for readability, internally just holding bytes.
@@ -12,16 +13,17 @@ The Hash type helps writing functions signatures with more meaningful types than
 
 @docs Hash, Blake2b_224, Blake2b_256
 @docs blake2b_224, blake2b_256
-@docs asBytes, asHex
+@docs toBytes, toString
+@docs encode
 
 -}
 
-import Bytes exposing (Bytes)
-import ComparableBytes exposing (ComparableBytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Encode as E
 
 
 type Hash a
-    = Hash ComparableBytes
+    = Hash Bytes
 
 
 {-| The Blake2b-224 hash algorithm, typically used for credentials and policy IDs.
@@ -39,20 +41,25 @@ type Blake2b_256
 blake2b_224 : String -> Hash Blake2b_224
 blake2b_224 hexStr =
     -- TODO: add some garanties here about that hex
-    Hash (ComparableBytes.fromStringUnchecked hexStr)
+    Hash (Bytes.fromStringUnchecked hexStr)
 
 
 blake2b_256 : String -> Hash Blake2b_256
 blake2b_256 hexStr =
     -- TODO: add some garanties here about that hex
-    Hash (ComparableBytes.fromStringUnchecked hexStr)
+    Hash (Bytes.fromStringUnchecked hexStr)
 
 
-asBytes : Hash a -> Bytes
-asBytes (Hash bytes) =
-    ComparableBytes.asBytes bytes
+toBytes : Hash a -> Bytes
+toBytes (Hash bytes) =
+    bytes
 
 
-asHex : Hash a -> String
-asHex (Hash bytes) =
-    ComparableBytes.asHex bytes
+toString : Hash a -> String
+toString (Hash bytes) =
+    Bytes.toString bytes
+
+
+encode : Hash a -> E.Encoder
+encode (Hash bytes) =
+    E.bytes (Bytes.toBytes bytes)
