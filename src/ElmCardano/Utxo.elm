@@ -9,7 +9,7 @@ import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
-import ElmCardano.Value exposing (Value, encodeValue)
+import ElmCardano.Value as Value exposing (Value)
 
 
 {-| An input eUTxO for a transaction.
@@ -64,7 +64,7 @@ encodeOutput output =
             E.tuple
                 (E.elems
                     >> E.elem E.bytes .address
-                    >> E.elem encodeValue .amount
+                    >> E.elem Value.encode .amount
                     >> E.optionalElem (Hash.asBytes >> E.bytes) .datumHash
                 )
                 fields
@@ -73,7 +73,7 @@ encodeOutput output =
             E.record E.int
                 (E.fields
                     >> E.field 0 E.bytes .address
-                    >> E.field 1 encodeValue .value
+                    >> E.field 1 Value.encode .value
                     >> E.optionalField 2 encodeDatumOption .datumOption
                     >> E.optionalField 3 (\_ -> Debug.todo "encodeReferenceScript") .referenceScript
                 )

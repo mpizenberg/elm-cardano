@@ -33,13 +33,13 @@ import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
-import ElmCardano.Core exposing (Coin, NetworkId(..))
+import ElmCardano.Core exposing (NetworkId(..))
 import ElmCardano.Data as Data exposing (Data(..))
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
+import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import ElmCardano.Redeemer exposing (ExUnits, Redeemer, encodeRedeemer)
 import ElmCardano.Script exposing (NativeScript, PlutusScript, PlutusV1Script, PlutusV2Script)
 import ElmCardano.Utxo exposing (Input, Output, OutputReference, encodeInput, encodeOutput)
-import ElmCardano.Value exposing (Multiasset, PolicyId)
 
 
 {-| A Cardano transaction.
@@ -60,17 +60,17 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap RewardAccount Coin -- 5
+    , withdrawals : BytesMap RewardAccount Int -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
     , validityIntervalStart : Maybe Int -- 8
-    , mint : Multiasset Coin -- 9
+    , mint : MultiAsset -- 9
     , scriptDataHash : Maybe Bytes -- 11
     , collateral : List Input -- 13
     , requiredSigners : List (Hash Blake2b_224) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
-    , totalCollateral : Maybe Coin -- 17
+    , totalCollateral : Maybe Int -- 17
     , referenceInputs : List Input -- 18
     }
 
@@ -114,9 +114,9 @@ type alias ProtocolParamUpdate =
     , -- #[n(4)]
       maxBlockHeaderSize : Maybe Int
     , -- #[n(5)]
-      keyDeposit : Maybe Coin
+      keyDeposit : Maybe Int
     , -- #[n(6)]
-      poolDeposit : Maybe Coin
+      poolDeposit : Maybe Int
     , -- #[n(7)]
       maximumEpoch : Maybe Epoch
     , -- #[n(8)]
@@ -130,9 +130,9 @@ type alias ProtocolParamUpdate =
     , -- #[n(14)]
       protocolVersion : Maybe ProtocolVersion
     , -- #[n(16)]
-      minPoolCost : Maybe Coin
+      minPoolCost : Maybe Int
     , -- #[n(17)]
-      adaPerUtxoByte : Maybe Coin
+      adaPerUtxoByte : Maybe Int
     , -- #[n(18)]
       costModelsForScriptLanguages : Maybe CostModels
     , -- #[n(19)]
@@ -257,7 +257,7 @@ type alias ScriptContext =
 {-| Characterizes the kind of script being executed and the associated resource.
 -}
 type ScriptPurpose
-    = SPMint PolicyId
+    = SPMint { policyId : Hash Blake2b_224 }
     | SPSpend OutputReference
     | SPWithdrawFrom StakeCredential
     | SPPublish Certificate
@@ -318,7 +318,7 @@ encodeTransactionBody =
             >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
             >> E.optionalField 7 E.bytes (.auxiliaryDataHash >> Maybe.map Hash.asBytes)
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 BytesMap.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
+            >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
             >> E.optionalField 11 E.bytes .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners

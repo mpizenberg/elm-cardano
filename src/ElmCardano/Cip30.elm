@@ -91,7 +91,7 @@ getUtxos : Wallet -> { amount : Maybe ECValue.Value, paginate : Maybe Paginate }
 getUtxos wallet { amount, paginate } =
     apiRequest wallet
         "getUtxos"
-        [ encodeMaybe (\a -> ECValue.encodeValue a |> encodeCborHex) amount
+        [ encodeMaybe (\a -> ECValue.encode a |> encodeCborHex) amount
         , encodeMaybe encodePaginate paginate
         ]
 
@@ -100,7 +100,7 @@ getCollateral : Wallet -> { amount : ECValue.Value } -> Request
 getCollateral wallet { amount } =
     let
         params =
-            JEncode.object [ ( "amount", ECValue.encodeValue amount |> encodeCborHex ) ]
+            JEncode.object [ ( "amount", ECValue.encode amount |> encodeCborHex ) ]
     in
     apiRequest wallet "getCollateral" [ params ]
 
