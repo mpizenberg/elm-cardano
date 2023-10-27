@@ -1,6 +1,6 @@
 module ElmCardano.DataTests exposing (..)
 
-import Bytes.Extra exposing (bytes)
+import Bytes.Comparable as Bytes exposing (bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Tag exposing (Tag(..))
@@ -61,7 +61,7 @@ fuzzer =
 suite : Test
 suite =
     describe "Data"
-        [ describe "encode"
+        [ describe "toCbor"
             [ testEncode "D87980" <|
                 Constr 0 []
             , testEncode "80" <|
@@ -85,8 +85,8 @@ suite =
                     , Constr 3 [ Bytes (bytes [ 0xB1 ]), List [ Int 0, Bytes (bytes [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (bytes []) ]
                     ]
             ]
-        , describe "encode >> decode"
-            [ Cbor.roundtrip Data.encode Data.decode fuzzer
+        , describe "toCbor >> fromCbor"
+            [ Cbor.roundtrip Data.toCbor Data.fromCbor fuzzer
             ]
         ]
 
@@ -94,10 +94,10 @@ suite =
 testEncode : String -> Data -> Test
 testEncode bytes data =
     test (Debug.toString data) <|
-        \_ -> data |> Data.encode |> E.encode |> expectBytes bytes
+        \_ -> data |> Data.toCbor |> E.encode |> Bytes.fromBytes |> expectBytes bytes
 
 
 testDecode : String -> Data -> Test
 testDecode bytes data =
     test (Debug.toString data) <|
-        \_ -> bytes |> Hex.fromString |> D.decode Data.decode |> Expect.equal (Just data)
+        \_ -> bytes |> Hex.fromString |> D.decode Data.fromCbor |> Expect.equal (Just data)

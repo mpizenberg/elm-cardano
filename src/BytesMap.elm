@@ -44,10 +44,8 @@ Insert, remove, and query operations all take O(log n) time.
 
 -}
 
-import Bytes exposing (Bytes)
-import Bytes.Encode as E
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Dict exposing (Dict)
-import Hex.Convert as Hex
 
 
 
@@ -74,21 +72,21 @@ empty =
 -}
 singleton : Bytes -> v -> BytesMap k v
 singleton k v =
-    BytesMap <| Dict.singleton (hex k) v
+    BytesMap <| Dict.singleton (Bytes.toString k) v
 
 
 {-| Insert a key-value pair into a `BytesMap`. Replaces value when there is a collision.
 -}
 insert : Bytes -> v -> BytesMap k v -> BytesMap k v
 insert k v (BytesMap m) =
-    BytesMap <| Dict.insert (hex k) v m
+    BytesMap <| Dict.insert (Bytes.toString k) v m
 
 
 {-| Update the value of a `BytesMap` for a specific key with a given function.
 -}
 update : Bytes -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
 update k f (BytesMap m) =
-    BytesMap <| Dict.update (hex k) f m
+    BytesMap <| Dict.update (Bytes.toString k) f m
 
 
 {-| Remove a key-value pair from a `BytesMap`. If the key is not found, no changes
@@ -96,7 +94,7 @@ are made.
 -}
 remove : Bytes -> BytesMap k v -> BytesMap k v
 remove k (BytesMap m) =
-    BytesMap <| Dict.remove (hex k) m
+    BytesMap <| Dict.remove (Bytes.toString k) m
 
 
 
@@ -114,14 +112,14 @@ isEmpty (BytesMap m) =
 -}
 member : Bytes -> BytesMap k v -> Bool
 member k (BytesMap m) =
-    Dict.member (hex k) m
+    Dict.member (Bytes.toString k) m
 
 
 {-| Get the value associated with a key. If the key is not found, return `Nothing`. This is useful when you are not sure if a key will be in the `BytesMap`
 -}
 get : Bytes -> BytesMap k v -> Maybe v
 get k (BytesMap m) =
-    Dict.get (hex k) m
+    Dict.get (Bytes.toString k) m
 
 
 {-| Determine the number of key-value pairs in the `BytesMap`.
@@ -139,7 +137,7 @@ size (BytesMap m) =
 -}
 keys : BytesMap k v -> List Bytes
 keys (BytesMap m) =
-    Dict.foldr (\k _ ks -> unhex k :: ks) [] m
+    Dict.foldr (\k _ ks -> Bytes.fromStringUnchecked k :: ks) [] m
 
 
 {-| Get all of the values in a dictionary, in the order of their keys.
@@ -153,7 +151,7 @@ values (BytesMap m) =
 -}
 toList : BytesMap k v -> List ( Bytes, v )
 toList (BytesMap m) =
-    Dict.foldr (\k v ks -> ( unhex k, v ) :: ks) [] m
+    Dict.foldr (\k v ks -> ( Bytes.fromStringUnchecked k, v ) :: ks) [] m
 
 
 {-| Convert an association list into a `BytesMap`.
@@ -178,7 +176,7 @@ map f (BytesMap m) =
 -}
 mapWithKeys : (Bytes -> a -> b) -> BytesMap k a -> BytesMap k b
 mapWithKeys f (BytesMap m) =
-    BytesMap <| Dict.map (unhex >> f) m
+    BytesMap <| Dict.map (Bytes.fromStringUnchecked >> f) m
 
 
 {-| Fold over the values in a `BytesMap` from lowest key to highest key.
@@ -192,7 +190,7 @@ foldl f zero (BytesMap m) =
 -}
 foldlWithKeys : (Bytes -> v -> result -> result) -> result -> BytesMap k v -> result
 foldlWithKeys f zero (BytesMap m) =
-    Dict.foldl (unhex >> f) zero m
+    Dict.foldl (Bytes.fromStringUnchecked >> f) zero m
 
 
 {-| Fold over the values in a `BytesMap` from highest key to lowest key.
@@ -206,7 +204,7 @@ foldr f zero (BytesMap m) =
 -}
 foldrWithKeys : (Bytes -> v -> result -> result) -> result -> BytesMap k v -> result
 foldrWithKeys f zero (BytesMap m) =
-    Dict.foldr (unhex >> f) zero m
+    Dict.foldr (Bytes.fromStringUnchecked >> f) zero m
 
 
 {-| Keep only the values that pass the given test.
@@ -220,7 +218,7 @@ filter f (BytesMap m) =
 -}
 filterWithKeys : (Bytes -> v -> Bool) -> BytesMap k v -> BytesMap k v
 filterWithKeys f (BytesMap m) =
-    BytesMap <| Dict.filter (unhex >> f) m
+    BytesMap <| Dict.filter (Bytes.fromStringUnchecked >> f) m
 
 
 
@@ -269,26 +267,8 @@ merge :
     -> result
 merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
     Dict.merge
-        (unhex >> whenLeft)
-        (unhex >> whenBoth)
-        (unhex >> whenRight)
+        (Bytes.fromStringUnchecked >> whenLeft)
+        (Bytes.fromStringUnchecked >> whenBoth)
+        (Bytes.fromStringUnchecked >> whenRight)
         left
         right
-
-
-
--------- Internal
-
-
-hex : Bytes -> String
-hex =
-    Hex.toString
-
-
-unhex : String -> Bytes
-unhex =
-    let
-        absurd =
-            E.sequence [] |> E.encode
-    in
-    Hex.toBytes >> Maybe.withDefault absurd

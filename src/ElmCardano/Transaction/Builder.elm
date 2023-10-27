@@ -18,22 +18,21 @@ module ElmCardano.Transaction.Builder exposing
     , totalCollateral
     )
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import BytesMap
-import ElmCardano.Core exposing (Coin)
 import ElmCardano.Data exposing (Data)
+import ElmCardano.Hash exposing (Blake2b_224, Hash)
+import ElmCardano.MultiAsset as MultiAsset
+import ElmCardano.Redeemer exposing (Redeemer)
 import ElmCardano.Transaction
     exposing
-        ( DatumOption(..)
-        , Input
-        , Output(..)
-        , Redeemer
-        , Transaction
+        ( Transaction
         , TransactionBody
-        , Value(..)
         , WitnessSet
         , serialize
         )
+import ElmCardano.Utxo exposing (DatumOption(..), Input, Output(..))
+import ElmCardano.Value as Value
 
 
 type Tx
@@ -53,7 +52,7 @@ new =
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
-            , mint = BytesMap.empty
+            , mint = MultiAsset.empty
             , scriptDataHash = Nothing
             , collateral = []
             , requiredSigners = []
@@ -131,26 +130,26 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Bytes -> Coin -> Data -> Tx -> Tx
+payToContract : Bytes -> Int -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
             (PostAlonzo
                 { address = address
-                , value = Coin amount
+                , value = Value.onlyLovelace amount
                 , datumOption = Just (Datum datum)
                 , referenceScript = Nothing
                 }
             )
 
 
-payToAddress : Bytes -> Coin -> Tx -> Tx
+payToAddress : Bytes -> Int -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
             (Legacy
                 { address = address
-                , amount = Coin amount
+                , amount = Value.onlyLovelace amount
                 , datumHash = Nothing
                 }
             )
@@ -198,26 +197,26 @@ addCollateral newInput body =
     }
 
 
-requiredSigner : Bytes -> Tx -> Tx
+requiredSigner : Hash Blake2b_224 -> Tx -> Tx
 requiredSigner signer (Tx inner) =
     inner |> updateBody (addRequiredSigner signer)
 
 
-addRequiredSigner : Bytes -> TransactionBody -> TransactionBody
+addRequiredSigner : Hash Blake2b_224 -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
         | requiredSigners = signer :: body.requiredSigners
     }
 
 
-collateralReturn : Bytes -> Coin -> Tx -> Tx
+collateralReturn : Bytes -> Int -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody
             (addCollateralReturn
                 (Legacy
                     { address = address
-                    , amount = Coin amount
+                    , amount = Value.onlyLovelace amount
                     , datumHash = Nothing
                     }
                 )

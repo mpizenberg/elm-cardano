@@ -21,11 +21,11 @@ module ElmCardano.Cip30 exposing
     , walletDescriptor
     )
 
-import Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Cbor.Encode
-import ElmCardano.Transaction as Transaction
+import ElmCardano.Value as ECValue
 import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value, maybe)
 import Json.Encode as JEncode
@@ -87,20 +87,20 @@ getNetworkId wallet =
     apiRequest wallet "getNetworkId" []
 
 
-getUtxos : Wallet -> { amount : Maybe Transaction.Value, paginate : Maybe Paginate } -> Request
+getUtxos : Wallet -> { amount : Maybe ECValue.Value, paginate : Maybe Paginate } -> Request
 getUtxos wallet { amount, paginate } =
     apiRequest wallet
         "getUtxos"
-        [ encodeMaybe (\a -> Transaction.encodeValue a |> encodeCborHex) amount
+        [ encodeMaybe (\a -> ECValue.encode a |> encodeCborHex) amount
         , encodeMaybe encodePaginate paginate
         ]
 
 
-getCollateral : Wallet -> { amount : Transaction.Value } -> Request
+getCollateral : Wallet -> { amount : ECValue.Value } -> Request
 getCollateral wallet { amount } =
     let
         params =
-            JEncode.object [ ( "amount", Transaction.encodeValue amount |> encodeCborHex ) ]
+            JEncode.object [ ( "amount", ECValue.encode amount |> encodeCborHex ) ]
     in
     apiRequest wallet "getCollateral" [ params ]
 
@@ -145,7 +145,7 @@ getRewardAddresses wallet =
 
 signData : Wallet -> { addr : String, payload : Bytes } -> Request
 signData wallet { addr, payload } =
-    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Hex.Convert.toString payload ]
+    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
 
 
 
