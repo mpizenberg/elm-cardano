@@ -3,7 +3,7 @@ module ElmCardano.Address exposing (..)
 {-| Handling Cardano addresses
 -}
 
-import ElmCardano.Hash exposing (Blake2b_224)
+import ElmCardano.Hash exposing (Blake2b_224, Hash)
 
 
 {-| A Cardano address typically holding one or two credential references.
@@ -24,8 +24,8 @@ Credentials are always one of two kinds: a direct public/private key pair, or a 
 
 -}
 type Credential
-    = VerificationKeyCredential Blake2b_224
-    | ScriptCredential Blake2b_224
+    = VerificationKeyCredential (Hash Blake2b_224)
+    | ScriptCredential (Hash Blake2b_224)
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
