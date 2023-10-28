@@ -46,3 +46,22 @@ jobs:
           cache-key: elm-home-format${{ hashFiles('elm-tooling.json', 'elm.json') }}
           cache-restore-key: elm-home-format
       - run: elm-format src/ tests/ examples/ --validate
+
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: 'npm'
+      - name: npm ci
+        env:
+          # elm-tooling install is handled by elm-tooling-action
+          NO_ELM_TOOLING_INSTALL: 1
+        run: npm ci
+      - uses: mpizenberg/elm-tooling-action@v1.5
+        with:
+          cache-key: elm-home-review${{ hashFiles('elm-tooling.json', 'elm.json', 'review/elm.json') }}
+          cache-restore-key: elm-home-review
+      - run: npm exec --no elm-review
