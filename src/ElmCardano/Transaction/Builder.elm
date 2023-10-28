@@ -18,7 +18,7 @@ module ElmCardano.Transaction.Builder exposing
     , totalCollateral
     )
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable exposing (Bytes)
 import BytesMap
 import ElmCardano.Data exposing (Data)
 import ElmCardano.Hash exposing (Blake2b_224, Hash)

@@ -3,7 +3,7 @@ module ElmCardano.Transaction exposing
     , TransactionBody, WitnessSet
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , Metadatum(..), NetworkId(..), deserialize, serialize
+    , AuxiliaryData, BootstrapWitness, CostModels, ExUnitPrices, Metadatum(..), NetworkId(..), PositiveInterval, ProtocolParamUpdate, ProtocolVersion, RationalNumber, UnitInterval, Update, VKeyWitness, deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -29,11 +29,10 @@ import BytesMap exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
-import Cbor.Tag exposing (Tag(..))
 import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
-import ElmCardano.Data as Data exposing (Data(..))
+import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)

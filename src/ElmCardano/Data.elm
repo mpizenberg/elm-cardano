@@ -1,10 +1,9 @@
-module ElmCardano.Data exposing (..)
+module ElmCardano.Data exposing (Data(..), collectCborItems, collectCborPairs, fromCbor, fromCborItem, toCbor)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 
 

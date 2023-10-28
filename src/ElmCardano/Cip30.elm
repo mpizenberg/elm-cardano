@@ -1,7 +1,10 @@
 module ElmCardano.Cip30 exposing
     ( ApiResponse(..)
+    , DataSignature
+    , Paginate
     , Request
     , Response(..)
+    , Utxo
     , Wallet
     , WalletDescriptor
     , discoverWallets
@@ -27,7 +30,7 @@ import Cbor.Decode
 import Cbor.Encode
 import ElmCardano.Value as ECValue
 import Hex.Convert
-import Json.Decode as JDecode exposing (Decoder, Value, maybe)
+import Json.Decode as JDecode exposing (Decoder, Value)
 import Json.Encode as JEncode
 
 

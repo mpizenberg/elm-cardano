@@ -1,4 +1,4 @@
-module Cbor.Encode.Extra exposing (..)
+module Cbor.Encode.Extra exposing (nonEmptyField)
 
 import Cbor.Encode as E
 

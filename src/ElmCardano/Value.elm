@@ -22,14 +22,6 @@ onlyLovelace lovelace =
     { lovelace = lovelace, assets = MultiAsset.empty }
 
 
-{-| Ada, the native currency, isn’t associated with any AssetName (it’s not possible to mint Ada!).
-By convention, it is an empty ByteArray.
--}
-adaAssetName : String
-adaAssetName =
-    ""
-
-
 encode : Value -> E.Encoder
 encode { lovelace, assets } =
     if MultiAsset.isEmpty assets then

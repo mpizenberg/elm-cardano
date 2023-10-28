@@ -3,7 +3,6 @@ module ElmCardano.DataTests exposing (..)
 import Bytes.Comparable as Bytes exposing (bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
-import Cbor.Tag exposing (Tag(..))
 import Cbor.Test as Cbor
 import ElmCardano.Data as Data exposing (Data(..))
 import Expect

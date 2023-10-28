@@ -1,4 +1,4 @@
-module Hex.Convert.Extra exposing (..)
+module Hex.Convert.Extra exposing (fromString)
 
 import Bytes exposing (Bytes)
 import Hex.Convert as Hex

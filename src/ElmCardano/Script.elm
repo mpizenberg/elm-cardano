@@ -6,7 +6,7 @@ module ElmCardano.Script exposing (Script(..), NativeScript(..), PlutusScript)
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable exposing (Bytes)
 import ElmCardano.Hash exposing (Blake2b_224, Hash)
 
 

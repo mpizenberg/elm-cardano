@@ -12,7 +12,6 @@ module ElmCardano.Utxo exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
