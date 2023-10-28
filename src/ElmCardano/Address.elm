@@ -1,6 +1,9 @@
 module ElmCardano.Address exposing (Address, Credential(..), StakeCredential(..))
 
-{-| Handling Cardano addresses
+{-| Handling Cardano addresses.
+
+@docs Address, Credential, StakeCredential
+
 -}
 
 import ElmCardano.Hash exposing (Blake2b_224, Hash)
