@@ -22,6 +22,12 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 
 
+{-| Hash bytes.
+
+The free type parameter is a phantom type
+ensuring the bytes follow some constaints related to the hash algorithm.
+
+-}
 type Hash a
     = Hash Bytes
 
@@ -38,28 +44,50 @@ type Blake2b_256
     = Blake2b_256 Never
 
 
+{-| Constructor for Blake2B-224 algorithm.
+
+Warning: currently, this does not compute the hash of the string,
+it just encapsulates it and mark it as a Blake2B-224 hash.
+
+TODO: perform some checks to ensure the string has the correct shape.
+
+-}
 blake2b_224 : String -> Hash Blake2b_224
 blake2b_224 hexStr =
     -- TODO: add some garanties here about that hex
     Hash (Bytes.fromStringUnchecked hexStr)
 
 
+{-| Constructor for Blake2B-256 algorithm.
+
+Warning: currently, this does not compute the hash of the string,
+it just encapsulates it and mark it as a Blake2B-256 hash.
+
+TODO: perform some checks to ensure the string has the correct shape.
+
+-}
 blake2b_256 : String -> Hash Blake2b_256
 blake2b_256 hexStr =
     -- TODO: add some garanties here about that hex
     Hash (Bytes.fromStringUnchecked hexStr)
 
 
+{-| Extract the [Bytes] of the hash.
+-}
 toBytes : Hash a -> Bytes
 toBytes (Hash bytes) =
     bytes
 
 
+{-| Convert the hash into its hex-encoded string equivalent.
+-}
 toString : Hash a -> String
 toString (Hash bytes) =
     Bytes.toString bytes
 
 
+{-| CBOR encoder for a hash.
+-}
 encode : Hash a -> E.Encoder
 encode (Hash bytes) =
     E.bytes (Bytes.toBytes bytes)

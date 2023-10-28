@@ -1,25 +1,30 @@
 module ElmCardano.Cip30 exposing
-    ( ApiResponse(..)
-    , Request
-    , Response(..)
-    , Wallet
-    , WalletDescriptor
-    , discoverWallets
-    , enableWallet
-    , encodeRequest
-    , getBalance
-    , getChangeAddress
-    , getCollateral
-    , getExtensions
-    , getNetworkId
-    , getRewardAddresses
-    , getUnusedAddresses
-    , getUsedAddresses
-    , getUtxos
-    , responseDecoder
+    ( WalletDescriptor, Wallet, walletDescriptor
+    , Request, encodeRequest, Paginate
+    , discoverWallets, enableWallet
+    , getExtensions, getNetworkId, getUtxos, getCollateral, getBalance
+    , getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
     , signData
-    , walletDescriptor
+    , Response(..), ApiResponse(..), Utxo, DataSignature, responseDecoder
     )
+
+{-| CIP 30 support.
+
+@docs WalletDescriptor, Wallet, walletDescriptor
+
+@docs Request, encodeRequest, Paginate
+
+@docs discoverWallets, enableWallet
+
+@docs getExtensions, getNetworkId, getUtxos, getCollateral, getBalance
+
+@docs getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
+
+@docs signData
+
+@docs Response, ApiResponse, Utxo, DataSignature, responseDecoder
+
+-}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem)
@@ -27,7 +32,7 @@ import Cbor.Decode
 import Cbor.Encode
 import ElmCardano.Value as ECValue
 import Hex.Convert
-import Json.Decode as JDecode exposing (Decoder, Value, maybe)
+import Json.Decode as JDecode exposing (Decoder, Value)
 import Json.Encode as JEncode
 
 
@@ -43,6 +48,8 @@ type alias WalletDescriptor =
     }
 
 
+{-| Opaque Wallet object to be used for all API requests.
+-}
 type Wallet
     = Wallet
         { descriptor : WalletDescriptor
@@ -51,11 +58,15 @@ type Wallet
         }
 
 
+{-| Retrieve the descriptor associated with a [Wallet] object.
+-}
 walletDescriptor : Wallet -> WalletDescriptor
 walletDescriptor (Wallet { descriptor }) =
     descriptor
 
 
+{-| Opaque type for requests to be sent to the wallets.
+-}
 type Request
     = DiscoverWallets
     | Enable { id : String, extensions : List Int }
@@ -67,26 +78,47 @@ type Request
         }
 
 
+{-| Typically the first request you have to send, to discover which wallets are installed.
+
+Will typically be followed by a response of the [AvailableWallets] variant
+containing a [WalletDescriptor] for each discovered wallet.
+
+-}
 discoverWallets : Request
 discoverWallets =
     DiscoverWallets
 
 
+{-| Enable an installed wallet.
+
+Will typically be followed by a response of the [EnabledWallet] variant
+containing a [Wallet] to be stored in your model.
+
+-}
 enableWallet : { id : String, extensions : List Int } -> Request
 enableWallet idAndExtensions =
     Enable idAndExtensions
 
 
+{-| Get the list of extensions enabled by the wallet.
+
+This feature isn't well supported yet by wallets (as of 2023-10).
+
+-}
 getExtensions : Wallet -> Request
 getExtensions wallet =
     apiRequest wallet "getExtensions" []
 
 
+{-| Get the current network ID of the wallet.
+-}
 getNetworkId : Wallet -> Request
 getNetworkId wallet =
     apiRequest wallet "getNetworkId" []
 
 
+{-| Get a list of UTxOs in the wallet.
+-}
 getUtxos : Wallet -> { amount : Maybe ECValue.Value, paginate : Maybe Paginate } -> Request
 getUtxos wallet { amount, paginate } =
     apiRequest wallet
@@ -96,6 +128,14 @@ getUtxos wallet { amount, paginate } =
         ]
 
 
+{-| Get a list of UTxOs to be used for collateral.
+
+You need to specify the amount of lovelace you need for collateral.
+More info about why that is in the [CIP 30 spec][cip-collateral].
+
+[cip-collateral]: https://cips.cardano.org/cips/cip30/#apigetcollateralparamsamountcborcoinpromisetransactionunspentoutputnull
+
+-}
 getCollateral : Wallet -> { amount : ECValue.Value } -> Request
 getCollateral wallet { amount } =
     let
@@ -118,31 +158,51 @@ encodeMaybe encode maybe =
         |> Maybe.withDefault JEncode.null
 
 
+{-| Get the current wallet balance.
+-}
 getBalance : Wallet -> Request
 getBalance wallet =
     apiRequest wallet "getBalance" []
 
 
+{-| Get a list of used addresses from the wallet.
+
+That list is wallet-dependent and may not contain all used addresses.
+Do not rely on this as a source of truth to get all addresses of a user.
+
+-}
 getUsedAddresses : Wallet -> { paginate : Maybe Paginate } -> Request
 getUsedAddresses wallet { paginate } =
     apiRequest wallet "getUsedAddresses" [ encodeMaybe encodePaginate paginate ]
 
 
+{-| Get a list of unused addresses.
+
+Avoid this feature if possible.
+It is not consistent and not compatible with single-address wallets.
+
+-}
 getUnusedAddresses : Wallet -> Request
 getUnusedAddresses wallet =
     apiRequest wallet "getUnusedAddresses" []
 
 
+{-| Get an address that can be used to send funds to this wallet.
+-}
 getChangeAddress : Wallet -> Request
 getChangeAddress wallet =
     apiRequest wallet "getChangeAddress" []
 
 
+{-| Get addresses used to withdraw staking rewards.
+-}
 getRewardAddresses : Wallet -> Request
 getRewardAddresses wallet =
     apiRequest wallet "getRewardAddresses" []
 
 
+{-| Sign an arbitrary payload with your stake key.
+-}
 signData : Wallet -> { addr : String, payload : Bytes } -> Request
 signData wallet { addr, payload } =
     apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
@@ -153,6 +213,8 @@ signData wallet { addr, payload } =
 -- api.submitTx(tx: cbor\)
 
 
+{-| Paginate requests that may return many elements.
+-}
 type alias Paginate =
     { page : Int, limit : Int }
 
@@ -172,6 +234,8 @@ apiRequest (Wallet { descriptor, api }) method args =
         }
 
 
+{-| Encode a [Request] into a JS value that can be sent through a port.
+-}
 encodeRequest : Request -> Value
 encodeRequest request =
     case request of
@@ -196,6 +260,8 @@ encodeRequest request =
                 ]
 
 
+{-| Response type for responses from the browser wallets.
+-}
 type Response
     = AvailableWallets (List WalletDescriptor)
     | EnabledWallet Wallet
@@ -204,6 +270,8 @@ type Response
     | UnhandledResponseType String
 
 
+{-| Response type for all API requests done through the `api` object returned when enabling a wallet.
+-}
 type ApiResponse
     = Extensions (List Int)
     | NetworkId Int
@@ -217,18 +285,24 @@ type ApiResponse
     | SignedData DataSignature
 
 
+{-| UTxO type holding the reference and actual output.
+-}
 type alias Utxo =
     { outputReference : CborItem -- Transaction.Input
     , output : CborItem -- Transaction.Output
     }
 
 
+{-| Signature returned from the wallet after signing a payload with your stake key.
+-}
 type alias DataSignature =
     { signature : CborItem
     , key : CborItem
     }
 
 
+{-| Decoder for the [Response] type.
+-}
 responseDecoder : Decoder Response
 responseDecoder =
     JDecode.field "responseType" JDecode.string
