@@ -1,4 +1,10 @@
-module ElmCardano.Data exposing (Data(..), collectCborItems, collectCborPairs, fromCbor, fromCborItem, toCbor)
+module ElmCardano.Data exposing (Data(..), fromCbor, toCbor)
+
+{-| Handling Cardano Data objects.
+
+@docs Data, fromCbor, toCbor
+
+-}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem(..))
@@ -8,6 +14,9 @@ import Cbor.Tag as Tag
 
 
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
+
+TODO: make Data actually opaque.
+
 -}
 type Data
     = Constr Int (List Data)
@@ -17,6 +26,8 @@ type Data
     | Bytes Bytes
 
 
+{-| CBOR encoder for [Data].
+-}
 toCbor : Data -> E.Encoder
 toCbor data =
     let
@@ -85,6 +96,8 @@ toCbor data =
                             (Bytes.chunksOf 64 bytes)
 
 
+{-| CBOR decoder for [Data].
+-}
 fromCbor : D.Decoder Data
 fromCbor =
     D.any
