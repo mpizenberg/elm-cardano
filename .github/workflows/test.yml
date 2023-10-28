@@ -51,6 +51,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: mpizenberg/elm-tooling-action@v1.5
+        with:
+          cache-key: elm-home-review${{ hashFiles('elm-tooling.json', 'elm.json') }}
+          cache-restore-key: elm-home-review
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
