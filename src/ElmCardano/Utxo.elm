@@ -49,6 +49,8 @@ type DatumOption
     | Datum Data
 
 
+{-| CBOR encoder for [OutputReference].
+-}
 encodeOutputReference : OutputReference -> E.Encoder
 encodeOutputReference =
     E.tuple <|
@@ -57,6 +59,8 @@ encodeOutputReference =
             >> E.elem E.int .outputIndex
 
 
+{-| CBOR encoder for [Output].
+-}
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
     case output of
@@ -80,6 +84,8 @@ encodeOutput output =
                 fields
 
 
+{-| CBOR encoder for [DatumOption].
+-}
 encodeDatumOption : DatumOption -> E.Encoder
 encodeDatumOption datumOption =
     E.list identity <|
