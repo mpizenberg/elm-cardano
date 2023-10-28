@@ -1,0 +1,26 @@
+{
+  "name": "elm-cardano-js",
+  "version": "0.1.0",
+  "description": "JS package accompanying the elm-cardano package",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mpizenberg/elm-cardano.git"
+  },
+  "keywords": [
+    "elm",
+    "cardano"
+  ],
+  "author": "Matthieu Pizenberg",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/mpizenberg/elm-cardano/issues"
+  },
+  "homepage": "https://github.com/mpizenberg/elm-cardano",
+  "devDependencies": {
+    "elm-review": "^2.11.0-beta.4"
+  }
+}
