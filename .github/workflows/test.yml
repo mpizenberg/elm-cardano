@@ -55,7 +55,11 @@ jobs:
         with:
           node-version: "lts/*"
           cache: 'npm'
-      - run: npm ci
+      - name: npm ci
+        env:
+          # elm-tooling install is handled by elm-tooling-action
+          NO_ELM_TOOLING_INSTALL: 1
+        run: npm ci
       - uses: mpizenberg/elm-tooling-action@v1.5
         with:
           cache-key: elm-home-review${{ hashFiles('elm-tooling.json', 'elm.json', 'review/elm.json') }}

@@ -4,7 +4,8 @@
   "description": "JS package accompanying the elm-cardano package",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "elm-tooling install"
   },
   "repository": {
     "type": "git",
@@ -21,6 +22,7 @@
   },
   "homepage": "https://github.com/mpizenberg/elm-cardano",
   "devDependencies": {
-    "elm-review": "^2.11.0-beta.4"
+    "elm-review": "^2.11.0-beta.4",
+    "elm-tooling": "^1.15.0"
   }
 }
