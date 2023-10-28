@@ -1,9 +1,16 @@
 module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
+    , NetworkId(..)
+    , AuxiliaryData
+    , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..)
-    , AuxiliaryData, BootstrapWitness, CostModels, ExUnitPrices, Metadatum(..), NetworkId(..), PositiveInterval, ProtocolParamUpdate, ProtocolVersion, RationalNumber, UnitInterval, Update, VKeyWitness, deserialize, serialize
+    , CostModels, ExUnitPrices
+    , RationalNumber, UnitInterval, PositiveInterval
+    , Metadatum(..)
+    , VKeyWitness, BootstrapWitness
+    , deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -12,15 +19,25 @@ module ElmCardano.Transaction exposing
 
 @docs TransactionBody, WitnessSet
 
-@docs Value, MintedValue, PolicyId, AssetName, adaAssetName
+@docs NetworkId
 
-@docs Address, Credential, StakeCredential
+@docs AuxiliaryData
 
-@docs Datum, Input, OutputReference, Output
+@docs Update, ProtocolParamUpdate, ProtocolVersion
 
 @docs ScriptContext, ScriptPurpose
 
 @docs Certificate
+
+@docs CostModels, ExUnitPrices
+
+@docs RationalNumber, UnitInterval, PositiveInterval
+
+@docs Metadatum
+
+@docs VKeyWitness, BootstrapWitness
+
+@docs deserialize, serialize
 
 -}
 
@@ -73,13 +90,19 @@ type alias TransactionBody =
     }
 
 
+{-| The network ID of a transaction.
+-}
 type NetworkId
     = Testnet -- 0
     | Mainnet -- 1
 
 
 {-| A Cardano transaction witness set.
-<https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L763>
+
+[Pallas alonzo implementation][pallas]
+
+[pallas]: https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L763
+
 -}
 type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
@@ -92,6 +115,7 @@ type alias WitnessSet =
     }
 
 
+{-| -}
 type alias AuxiliaryData =
     { metadata : Maybe (Dict Int Metadatum) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
@@ -99,12 +123,14 @@ type alias AuxiliaryData =
     }
 
 
+{-| -}
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
     , epoch : Int
     }
 
 
+{-| -}
 type alias ProtocolParamUpdate =
     { -- #[n(0)]
       minfeeA : Maybe Int
@@ -153,6 +179,7 @@ type alias ProtocolParamUpdate =
     }
 
 
+{-| -}
 type alias CostModels =
     { -- #[n(0)]
       plutusV1 : Maybe (List Int)
@@ -161,6 +188,7 @@ type alias CostModels =
     }
 
 
+{-| -}
 type alias ExUnitPrices =
     { -- #[n(0)]
       memPrice : PositiveInterval
@@ -169,14 +197,17 @@ type alias ExUnitPrices =
     }
 
 
+{-| -}
 type alias ProtocolVersion =
     ( Int, Int )
 
 
+{-| -}
 type alias UnitInterval =
     RationalNumber
 
 
+{-| -}
 type alias PositiveInterval =
     RationalNumber
 
@@ -185,12 +216,14 @@ type alias PositiveInterval =
 -- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
 
 
+{-| -}
 type alias RationalNumber =
     { numerator : Int
     , denominator : Int
     }
 
 
+{-| -}
 type Metadatum
     = Int Int
     | Bytes Bytes
@@ -199,6 +232,7 @@ type Metadatum
     | Map (List ( Metadatum, Metadatum ))
 
 
+{-| -}
 type alias VKeyWitness =
     { vkey : Bytes -- 0
     , signature : Bytes
@@ -209,6 +243,7 @@ type alias VKeyWitness =
 -- TODO: what kinds of hashes are these?
 
 
+{-| -}
 type alias BootstrapWitness =
     { publicKey : Bytes -- 0
     , signature : Bytes -- 1
@@ -265,16 +300,19 @@ type Certificate
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
 
+{-| -}
 serialize : Transaction -> Bytes
 serialize =
     encodeTransaction >> E.encode >> Bytes.fromBytes
 
 
+{-| -}
 deserialize : Bytes -> Maybe Transaction
 deserialize =
     Bytes.toBytes >> D.decode decodeTransaction
 
 
+{-| -}
 encodeTransaction : Transaction -> E.Encoder
 encodeTransaction =
     E.tuple <|
@@ -285,6 +323,7 @@ encodeTransaction =
             >> E.elem (E.maybe encodeAuxiliaryData) .auxiliaryData
 
 
+{-| -}
 encodeTransactionBody : TransactionBody -> E.Encoder
 encodeTransactionBody =
     E.record E.int <|
@@ -308,6 +347,7 @@ encodeTransactionBody =
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
 
 
+{-| -}
 encodeNetworkId : NetworkId -> E.Encoder
 encodeNetworkId networkId =
     E.int <|
@@ -319,6 +359,7 @@ encodeNetworkId networkId =
                 1
 
 
+{-| -}
 encodeWitnessSet : WitnessSet -> E.Encoder
 encodeWitnessSet =
     E.record E.int <|
@@ -332,11 +373,13 @@ encodeWitnessSet =
             >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
 
 
+{-| -}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
     E.list encodeVKeyWitness v
 
 
+{-| -}
 encodeVKeyWitness : VKeyWitness -> E.Encoder
 encodeVKeyWitness =
     E.tuple <|
@@ -345,11 +388,13 @@ encodeVKeyWitness =
             >> E.elem Bytes.toCbor .signature
 
 
+{-| -}
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
 encodeBootstrapWitnesses b =
     E.list encodeBootstrapWitness b
 
 
+{-| -}
 encodeBootstrapWitness : BootstrapWitness -> E.Encoder
 encodeBootstrapWitness =
     E.tuple <|
@@ -358,36 +403,43 @@ encodeBootstrapWitness =
             >> E.elem Bytes.toCbor .signature
 
 
+{-| -}
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
 encodeAuxiliaryData _ =
     todo "encode auxiliary data"
 
 
+{-| -}
 encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
     E.list encodeOutputReference inputs
 
 
+{-| -}
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
     E.list encodeOutput outputs
 
 
+{-| -}
 encodeCertificates : List Certificate -> E.Encoder
 encodeCertificates =
     E.list encodeCertificate
 
 
+{-| -}
 encodeCertificate : Certificate -> E.Encoder
 encodeCertificate _ =
     todo "encode certificate"
 
 
+{-| -}
 encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
 encodeRequiredSigners =
     E.list Hash.encode
 
 
+{-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
     todo "decode tx"
