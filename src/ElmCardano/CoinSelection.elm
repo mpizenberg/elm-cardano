@@ -1,11 +1,13 @@
 module ElmCardano.CoinSelection exposing (..)
 
-import ElmCardano.Transaction exposing (Output(..), Value(..))
 import Bytes exposing (Bytes)
+import ElmCardano.Transaction exposing (Output(..), Value(..))
+
 
 type CoinSelectionError
     = MaximumInputCountExceeded
     | UTxOBalanceInsufficient
+
 
 type alias CoinSelectionResult =
     { selectedUtxos : List Output
@@ -13,61 +15,87 @@ type alias CoinSelectionResult =
     , changeOutput : Maybe Output
     }
 
+
+type alias CoinSelectionArgs =
+    { availableUtxo : List Output
+    , selectedUtxos : List Output
+    , requestedOutputs : List Output
+    , changeAddress : Bytes
+    }
+
+
+sortByDescendingLovelace : List Output -> List Output
+sortByDescendingLovelace utxos =
+    List.sortWith (\utxo1 utxo2 -> compare (lovelace utxo2) (lovelace utxo1)) utxos
+
+
+sortByAscendingLovelace : List Output -> List Output
+sortByAscendingLovelace utxos =
+    List.sortWith (\utxo1 utxo2 -> compare (lovelace utxo1) (lovelace utxo2)) utxos
+
+
+
 -- https://cips.cardano.org/cips/cip2/#largestfirst
-largestFirst :
-    List Output
-    -> List Output
-    -> List Output
-    -> Int
-    -> Bytes 
-    -> Result CoinSelectionError CoinSelectionResult
-largestFirst availableUtxo selectedUtxos requestedOutputs nmax changeAddress =
+
+
+largestFirst : CoinSelectionArgs -> Int -> Result CoinSelectionError CoinSelectionResult
+largestFirst args nmax =
     let
-        -- Sort the availableUtxo list once before entering the recursive function.
         sortedAvailableUtxo =
-            List.sortWith (\utxo1 utxo2 -> compare (getValue utxo2) (getValue utxo1)) availableUtxo
+            sortByDescendingLovelace args.availableUtxo
 
         createChangeOutput : Int -> Output
         createChangeOutput amount =
-            -- Here, you'll create an Output with the changeAddress and the amount of change.
-            -- Assuming the change is always sent as a Legacy output (adjust as needed):
-            Legacy { address = changeAddress, amount = Coin amount, datumHash = Nothing }
+            Legacy { address = args.changeAddress, amount = Coin amount, datumHash = Nothing }
 
-        -- Define a nested recursive function to encapsulate the recurring logic.
-        recursiveSelect : List Output -> List Output -> Result CoinSelectionError CoinSelectionResult
-        recursiveSelect available selected =
+        remainingValue =
+            totalValue args.requestedOutputs
+
+        recursiveSelect : Int -> List Output -> List Output -> Result CoinSelectionError CoinSelectionResult
+        recursiveSelect remaining available selected =
             if List.length selected > nmax then
                 Err MaximumInputCountExceeded
-            else if totalValue selected < totalValue requestedOutputs then
-                case List.head available of
-                    Just utxo ->
+
+            else if remaining > 0 then
+                case available of
+                    [] ->
+                        Err UTxOBalanceInsufficient
+
+                    utxo :: utxos ->
                         let
-                            newAvailable = List.drop 1 available
+                            newRemaining =
+                                remaining - lovelace utxo
                         in
-                            recursiveSelect newAvailable (utxo :: selected)
-                        
-                    Nothing ->
-                        Err UTxOBalanceInsufficient  -- Error termination when available UTXOs are exhausted.
+                        recursiveSelect newRemaining utxos (utxo :: selected)
+
             else
                 let
-                    totalChange = totalValue selected - totalValue requestedOutputs
-                    changeOutput = if totalChange > 0 then Just (createChangeOutput totalChange) else Nothing
-                in
-                    Ok { selectedUtxos = selected, requestedOutputs = requestedOutputs, changeOutput = changeOutput }
-    in
-    recursiveSelect sortedAvailableUtxo selectedUtxos
+                    changeAmount =
+                        totalValue selected - totalValue args.requestedOutputs
 
-getValue : Output -> Int
-getValue output =
+                    changeOutput =
+                        if changeAmount > 0 then
+                            Just (createChangeOutput changeAmount)
+
+                        else
+                            Nothing
+                in
+                Ok { selectedUtxos = selected, requestedOutputs = args.requestedOutputs, changeOutput = changeOutput }
+    in
+    recursiveSelect remainingValue sortedAvailableUtxo args.selectedUtxos
+
+
+lovelace : Output -> Int
+lovelace output =
     case output of
         Legacy legacyOutput ->
-            valueToInt legacyOutput.amount
+            valueToLovelace legacyOutput.amount
 
         PostAlonzo postAlonzoOutput ->
-            valueToInt postAlonzoOutput.value
+            valueToLovelace postAlonzoOutput.value
 
-valueToInt : Value -> Int
-valueToInt value =
+valueToLovelace : Value -> Int
+valueToLovelace value =
     case value of
         Coin coin ->
             coin
@@ -77,4 +105,5 @@ valueToInt value =
 
 totalValue : List Output -> Int
 totalValue utxos =
-    List.sum (List.map getValue utxos)
+    List.foldr (\utxo total -> lovelace utxo + total) 0 utxos
+
