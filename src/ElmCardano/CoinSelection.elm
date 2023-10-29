@@ -40,7 +40,7 @@ type alias CoinSelectionResult =
 {-| Holds the arguments necessary for performing coin selection.
 -}
 type alias CoinSelectionArgs =
-    { availableUtxo : List Output
+    { availableUtxos : List Output
     , selectedUtxos : List Output
     , requestedOutputs : List Output
     , changeAddress : Bytes
@@ -68,7 +68,7 @@ largestFirst : CoinSelectionArgs -> Int -> Result CoinSelectionError CoinSelecti
 largestFirst args nmax =
     let
         sortedAvailableUtxo =
-            sortByDescendingLovelace args.availableUtxo
+            sortByDescendingLovelace args.availableUtxos
 
         createChangeOutput : Int -> Output
         createChangeOutput amount =

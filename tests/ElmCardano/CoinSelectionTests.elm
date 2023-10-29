@@ -23,7 +23,7 @@ suite =
 basicScenarioTest : a -> Expect.Expectation
 basicScenarioTest _ =
     let
-        availableUtxo =
+        availableUtxos =
             [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 50, datumHash = Nothing }
             , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 30, datumHash = Nothing }
             , Legacy { address = Bytes.fromStringUnchecked "addr3", amount = onlyLovelace 20, datumHash = Nothing }
@@ -39,7 +39,7 @@ basicScenarioTest _ =
             Bytes.fromStringUnchecked "changeAddr"
 
         args =
-            { availableUtxo = availableUtxo
+            { availableUtxos = availableUtxos
             , selectedUtxos = []
             , requestedOutputs = requestedOutputs
             , changeAddress = changeAddress
@@ -62,7 +62,7 @@ noUtxosTest : a -> Expect.Expectation
 noUtxosTest _ =
     let
         args =
-            { availableUtxo = []
+            { availableUtxos = []
             , selectedUtxos = []
             , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
             , changeAddress = Bytes.fromStringUnchecked "changeAddr"
@@ -77,13 +77,13 @@ noUtxosTest _ =
 insufficientFundsTest : a -> Expect.Expectation
 insufficientFundsTest _ =
     let
-        availableUtxo =
+        availableUtxos =
             [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 5, datumHash = Nothing }
             , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 10, datumHash = Nothing }
             ]
 
         args =
-            { availableUtxo = availableUtxo
+            { availableUtxos = availableUtxos
             , selectedUtxos = []
             , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
             , changeAddress = Bytes.fromStringUnchecked "changeAddr"
@@ -99,7 +99,7 @@ singleUtxoSingleOutputEqualValueTest : a -> Expect.Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
         args =
-            { availableUtxo = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 10, datumHash = Nothing } ]
+            { availableUtxos = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 10, datumHash = Nothing } ]
             , selectedUtxos = []
             , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 10, datumHash = Nothing } ]
             , changeAddress = Bytes.fromStringUnchecked "changeAddr"
@@ -110,7 +110,7 @@ singleUtxoSingleOutputEqualValueTest _ =
 
         expectedResult =
             Ok
-                { selectedUtxos = args.availableUtxo
+                { selectedUtxos = args.availableUtxos
                 , requestedOutputs = args.requestedOutputs
                 , changeOutput = Nothing
                 }
