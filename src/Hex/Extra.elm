@@ -2,8 +2,8 @@ module Hex.Extra exposing
     ( Hex
     , fromString
     , toHexString
-    , toBytes
     , toUTF8String
+    , toBytes
     )
 
 {-| Providing robust hex string smart constructors/deconstructors.
@@ -61,7 +61,8 @@ toUTF8String hex =
             str
 
         Err _ ->
-            -- Another impossible case.
+            -- `Hex` can only be created with `fromString`, therefore this is
+            -- an impossible case and most likely an acceptable compromise.
             toHexString hex
 
 
@@ -71,8 +72,7 @@ toBytes : Hex -> Bytes
 toBytes hex =
     case HexConvert.toBytes (toHexString hex) of
         Nothing ->
-            -- `Hex` can only be created with `fromString`, therefore this is
-            -- an impossible case and most likely an acceptable compromise.
+            -- Another impossible case.
             BE.encode <| BE.unsignedInt8 0
 
         Just hexBytes ->
