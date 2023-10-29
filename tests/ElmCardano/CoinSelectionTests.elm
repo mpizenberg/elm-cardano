@@ -1,118 +1,216 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
-import Bytes.Comparable as Bytes
-import ElmCardano.CoinSelection exposing (CoinSelectionError(..), largestFirst)
-import ElmCardano.Utxo exposing (Output(..))
-import ElmCardano.Value exposing (onlyLovelace)
-import Expect
-import Test exposing (Test, describe, test)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import ElmCardano.CoinSelection as CoinSelection exposing (largestFirst, Error(..))
+import ElmCardano.Utxo exposing (fromLovelace, lovelace, totalLovelace)
+import Expect exposing (Expectation)
+import Fuzz exposing (Fuzzer)
+import Result.Extra as Result
+import Test exposing (Test, describe, expectDistribution, fuzzWith, test)
+import Test.Distribution as Distribution
 
 
 suite : Test
 suite =
-    describe "ElmCardano.CoinSelection"
+    describe "CoinSelection"
         [ describe "largestFirst"
             [ test "basic scenario" <| basicScenarioTest
-            , test "no utxos" <| noUtxosTest
+            , test "no utxos" <| noOutputsTest
             , test "insufficient funds" <| insufficientFundsTest
             , test "single utxo, single output, equal value" <| singleUtxoSingleOutputEqualValueTest
+            , fuzzCoinSelection "coverage of payments" propCoverageOfPayment
+            , fuzzCoinSelection "correctness of change" propCorrectnessOfChange
             ]
         ]
 
 
-basicScenarioTest : a -> Expect.Expectation
+basicScenarioTest : a -> Expectation
 basicScenarioTest _ =
     let
-        availableUtxos =
-            [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 50, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 30, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr3", amount = onlyLovelace 20, datumHash = Nothing }
-            ]
-
-        requestedOutputs =
-            [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
+        context =
+            { availableOutputs =
+                [ fromLovelace (address "1") 50
+                , fromLovelace (address "2") 30
+                , fromLovelace (address "3") 20
+                ]
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress =
+                address "change"
+            }
 
         nmax =
             5
 
-        changeAddress =
-            Bytes.fromStringUnchecked "changeAddr"
-
-        args =
-            { availableUtxos = availableUtxos
-            , selectedUtxos = []
-            , requestedOutputs = requestedOutputs
-            , changeAddress = changeAddress
-            }
-
-        result =
-            largestFirst args nmax
-
         expectedResult =
             Ok
-                { selectedUtxos = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 50, datumHash = Nothing } ]
-                , requestedOutputs = requestedOutputs
-                , changeOutput = Just (Legacy { address = changeAddress, amount = onlyLovelace 20, datumHash = Nothing })
+                { selectedOutputs = [ fromLovelace (address "1") 50 ]
+                , changeOutput = Just <| fromLovelace context.changeAddress 20
                 }
     in
-    Expect.equal expectedResult result
+    largestFirst context nmax
+        |> Expect.equal expectedResult
 
 
-noUtxosTest : a -> Expect.Expectation
-noUtxosTest _ =
+noOutputsTest : a -> Expectation
+noOutputsTest _ =
     let
-        args =
-            { availableUtxos = []
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = []
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress = address "change"
             }
 
-        result =
-            largestFirst args 5
+        nmax =
+            5
     in
-    Expect.equal (Err UTxOBalanceInsufficient) result
+    largestFirst context nmax
+        |> Expect.equal (Err UTxOBalanceInsufficient)
 
 
-insufficientFundsTest : a -> Expect.Expectation
+insufficientFundsTest : a -> Expectation
 insufficientFundsTest _ =
     let
-        availableUtxos =
-            [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 5, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 10, datumHash = Nothing }
+        availableOutputs =
+            [ fromLovelace (address "1") 5
+            , fromLovelace (address "2") 10
             ]
 
-        args =
-            { availableUtxos = availableUtxos
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = availableOutputs
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress = address "change"
             }
 
         result =
-            largestFirst args 5
+            largestFirst context 5
     in
     Expect.equal (Err UTxOBalanceInsufficient) result
 
 
-singleUtxoSingleOutputEqualValueTest : a -> Expect.Expectation
+singleUtxoSingleOutputEqualValueTest : a -> Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
-        args =
-            { availableUtxos = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 10, datumHash = Nothing } ]
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 10, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = [ fromLovelace (address "1") 10 ]
+            , alreadySelectedOutputs = []
+            , targetAmount = 10
+            , changeAddress = address "change"
             }
 
-        result =
-            largestFirst args 5
+        nmax =
+            5
 
         expectedResult =
             Ok
-                { selectedUtxos = args.availableUtxos
-                , requestedOutputs = args.requestedOutputs
+                { selectedOutputs = context.availableOutputs
                 , changeOutput = Nothing
                 }
     in
-    Expect.equal expectedResult result
+    largestFirst context nmax
+        |> Expect.equal expectedResult
+
+
+
+-- Fixtures
+
+
+address : String -> Bytes
+address suffix =
+    Bytes.fromStringUnchecked <| "addr" ++ suffix
+
+
+
+-- Fuzzer
+
+
+fuzzCoinSelection : String -> (Int -> CoinSelection.Context -> Expectation) -> Test
+fuzzCoinSelection title prop =
+    let
+        nMax =
+            5
+    in
+    fuzzWith
+        { runs = 100
+        , distribution = contextDistribution nMax
+        }
+        (contextFuzzer nMax)
+        title
+        (prop nMax)
+
+
+contextFuzzer : Int -> Fuzzer CoinSelection.Context
+contextFuzzer nMax =
+    let
+        maxInt =
+            100
+
+        outputFuzzer =
+            Fuzz.map2 fromLovelace
+                (Fuzz.int |> Fuzz.map (\i -> address <| "_" ++ String.fromInt i))
+                (Fuzz.intRange 1 maxInt)
+    in
+    Fuzz.map4 CoinSelection.Context
+        (Fuzz.frequency
+            [ ( 1, Fuzz.constant [] )
+            , ( 9, Fuzz.listOfLengthBetween 1 (nMax + 1) outputFuzzer )
+            ]
+        )
+        (Fuzz.frequency
+            [ ( 1, Fuzz.listOfLengthBetween 0 nMax outputFuzzer )
+            , ( 9, Fuzz.constant [] )
+            ]
+        )
+        (Fuzz.intRange 0 maxInt)
+        (Fuzz.constant <| address "change")
+
+
+contextDistribution : Int -> Test.Distribution CoinSelection.Context
+contextDistribution nMax =
+    expectDistribution
+        [ ( Distribution.atLeast 70
+          , "success"
+          , \ctx -> largestFirst ctx nMax |> Result.isOk
+          )
+        , ( Distribution.atLeast 80
+          , "no already selected outputs"
+          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty
+          )
+        , ( Distribution.atLeast 5
+          , "already selected outputs"
+          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty |> not
+          )
+        ]
+
+
+
+-- Properties
+
+
+propCoverageOfPayment : Int -> CoinSelection.Context -> Expectation
+propCoverageOfPayment nMax context =
+    case largestFirst context nMax of
+        Err _ ->
+            Expect.pass
+
+        Ok { selectedOutputs } ->
+            totalLovelace selectedOutputs |> Expect.atLeast context.targetAmount
+
+
+propCorrectnessOfChange : Int -> CoinSelection.Context -> Expectation
+propCorrectnessOfChange nMax context =
+    case largestFirst context nMax of
+        Err _ ->
+            Expect.pass
+
+        Ok { selectedOutputs, changeOutput } ->
+            let
+                change =
+                    changeOutput
+                        |> Maybe.map lovelace
+                        |> Maybe.withDefault 0
+            in
+            totalLovelace selectedOutputs
+                |> Expect.equal (change + context.targetAmount)
