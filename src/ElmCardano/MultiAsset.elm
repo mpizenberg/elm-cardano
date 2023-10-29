@@ -14,12 +14,13 @@ module ElmCardano.MultiAsset exposing
 
 import Cbor.Encode as E
 import Dict exposing (Dict)
+import Hex.Extra exposing (Hex)
 
 
 {-| Opaque type for handling multi-asset values.
 -}
 type MultiAsset
-    = MultiAsset (Dict String (Dict String Int)) -- Dict PolicyId (Dict AssetName Int)
+    = MultiAsset (Dict Hex (Dict Hex Int)) -- Dict PolicyId (Dict AssetName Int)
 
 
 {-| Create an empty multi-asset value.

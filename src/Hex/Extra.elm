@@ -61,7 +61,7 @@ toUTF8String hex =
             str
 
         Err _ ->
-            -- `Hex` can only be created with `fromString`, therefore this is
+            -- 'Hex' can only be created with 'fromString', therefore this is
             -- an impossible case and most likely an acceptable compromise.
             toHexString hex
 
