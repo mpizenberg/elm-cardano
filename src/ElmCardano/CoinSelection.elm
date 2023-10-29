@@ -95,14 +95,10 @@ lovelace : Output -> Int
 lovelace output =
     case output of
         Legacy legacyOutput ->
-            valueToLovelace legacyOutput.amount
+            legacyOutput.amount.lovelace
 
         PostAlonzo postAlonzoOutput ->
-            valueToLovelace postAlonzoOutput.value
-
-valueToLovelace : Value -> Int
-valueToLovelace value =
-    value.lovelace
+            postAlonzoOutput.value.lovelace
 
 totalValue : List Output -> Int
 totalValue utxos =
