@@ -1,10 +1,13 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import ElmCardano.CoinSelection exposing (Error(..), largestFirst)
-import ElmCardano.Utxo exposing (Output(..), fromLovelace)
-import Expect
-import Test exposing (Test, describe, test)
+import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
+import ElmCardano.Utxo exposing (fromLovelace, lovelace, totalLovelace)
+import Expect exposing (Expectation)
+import Fuzz exposing (Fuzzer)
+import Result.Extra as Result
+import Test exposing (Test, describe, expectDistribution, fuzzWith, test)
+import Test.Distribution as Distribution
 
 
 suite : Test
@@ -15,11 +18,13 @@ suite =
             , test "no utxos" <| noOutputsTest
             , test "insufficient funds" <| insufficientFundsTest
             , test "single utxo, single output, equal value" <| singleUtxoSingleOutputEqualValueTest
+            , fuzzCoinSelection "coverage of payments" propCoverageOfPayment
+            , fuzzCoinSelection "correctness of change" propCorrectnessOfChange
             ]
         ]
 
 
-basicScenarioTest : a -> Expect.Expectation
+basicScenarioTest : a -> Expectation
 basicScenarioTest _ =
     let
         context =
@@ -47,7 +52,7 @@ basicScenarioTest _ =
         |> Expect.equal expectedResult
 
 
-noOutputsTest : a -> Expect.Expectation
+noOutputsTest : a -> Expectation
 noOutputsTest _ =
     let
         context =
@@ -64,7 +69,7 @@ noOutputsTest _ =
         |> Expect.equal (Err UTxOBalanceInsufficient)
 
 
-insufficientFundsTest : a -> Expect.Expectation
+insufficientFundsTest : a -> Expectation
 insufficientFundsTest _ =
     let
         availableOutputs =
@@ -85,7 +90,7 @@ insufficientFundsTest _ =
     Expect.equal (Err UTxOBalanceInsufficient) result
 
 
-singleUtxoSingleOutputEqualValueTest : a -> Expect.Expectation
+singleUtxoSingleOutputEqualValueTest : a -> Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
         context =
@@ -115,3 +120,97 @@ singleUtxoSingleOutputEqualValueTest _ =
 address : String -> Bytes
 address suffix =
     Bytes.fromStringUnchecked <| "addr" ++ suffix
+
+
+
+-- Fuzzer
+
+
+fuzzCoinSelection : String -> (Int -> CoinSelection.Context -> Expectation) -> Test
+fuzzCoinSelection title prop =
+    let
+        nMax =
+            5
+    in
+    fuzzWith
+        { runs = 100
+        , distribution = contextDistribution nMax
+        }
+        (contextFuzzer nMax)
+        title
+        (prop nMax)
+
+
+contextFuzzer : Int -> Fuzzer CoinSelection.Context
+contextFuzzer nMax =
+    let
+        maxInt =
+            100
+
+        outputFuzzer =
+            Fuzz.map2 fromLovelace
+                (Fuzz.int |> Fuzz.map (\i -> address <| "_" ++ String.fromInt i))
+                (Fuzz.intRange 1 maxInt)
+    in
+    Fuzz.map4 CoinSelection.Context
+        (Fuzz.frequency
+            [ ( 1, Fuzz.constant [] )
+            , ( 9, Fuzz.listOfLengthBetween 1 (nMax + 1) outputFuzzer )
+            ]
+        )
+        (Fuzz.frequency
+            [ ( 1, Fuzz.listOfLengthBetween 0 nMax outputFuzzer )
+            , ( 9, Fuzz.constant [] )
+            ]
+        )
+        (Fuzz.intRange 0 maxInt)
+        (Fuzz.constant <| address "change")
+
+
+contextDistribution : Int -> Test.Distribution CoinSelection.Context
+contextDistribution nMax =
+    expectDistribution
+        [ ( Distribution.atLeast 70
+          , "success"
+          , \ctx -> largestFirst ctx nMax |> Result.isOk
+          )
+        , ( Distribution.atLeast 80
+          , "no already selected outputs"
+          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty
+          )
+        , ( Distribution.atLeast 5
+          , "already selected outputs"
+          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty |> not
+          )
+        ]
+
+
+
+-- Properties
+
+
+propCoverageOfPayment : Int -> CoinSelection.Context -> Expectation
+propCoverageOfPayment nMax context =
+    case largestFirst context nMax of
+        Err _ ->
+            Expect.pass
+
+        Ok { selectedOutputs } ->
+            totalLovelace selectedOutputs |> Expect.atLeast context.targetAmount
+
+
+propCorrectnessOfChange : Int -> CoinSelection.Context -> Expectation
+propCorrectnessOfChange nMax context =
+    case largestFirst context nMax of
+        Err _ ->
+            Expect.pass
+
+        Ok { selectedOutputs, changeOutput } ->
+            let
+                change =
+                    changeOutput
+                        |> Maybe.map lovelace
+                        |> Maybe.withDefault 0
+            in
+            totalLovelace selectedOutputs
+                |> Expect.equal (change + context.targetAmount)
