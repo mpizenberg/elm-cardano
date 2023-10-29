@@ -1,11 +1,36 @@
 module ElmCardano.Utxo exposing
     ( OutputReference, Output(..), DatumOption(..)
-    , encodeOutputReference, encodeOutput, encodeDatumOption, lovelace
+    , fromLovelace
+    , lovelace, totalLovelace
+    , sortByAscendingLovelace, sortByDescendingLovelace
+    , encodeOutputReference, encodeOutput, encodeDatumOption
     )
 
 {-| Handling outputs.
 
+
+## Definitions
+
 @docs OutputReference, Output, DatumOption
+
+
+## Build
+
+@docs fromLovelace
+
+
+## Query
+
+@docs lovelace, totalLovelace
+
+
+## Transform
+
+@docs sortByAscendingLovelace, sortByDescendingLovelace
+
+
+## Convert
+
 @docs encodeOutputReference, encodeOutput, encodeDatumOption
 
 -}
@@ -26,6 +51,16 @@ type alias OutputReference =
     }
 
 
+{-| CBOR encoder for [OutputReference].
+-}
+encodeOutputReference : OutputReference -> E.Encoder
+encodeOutputReference =
+    E.tuple <|
+        E.elems
+            >> E.elem Hash.encode .transactionId
+            >> E.elem E.int .outputIndex
+
+
 {-| The content of a eUTxO.
 -}
 type Output
@@ -42,21 +77,48 @@ type Output
         }
 
 
-{-| Nickname for data stored in a eUTxO.
+{-| Sorts a list of UTXOs in descending order by lovelace value.
 -}
-type DatumOption
-    = DatumHash (Hash Blake2b_256)
-    | Datum Data
+sortByDescendingLovelace : List Output -> List Output
+sortByDescendingLovelace =
+    List.sortWith (\a b -> compare (lovelace b) (lovelace a))
 
 
-{-| CBOR encoder for [OutputReference].
+{-| Sorts a list of UTXOs in ascending order by lovelace value.
 -}
-encodeOutputReference : OutputReference -> E.Encoder
-encodeOutputReference =
-    E.tuple <|
-        E.elems
-            >> E.elem Hash.encode .transactionId
-            >> E.elem E.int .outputIndex
+sortByAscendingLovelace : List Output -> List Output
+sortByAscendingLovelace =
+    List.sortWith (\a b -> compare (lovelace a) (lovelace b))
+
+
+{-| Construct an `Output` from an `Address` and a lovelace amount
+-}
+fromLovelace : Bytes -> Int -> Output
+fromLovelace address amount =
+    Legacy
+        { address = address
+        , amount = Value.onlyLovelace amount
+        , datumHash = Nothing
+        }
+
+
+{-| Extract the amount of lovelace in an `Output`
+-}
+lovelace : Output -> Int
+lovelace output =
+    case output of
+        Legacy legacyOutput ->
+            legacyOutput.amount.lovelace
+
+        PostAlonzo postAlonzoOutput ->
+            postAlonzoOutput.value.lovelace
+
+
+{-| Calculate the total number of lovelace in a collection of `Output`
+-}
+totalLovelace : List Output -> Int
+totalLovelace =
+    List.foldr (\output total -> lovelace output + total) 0
 
 
 {-| CBOR encoder for [Output].
@@ -84,6 +146,13 @@ encodeOutput output =
                 fields
 
 
+{-| Nickname for data stored in a eUTxO.
+-}
+type DatumOption
+    = DatumHash (Hash Blake2b_256)
+    | Datum Data
+
+
 {-| CBOR encoder for [DatumOption].
 -}
 encodeDatumOption : DatumOption -> E.Encoder
@@ -102,12 +171,3 @@ encodeDatumOption datumOption =
                     |> E.encode
                     |> E.tagged Tag.Cbor E.bytes
                 ]
-                
-lovelace : Output -> Int
-lovelace output =
-    case output of
-        Legacy legacyOutput ->
-            legacyOutput.amount.lovelace
-
-        PostAlonzo postAlonzoOutput ->
-            postAlonzoOutput.value.lovelace

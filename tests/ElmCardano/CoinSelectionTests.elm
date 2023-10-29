@@ -1,19 +1,18 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
-import Bytes.Comparable as Bytes
-import ElmCardano.CoinSelection exposing (CoinSelectionError(..), largestFirst)
-import ElmCardano.Utxo exposing (Output(..))
-import ElmCardano.Value exposing (onlyLovelace)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import ElmCardano.CoinSelection exposing (Error(..), largestFirst)
+import ElmCardano.Utxo exposing (Output(..), fromLovelace)
 import Expect
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
-    describe "ElmCardano.CoinSelection"
+    describe "CoinSelection"
         [ describe "largestFirst"
             [ test "basic scenario" <| basicScenarioTest
-            , test "no utxos" <| noUtxosTest
+            , test "no utxos" <| noOutputsTest
             , test "insufficient funds" <| insufficientFundsTest
             , test "single utxo, single output, equal value" <| singleUtxoSingleOutputEqualValueTest
             ]
@@ -23,74 +22,65 @@ suite =
 basicScenarioTest : a -> Expect.Expectation
 basicScenarioTest _ =
     let
-        availableUtxos =
-            [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 50, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 30, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr3", amount = onlyLovelace 20, datumHash = Nothing }
-            ]
-
-        requestedOutputs =
-            [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
+        context =
+            { availableOutputs =
+                [ fromLovelace (address "1") 50
+                , fromLovelace (address "2") 30
+                , fromLovelace (address "3") 20
+                ]
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress =
+                address "change"
+            }
 
         nmax =
             5
 
-        changeAddress =
-            Bytes.fromStringUnchecked "changeAddr"
-
-        args =
-            { availableUtxos = availableUtxos
-            , selectedUtxos = []
-            , requestedOutputs = requestedOutputs
-            , changeAddress = changeAddress
-            }
-
-        result =
-            largestFirst args nmax
-
         expectedResult =
             Ok
-                { selectedUtxos = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 50, datumHash = Nothing } ]
-                , requestedOutputs = requestedOutputs
-                , changeOutput = Just (Legacy { address = changeAddress, amount = onlyLovelace 20, datumHash = Nothing })
+                { selectedOutputs = [ fromLovelace (address "1") 50 ]
+                , changeOutput = Just <| fromLovelace context.changeAddress 20
                 }
     in
-    Expect.equal expectedResult result
+    largestFirst context nmax
+        |> Expect.equal expectedResult
 
 
-noUtxosTest : a -> Expect.Expectation
-noUtxosTest _ =
+noOutputsTest : a -> Expect.Expectation
+noOutputsTest _ =
     let
-        args =
-            { availableUtxos = []
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = []
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress = address "change"
             }
 
-        result =
-            largestFirst args 5
+        nmax =
+            5
     in
-    Expect.equal (Err UTxOBalanceInsufficient) result
+    largestFirst context nmax
+        |> Expect.equal (Err UTxOBalanceInsufficient)
 
 
 insufficientFundsTest : a -> Expect.Expectation
 insufficientFundsTest _ =
     let
-        availableUtxos =
-            [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 5, datumHash = Nothing }
-            , Legacy { address = Bytes.fromStringUnchecked "addr2", amount = onlyLovelace 10, datumHash = Nothing }
+        availableOutputs =
+            [ fromLovelace (address "1") 5
+            , fromLovelace (address "2") 10
             ]
 
-        args =
-            { availableUtxos = availableUtxos
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 30, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = availableOutputs
+            , alreadySelectedOutputs = []
+            , targetAmount = 30
+            , changeAddress = address "change"
             }
 
         result =
-            largestFirst args 5
+            largestFirst context 5
     in
     Expect.equal (Err UTxOBalanceInsufficient) result
 
@@ -98,21 +88,30 @@ insufficientFundsTest _ =
 singleUtxoSingleOutputEqualValueTest : a -> Expect.Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
-        args =
-            { availableUtxos = [ Legacy { address = Bytes.fromStringUnchecked "addr1", amount = onlyLovelace 10, datumHash = Nothing } ]
-            , selectedUtxos = []
-            , requestedOutputs = [ Legacy { address = Bytes.fromStringUnchecked "dest1", amount = onlyLovelace 10, datumHash = Nothing } ]
-            , changeAddress = Bytes.fromStringUnchecked "changeAddr"
+        context =
+            { availableOutputs = [ fromLovelace (address "1") 10 ]
+            , alreadySelectedOutputs = []
+            , targetAmount = 10
+            , changeAddress = address "change"
             }
 
-        result =
-            largestFirst args 5
+        nmax =
+            5
 
         expectedResult =
             Ok
-                { selectedUtxos = args.availableUtxos
-                , requestedOutputs = args.requestedOutputs
+                { selectedOutputs = context.availableOutputs
                 , changeOutput = Nothing
                 }
     in
-    Expect.equal expectedResult result
+    largestFirst context nmax
+        |> Expect.equal expectedResult
+
+
+
+-- Fixtures
+
+
+address : String -> Bytes
+address suffix =
+    Bytes.fromStringUnchecked <| "addr" ++ suffix
