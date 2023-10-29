@@ -71,13 +71,13 @@ largestFirst args nmax =
         remainingAmount =
             args.targetAmount - totalLovelace args.alreadySelectedOutputs
     in
-    doLargestFirst nmax remainingAmount sortedAvailableUtxo args.alreadySelectedOutputs
+    doLargestFirst nmax remainingAmount (List.length args.alreadySelectedOutputs) sortedAvailableUtxo args.alreadySelectedOutputs
         |> Result.map (\withAddress -> withAddress args.changeAddress)
 
 
-doLargestFirst : Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
-doLargestFirst nmax remaining available selected =
-    if List.length selected > nmax then
+doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
+doLargestFirst nmax remaining countSelected available selected =
+    if countSelected > nmax then
         Err MaximumInputCountExceeded
 
     else if remaining > 0 then
@@ -86,7 +86,7 @@ doLargestFirst nmax remaining available selected =
                 Err UTxOBalanceInsufficient
 
             utxo :: utxos ->
-                doLargestFirst nmax (remaining - lovelace utxo) utxos (utxo :: selected)
+                doLargestFirst nmax (remaining - lovelace utxo) (countSelected + 1) utxos (utxo :: selected)
 
     else
         Ok <|
