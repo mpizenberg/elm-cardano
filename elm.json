@@ -5,18 +5,27 @@
   "license": "BSD-3-Clause",
   "version": "1.0.0",
   "exposed-modules": [
+    "Bytes.Comparable",
     "BytesMap",
-    "ElmCardano.Core",
+    "ElmCardano.Address",
+    "ElmCardano.Cip30",
     "ElmCardano.Data",
     "ElmCardano.Hash",
     "ElmCardano.Interval",
-    "ElmCardano.Transaction"
+    "ElmCardano.MultiAsset",
+    "ElmCardano.Redeemer",
+    "ElmCardano.Script",
+    "ElmCardano.Transaction",
+    "ElmCardano.Transaction.Builder",
+    "ElmCardano.Utxo",
+    "ElmCardano.Value"
   ],
   "elm-version": "0.19.1 <= v < 0.20.0",
   "dependencies": {
     "elm/bytes": "1.0.8 <= v < 2.0.0",
     "elm/core": "1.0.5 <= v < 2.0.0",
-    "elm-toulouse/cbor": "2.0.0 <= v < 3.0.0",
+    "elm/json": "1.1.3 <= v < 2.0.0",
+    "elm-toulouse/cbor": "3.0.0 <= v < 4.0.0",
     "jxxcarlson/hex": "4.0.0 <= v < 5.0.0"
   },
   "test-dependencies": {
