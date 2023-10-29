@@ -1,6 +1,6 @@
 module ElmCardano.Utxo exposing
     ( OutputReference, Output(..), DatumOption(..)
-    , encodeOutputReference, encodeOutput, encodeDatumOption
+    , encodeOutputReference, encodeOutput, encodeDatumOption, lovelace
     )
 
 {-| Handling outputs.
@@ -102,3 +102,12 @@ encodeDatumOption datumOption =
                     |> E.encode
                     |> E.tagged Tag.Cbor E.bytes
                 ]
+                
+lovelace : Output -> Int
+lovelace output =
+    case output of
+        Legacy legacyOutput ->
+            legacyOutput.amount.lovelace
+
+        PostAlonzo postAlonzoOutput ->
+            postAlonzoOutput.value.lovelace
