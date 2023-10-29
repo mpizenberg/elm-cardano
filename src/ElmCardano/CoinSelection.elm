@@ -1,8 +1,8 @@
 module ElmCardano.CoinSelection exposing (..)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import ElmCardano.Utxo exposing (Output(..))
-import ElmCardano.Value exposing (Value, onlyLovelace)
+import ElmCardano.Utxo exposing (Output(..), lovelace)
+import ElmCardano.Value exposing (onlyLovelace)
 
 
 type CoinSelectionError
@@ -47,12 +47,11 @@ largestFirst args nmax =
 
         createChangeOutput : Int -> Output
         createChangeOutput amount =
-            Legacy 
+            Legacy
                 { address = args.changeAddress
                 , amount = onlyLovelace amount
                 , datumHash = Nothing
                 }
-
 
         remainingValue =
             totalValue args.requestedOutputs
@@ -91,16 +90,6 @@ largestFirst args nmax =
     recursiveSelect remainingValue sortedAvailableUtxo args.selectedUtxos
 
 
-lovelace : Output -> Int
-lovelace output =
-    case output of
-        Legacy legacyOutput ->
-            legacyOutput.amount.lovelace
-
-        PostAlonzo postAlonzoOutput ->
-            postAlonzoOutput.value.lovelace
-
 totalValue : List Output -> Int
 totalValue utxos =
     List.foldr (\utxo total -> lovelace utxo + total) 0 utxos
-
