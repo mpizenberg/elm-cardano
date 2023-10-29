@@ -27,6 +27,7 @@ import ElmCardano.Utxo
         , fromLovelace
         , lovelace
         , sortByDescendingLovelace
+        , totalLovelace
         )
 
 
@@ -66,8 +67,11 @@ largestFirst args nmax =
     let
         sortedAvailableUtxo =
             sortByDescendingLovelace args.availableOutputs
+
+        remainingAmount =
+            args.targetAmount - totalLovelace args.alreadySelectedOutputs
     in
-    doLargestFirst nmax args.targetAmount sortedAvailableUtxo args.alreadySelectedOutputs
+    doLargestFirst nmax remainingAmount sortedAvailableUtxo args.alreadySelectedOutputs
         |> Result.map (\withAddress -> withAddress args.changeAddress)
 
 
