@@ -1,7 +1,8 @@
 module ElmCardano.CoinSelection exposing (..)
 
-import Bytes exposing (Bytes)
-import ElmCardano.Transaction exposing (Output(..), Value(..))
+import Bytes.Comparable as Bytes exposing (Bytes)
+import ElmCardano.Utxo exposing (Output(..))
+import ElmCardano.Value exposing (Value, onlyLovelace)
 
 
 type CoinSelectionError
@@ -46,7 +47,12 @@ largestFirst args nmax =
 
         createChangeOutput : Int -> Output
         createChangeOutput amount =
-            Legacy { address = args.changeAddress, amount = Coin amount, datumHash = Nothing }
+            Legacy 
+                { address = args.changeAddress
+                , amount = onlyLovelace amount
+                , datumHash = Nothing
+                }
+
 
         remainingValue =
             totalValue args.requestedOutputs
@@ -96,12 +102,7 @@ lovelace output =
 
 valueToLovelace : Value -> Int
 valueToLovelace value =
-    case value of
-        Coin coin ->
-            coin
-
-        Multiasset coin _ ->
-            coin
+    value.lovelace
 
 totalValue : List Output -> Int
 totalValue utxos =
