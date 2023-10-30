@@ -46,6 +46,7 @@ import BytesMap exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
+import Cbor.Tag as Tag
 import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Address exposing (StakeCredential)
@@ -468,9 +469,9 @@ encodeProtocolParamUpdate =
             >> E.optionalField 6 E.int .poolDeposit
             >> E.optionalField 7 E.int .maximumEpoch
             >> E.optionalField 8 E.int .desiredNumberOfStakePools
-            >> E.optionalField 9 (\_ -> todo "RationalNumber.toCbor") .poolPledgeInfluence
-            >> E.optionalField 10 (\_ -> todo "RationalNumber.toCbor") .expansionRate
-            >> E.optionalField 11 (\_ -> todo "RationalNumber.toCbor") .treasuryGrowthRate
+            >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
+            >> E.optionalField 10 encodeRationalNumber .expansionRate
+            >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
             >> E.optionalField 14 (\_ -> todo "ProtocolVersion.toCbor") .protocolVersion
             >> E.optionalField 16 E.int .minPoolCost
             >> E.optionalField 17 E.int .adaPerUtxoByte
@@ -487,8 +488,8 @@ encodeExUnitPrices : ExUnitPrices -> E.Encoder
 encodeExUnitPrices =
     E.tuple <|
         E.elems
-            >> E.elem (\_ -> todo "RationalNumber.toCbor") .memPrice
-            >> E.elem (\_ -> todo "RationalNumber.toCbor") .stepPrice
+            >> E.elem encodeRationalNumber .memPrice
+            >> E.elem encodeRationalNumber .stepPrice
 
 
 encodeCostModels : CostModels -> E.Encoder
@@ -497,6 +498,15 @@ encodeCostModels =
         E.fields
             >> E.optionalField 0 (E.list E.int) .plutusV1
             >> E.optionalField 1 (E.list E.int) .plutusV2
+
+
+encodeRationalNumber : RationalNumber -> E.Encoder
+encodeRationalNumber =
+    E.tagged (Tag.Unknown 30) <|
+        E.tuple <|
+            E.elems
+                >> E.elem E.int .numerator
+                >> E.elem E.int .denominator
 
 
 {-| -}
