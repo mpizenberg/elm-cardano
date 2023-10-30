@@ -441,6 +441,65 @@ encodeRequiredSigners =
 
 
 {-| -}
+encodeUpdate : Update -> E.Encoder
+encodeUpdate =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeProposedProtocolParameterUpdates .proposedProtocolParameterUpdates
+            >> E.elem E.int .epoch
+
+
+{-| -}
+encodeProposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate -> E.Encoder
+encodeProposedProtocolParameterUpdates =
+    BytesMap.toCbor encodeProtocolParamUpdate
+
+
+encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
+encodeProtocolParamUpdate =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 E.int .minFeeA
+            >> E.optionalField 1 E.int .minFeeB
+            >> E.optionalField 2 E.int .maxBlockBodySize
+            >> E.optionalField 3 E.int .maxTransactionSize
+            >> E.optionalField 4 E.int .maxBlockHeaderSize
+            >> E.optionalField 5 E.int .keyDeposit
+            >> E.optionalField 6 E.int .poolDeposit
+            >> E.optionalField 7 E.int .maximumEpoch
+            >> E.optionalField 8 E.int .desiredNumberOfStakePools
+            >> E.optionalField 9 (\_ -> todo "RationalNumber.toCbor") .poolPledgeInfluence
+            >> E.optionalField 10 (\_ -> todo "RationalNumber.toCbor") .expansionRate
+            >> E.optionalField 11 (\_ -> todo "RationalNumber.toCbor") .treasuryGrowthRate
+            >> E.optionalField 14 (\_ -> todo "ProtocolVersion.toCbor") .protocolVersion
+            >> E.optionalField 16 E.int .minPoolCost
+            >> E.optionalField 17 E.int .adaPerUtxoByte
+            >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
+            >> E.optionalField 19 encodeExUnitPrices .executionCosts
+            >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
+            >> E.optionalField 21 Redeemer.encodeExUnits .maxBlockExUnits
+            >> E.optionalField 22 E.int .maxValueSize
+            >> E.optionalField 23 E.int .collateralPercentage
+            >> E.optionalField 24 E.int .maxCollateralInputs
+
+
+encodeExUnitPrices : ExUnitPrices -> E.Encoder
+encodeExUnitPrices =
+    E.tuple <|
+        E.elems
+            >> E.elem (\_ -> todo "RationalNumber.toCbor") .memPrice
+            >> E.elem (\_ -> todo "RationalNumber.toCbor") .stepPrice
+
+
+encodeCostModels : CostModels -> E.Encoder
+encodeCostModels =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 (E.list E.int) .plutusV1
+            >> E.optionalField 1 (E.list E.int) .plutusV2
+
+
+{-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
     -- TODO: decode tx
