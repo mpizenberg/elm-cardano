@@ -1,17 +1,18 @@
 module ElmCardano.MultiAsset exposing
     ( MultiAsset
     , empty, isEmpty
-    , encode
+    , toCbor
     )
 
 {-| Handling multi-asset values.
 
 @docs MultiAsset
 @docs empty, isEmpty
-@docs encode
+@docs toCbor
 
 -}
 
+import Bytes.Comparable as Bytes
 import Cbor.Encode as E
 import Dict exposing (Dict)
 
@@ -38,6 +39,10 @@ isEmpty (MultiAsset assets) =
 
 {-| CBOR encoder for [MultiAsset].
 -}
-encode : MultiAsset -> E.Encoder
-encode (MultiAsset _) =
-    Debug.todo "MultiAsset.encode"
+toCbor : MultiAsset -> E.Encoder
+toCbor (MultiAsset inner) =
+    let
+        keyEncoder =
+            Bytes.fromStringUnchecked >> Bytes.toCbor
+    in
+    E.dict keyEncoder (E.dict keyEncoder E.int) inner

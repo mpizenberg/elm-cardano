@@ -338,7 +338,7 @@ encodeTransactionBody =
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Hash.encode .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
+            >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.toCbor .mint
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
