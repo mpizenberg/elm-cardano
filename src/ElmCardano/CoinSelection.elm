@@ -65,20 +65,37 @@ representing the maximum number of inputs allowed. Returns either a
 
 -}
 largestFirst : Int -> Context -> Result Error Selection
-largestFirst maxInputCount args =
+largestFirst maxInputCount context =
     let
         sortedAvailableUtxo =
-            sortByDescendingLovelace args.availableOutputs
+            sortByDescendingLovelace context.availableOutputs
 
         remainingAmount =
-            args.targetAmount - totalLovelace args.alreadySelectedOutputs
+            context.targetAmount - totalLovelace context.alreadySelectedOutputs
     in
-    doLargestFirst maxInputCount remainingAmount (List.length args.alreadySelectedOutputs) sortedAvailableUtxo args.alreadySelectedOutputs
-        |> Result.map (\withAddress -> withAddress args.changeAddress)
+    doLargestFirst
+        { maxInputCount = maxInputCount
+        , selectedInputCount = List.length context.alreadySelectedOutputs
+        , remainingAmount = remainingAmount
+        , availableOutputs = sortedAvailableUtxo
+        , selectedOutputs = context.alreadySelectedOutputs
+        }
+        |> Result.map (\withAddress -> withAddress context.changeAddress)
 
 
-doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
-doLargestFirst maxInputCount remainingAmount selectedInputCount availableOutputs selectedOutputs =
+
+-- doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
+
+
+doLargestFirst :
+    { maxInputCount : Int
+    , selectedInputCount : Int
+    , remainingAmount : Int
+    , availableOutputs : List Output
+    , selectedOutputs : List Output
+    }
+    -> Result Error (Bytes -> Selection)
+doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOutputs, selectedOutputs } =
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
 
@@ -88,7 +105,13 @@ doLargestFirst maxInputCount remainingAmount selectedInputCount availableOutputs
                 Err UTxOBalanceInsufficient
 
             utxo :: utxos ->
-                doLargestFirst maxInputCount (remainingAmount - lovelace utxo) (selectedInputCount + 1) utxos (utxo :: selectedOutputs)
+                doLargestFirst
+                    { maxInputCount = maxInputCount
+                    , selectedInputCount = selectedInputCount + 1
+                    , remainingAmount = remainingAmount - lovelace utxo
+                    , availableOutputs = utxos
+                    , selectedOutputs = utxo :: selectedOutputs
+                    }
 
     else
         Ok <|
