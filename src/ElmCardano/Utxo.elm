@@ -39,7 +39,8 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 import Cbor.Tag as Tag
 import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
+import ElmCardano.Hash as Hash exposing (Blake2b_256, Hash)
+import ElmCardano.Script as Script exposing (Script)
 import ElmCardano.Value as Value exposing (Value)
 
 
@@ -73,7 +74,7 @@ type Output
         { address : Bytes
         , value : Value
         , datumOption : Maybe DatumOption
-        , referenceScript : Maybe (Hash Blake2b_224)
+        , referenceScript : Maybe Script
         }
 
 
@@ -141,7 +142,12 @@ encodeOutput output =
                     >> E.field 0 Bytes.toCbor .address
                     >> E.field 1 Value.encode .value
                     >> E.optionalField 2 encodeDatumOption .datumOption
-                    >> E.optionalField 3 (\_ -> Debug.todo "encodeReferenceScript") .referenceScript
+                    >> E.optionalField 3
+                        (Script.encodeScript
+                            >> E.encode
+                            >> E.tagged Tag.Cbor E.bytes
+                        )
+                        .referenceScript
                 )
                 fields
 

@@ -1,12 +1,22 @@
-module ElmCardano.Script exposing (Script(..), NativeScript(..), PlutusScript)
+module ElmCardano.Script exposing
+    ( Script(..), NativeScript(..), PlutusScript
+    , encodeScript, encodeNativeScript, encodePlutusScript
+    )
 
 {-| Script
 
 @docs Script, NativeScript, PlutusScript
 
+
+## Encoders
+
+@docs encodeScript, encodeNativeScript, encodePlutusScript
+
 -}
 
-import Bytes.Comparable exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Encode as E
+import Debug exposing (todo)
 import ElmCardano.Hash exposing (Blake2b_224, Hash)
 
 
@@ -39,6 +49,48 @@ type NativeScript
 {-| A plutus script.
 -}
 type alias PlutusScript =
-    { version : Int
+    { version : PlutusVersion
     , script : Bytes
     }
+
+
+type PlutusVersion
+    = PlutusV1
+    | PlutusV2
+
+
+encodeScript : Script -> E.Encoder
+encodeScript script =
+    case script of
+        Native nativeScript ->
+            E.list identity
+                [ E.int 0
+                , encodeNativeScript nativeScript
+                ]
+
+        Plutus plutusScript ->
+            E.list identity
+                [ encodePlutusVersion plutusScript.version
+                , encodePlutusScript plutusScript
+                ]
+
+
+encodeNativeScript : NativeScript -> E.Encoder
+encodeNativeScript _ =
+    todo "encode NativeScript"
+
+
+encodePlutusScript : PlutusScript -> E.Encoder
+encodePlutusScript { script } =
+    Bytes.toCbor script
+
+
+encodePlutusVersion : PlutusVersion -> E.Encoder
+encodePlutusVersion version =
+    E.int <|
+        case version of
+            PlutusV1 ->
+                1
+
+            PlutusV2 ->
+                2
