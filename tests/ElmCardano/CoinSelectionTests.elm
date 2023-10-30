@@ -39,7 +39,7 @@ basicScenarioTest _ =
                 address "change"
             }
 
-        nmax =
+        maxInputCount =
             5
 
         expectedResult =
@@ -48,7 +48,7 @@ basicScenarioTest _ =
                 , changeOutput = Just <| fromLovelace context.changeAddress 20
                 }
     in
-    largestFirst nmax context
+    largestFirst maxInputCount context
         |> Expect.equal expectedResult
 
 
@@ -62,10 +62,10 @@ noOutputsTest _ =
             , changeAddress = address "change"
             }
 
-        nmax =
+        maxInputCount =
             5
     in
-    largestFirst nmax context
+    largestFirst maxInputCount context
         |> Expect.equal (Err UTxOBalanceInsufficient)
 
 
@@ -100,7 +100,7 @@ singleUtxoSingleOutputEqualValueTest _ =
             , changeAddress = address "change"
             }
 
-        nmax =
+        maxInputCount =
             5
 
         expectedResult =
@@ -109,7 +109,7 @@ singleUtxoSingleOutputEqualValueTest _ =
                 , changeOutput = Nothing
                 }
     in
-    largestFirst nmax context
+    largestFirst maxInputCount context
         |> Expect.equal expectedResult
 
 
@@ -129,20 +129,20 @@ address suffix =
 fuzzCoinSelection : String -> (Int -> CoinSelection.Context -> Expectation) -> Test
 fuzzCoinSelection title prop =
     let
-        nMax =
+        maxInputCount =
             5
     in
     fuzzWith
         { runs = 100
-        , distribution = contextDistribution nMax
+        , distribution = contextDistribution maxInputCount
         }
-        (contextFuzzer nMax)
+        (contextFuzzer maxInputCount)
         title
-        (prop nMax)
+        (prop maxInputCount)
 
 
 contextFuzzer : Int -> Fuzzer CoinSelection.Context
-contextFuzzer nMax =
+contextFuzzer maxInputCount =
     let
         maxInt =
             100
@@ -155,11 +155,11 @@ contextFuzzer nMax =
     Fuzz.map4 CoinSelection.Context
         (Fuzz.frequency
             [ ( 1, Fuzz.constant [] )
-            , ( 9, Fuzz.listOfLengthBetween 1 (nMax + 1) outputFuzzer )
+            , ( 9, Fuzz.listOfLengthBetween 1 (maxInputCount + 1) outputFuzzer )
             ]
         )
         (Fuzz.frequency
-            [ ( 1, Fuzz.listOfLengthBetween 0 nMax outputFuzzer )
+            [ ( 1, Fuzz.listOfLengthBetween 0 maxInputCount outputFuzzer )
             , ( 9, Fuzz.constant [] )
             ]
         )
@@ -168,11 +168,11 @@ contextFuzzer nMax =
 
 
 contextDistribution : Int -> Test.Distribution CoinSelection.Context
-contextDistribution nMax =
+contextDistribution maxInputCount =
     expectDistribution
         [ ( Distribution.atLeast 70
           , "success"
-          , \ctx -> largestFirst nMax ctx |> Result.isOk
+          , \ctx -> largestFirst maxInputCount ctx |> Result.isOk
           )
         , ( Distribution.atLeast 80
           , "no already selected outputs"
@@ -190,8 +190,8 @@ contextDistribution nMax =
 
 
 propCoverageOfPayment : Int -> CoinSelection.Context -> Expectation
-propCoverageOfPayment nMax context =
-    case largestFirst nMax context of
+propCoverageOfPayment maxInputCount context =
+    case largestFirst maxInputCount context of
         Err _ ->
             Expect.pass
 
@@ -200,8 +200,8 @@ propCoverageOfPayment nMax context =
 
 
 propCorrectnessOfChange : Int -> CoinSelection.Context -> Expectation
-propCorrectnessOfChange nMax context =
-    case largestFirst nMax context of
+propCorrectnessOfChange maxInputCount context =
+    case largestFirst maxInputCount context of
         Err _ ->
             Expect.pass
 

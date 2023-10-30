@@ -65,7 +65,7 @@ representing the maximum number of inputs allowed. Returns either a
 
 -}
 largestFirst : Int -> Context -> Result Error Selection
-largestFirst nmax args =
+largestFirst maxInputCount args =
     let
         sortedAvailableUtxo =
             sortByDescendingLovelace args.availableOutputs
@@ -73,13 +73,13 @@ largestFirst nmax args =
         remainingAmount =
             args.targetAmount - totalLovelace args.alreadySelectedOutputs
     in
-    doLargestFirst nmax remainingAmount (List.length args.alreadySelectedOutputs) sortedAvailableUtxo args.alreadySelectedOutputs
+    doLargestFirst maxInputCount remainingAmount (List.length args.alreadySelectedOutputs) sortedAvailableUtxo args.alreadySelectedOutputs
         |> Result.map (\withAddress -> withAddress args.changeAddress)
 
 
 doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
-doLargestFirst nmax remaining countSelected available selected =
-    if countSelected > nmax then
+doLargestFirst maxInputCount remaining countSelected available selected =
+    if countSelected > maxInputCount then
         Err MaximumInputCountExceeded
 
     else if remaining > 0 then
@@ -88,7 +88,7 @@ doLargestFirst nmax remaining countSelected available selected =
                 Err UTxOBalanceInsufficient
 
             utxo :: utxos ->
-                doLargestFirst nmax (remaining - lovelace utxo) (countSelected + 1) utxos (utxo :: selected)
+                doLargestFirst maxInputCount (remaining - lovelace utxo) (countSelected + 1) utxos (utxo :: selected)
 
     else
         Ok <|
