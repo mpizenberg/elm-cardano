@@ -57,10 +57,12 @@ type alias Context =
 
 
 {-| Implements the Largest-First coin selection algorithm as described in CIP2.
+
 Takes a `Context` record containing the available UTXOs, initially
 selected UTXOs, requested outputs, and change address, along with an `Int`
 representing the maximum number of inputs allowed. Returns either a
 `Error` or a `Selection`. See <https://cips.cardano.org/cips/cip2/#largestfirst>
+
 -}
 largestFirst : Int -> Context -> Result Error Selection
 largestFirst nmax args =
