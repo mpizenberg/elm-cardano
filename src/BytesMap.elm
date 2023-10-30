@@ -5,6 +5,7 @@ module BytesMap exposing
     , keys, values, toList, fromList
     , map, mapWithKeys, foldl, foldlWithKeys, foldr, foldrWithKeys, filter, filterWithKeys
     , union, intersect, diff, merge
+    , toCbor
     )
 
 {-| A `BytesMap` is a dictionnary mapping unique keys to values, where all keys are
@@ -45,6 +46,7 @@ Insert, remove, and query operations all take O(log n) time.
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Encode as E
 import Dict exposing (Dict)
 
 
@@ -272,3 +274,10 @@ merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
         (Bytes.fromStringUnchecked >> whenRight)
         left
         right
+
+
+{-| Cbor encoder.
+-}
+toCbor : (v -> E.Encoder) -> BytesMap k v -> E.Encoder
+toCbor apply (BytesMap data) =
+    E.dict (Bytes.fromStringUnchecked >> Bytes.toCbor) apply data
