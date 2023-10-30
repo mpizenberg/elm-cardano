@@ -334,8 +334,8 @@ encodeTransactionBody =
             >> E.optionalField 2 E.int .fee
             >> E.optionalField 3 E.int .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 BytesMap.isEmpty (\_ -> todo "BytesMap.toCbor") .withdrawals
-            >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
+            >> E.nonEmptyField 5 BytesMap.isEmpty (BytesMap.toCbor E.int) .withdrawals
+            >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Hash.encode .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
