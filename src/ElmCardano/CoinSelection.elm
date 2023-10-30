@@ -62,8 +62,8 @@ selected UTXOs, requested outputs, and change address, along with an `Int`
 representing the maximum number of inputs allowed. Returns either a
 `Error` or a `Selection`. See <https://cips.cardano.org/cips/cip2/#largestfirst>
 -}
-largestFirst : Context -> Int -> Result Error Selection
-largestFirst args nmax =
+largestFirst : Int -> Context -> Result Error Selection
+largestFirst nmax args =
     let
         sortedAvailableUtxo =
             sortByDescendingLovelace args.availableOutputs

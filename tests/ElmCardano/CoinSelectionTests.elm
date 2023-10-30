@@ -1,7 +1,7 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import ElmCardano.CoinSelection as CoinSelection exposing (largestFirst, Error(..))
+import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
 import ElmCardano.Utxo exposing (fromLovelace, lovelace, totalLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
@@ -48,7 +48,7 @@ basicScenarioTest _ =
                 , changeOutput = Just <| fromLovelace context.changeAddress 20
                 }
     in
-    largestFirst context nmax
+    largestFirst nmax context
         |> Expect.equal expectedResult
 
 
@@ -65,7 +65,7 @@ noOutputsTest _ =
         nmax =
             5
     in
-    largestFirst context nmax
+    largestFirst nmax context
         |> Expect.equal (Err UTxOBalanceInsufficient)
 
 
@@ -85,7 +85,7 @@ insufficientFundsTest _ =
             }
 
         result =
-            largestFirst context 5
+            largestFirst 5 context
     in
     Expect.equal (Err UTxOBalanceInsufficient) result
 
@@ -109,7 +109,7 @@ singleUtxoSingleOutputEqualValueTest _ =
                 , changeOutput = Nothing
                 }
     in
-    largestFirst context nmax
+    largestFirst nmax context
         |> Expect.equal expectedResult
 
 
@@ -172,7 +172,7 @@ contextDistribution nMax =
     expectDistribution
         [ ( Distribution.atLeast 70
           , "success"
-          , \ctx -> largestFirst ctx nMax |> Result.isOk
+          , \ctx -> largestFirst nMax ctx |> Result.isOk
           )
         , ( Distribution.atLeast 80
           , "no already selected outputs"
@@ -191,7 +191,7 @@ contextDistribution nMax =
 
 propCoverageOfPayment : Int -> CoinSelection.Context -> Expectation
 propCoverageOfPayment nMax context =
-    case largestFirst context nMax of
+    case largestFirst nMax context of
         Err _ ->
             Expect.pass
 
@@ -201,7 +201,7 @@ propCoverageOfPayment nMax context =
 
 propCorrectnessOfChange : Int -> CoinSelection.Context -> Expectation
 propCorrectnessOfChange nMax context =
-    case largestFirst context nMax of
+    case largestFirst nMax context of
         Err _ ->
             Expect.pass
 
