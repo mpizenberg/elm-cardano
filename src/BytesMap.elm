@@ -43,6 +43,11 @@ Insert, remove, and query operations all take O(log n) time.
 
 @docs union, intersect, diff, merge
 
+
+## Encode
+
+@docs toCbor
+
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
