@@ -133,9 +133,9 @@ type alias Update =
 {-| -}
 type alias ProtocolParamUpdate =
     { -- #[n(0)]
-      minfeeA : Maybe Int
+      minFeeA : Maybe Int
     , -- #[n(1)]
-      minfeeB : Maybe Int
+      minFeeB : Maybe Int
     , -- #[n(2)]
       maxBlockBodySize : Maybe Int
     , -- #[n(3)]
