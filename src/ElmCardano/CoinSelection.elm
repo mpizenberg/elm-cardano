@@ -78,26 +78,26 @@ largestFirst maxInputCount args =
 
 
 doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
-doLargestFirst maxInputCount remaining countSelected available selected =
-    if countSelected > maxInputCount then
+doLargestFirst maxInputCount remainingAmount selectedInputCount availableOutputs selectedOutputs =
+    if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
 
-    else if remaining > 0 then
-        case available of
+    else if remainingAmount > 0 then
+        case availableOutputs of
             [] ->
                 Err UTxOBalanceInsufficient
 
             utxo :: utxos ->
-                doLargestFirst maxInputCount (remaining - lovelace utxo) (countSelected + 1) utxos (utxo :: selected)
+                doLargestFirst maxInputCount (remainingAmount - lovelace utxo) (selectedInputCount + 1) utxos (utxo :: selectedOutputs)
 
     else
         Ok <|
             \changeAddress ->
-                { selectedOutputs = selected
+                { selectedOutputs = selectedOutputs
                 , changeOutput =
-                    if remaining == 0 then
+                    if remainingAmount == 0 then
                         Nothing
 
                     else
-                        Just (fromLovelace changeAddress -remaining)
+                        Just (fromLovelace changeAddress -remainingAmount)
                 }
