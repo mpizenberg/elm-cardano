@@ -5,7 +5,8 @@ module ElmCardano.Transaction exposing
     , AuxiliaryData
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
-    , Certificate(..)
+    , Certificate(..), StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
+    , Relay(..), PoolParams, PoolMetadata
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
     , Metadatum(..)
@@ -27,7 +28,9 @@ module ElmCardano.Transaction exposing
 
 @docs ScriptContext, ScriptPurpose
 
-@docs Certificate
+@docs Certificate, StakeCredential, RewardSource, RewardTarget, MoveInstantaneousReward
+
+@docs Relay, PoolParams, PoolMetadata
 
 @docs CostModels, ExUnitPrices
 
@@ -123,77 +126,53 @@ type alias AuxiliaryData =
     }
 
 
-{-| -}
+{-| Payload to update the protocol parameters at a specific epoch
+-}
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
     , epoch : Int
     }
 
 
-{-| -}
+{-| Adjustable parameters that power key aspects of the network.
+-}
 type alias ProtocolParamUpdate =
-    { -- #[n(0)]
-      minFeeA : Maybe Int
-    , -- #[n(1)]
-      minFeeB : Maybe Int
-    , -- #[n(2)]
-      maxBlockBodySize : Maybe Int
-    , -- #[n(3)]
-      maxTransactionSize : Maybe Int
-    , -- #[n(4)]
-      maxBlockHeaderSize : Maybe Int
-    , -- #[n(5)]
-      keyDeposit : Maybe Int
-    , -- #[n(6)]
-      poolDeposit : Maybe Int
-    , -- #[n(7)]
-      maximumEpoch : Maybe Int
-    , -- #[n(8)]
-      desiredNumberOfStakePools : Maybe Int
-    , -- #[n(9)]
-      poolPledgeInfluence : Maybe RationalNumber
-    , -- #[n(10)]
-      expansionRate : Maybe UnitInterval
-    , -- #[n(11)]
-      treasuryGrowthRate : Maybe UnitInterval
-    , -- #[n(14)]
-      protocolVersion : Maybe ProtocolVersion
-    , -- #[n(16)]
-      minPoolCost : Maybe Int
-    , -- #[n(17)]
-      adaPerUtxoByte : Maybe Int
-    , -- #[n(18)]
-      costModelsForScriptLanguages : Maybe CostModels
-    , -- #[n(19)]
-      executionCosts : Maybe ExUnitPrices
-    , -- #[n(20)]
-      maxTxExUnits : Maybe ExUnits
-    , -- #[n(21)]
-      maxBlockExUnits : Maybe ExUnits
-    , -- #[n(22)]
-      maxValueSize : Maybe Int
-    , -- #[n(23)]
-      collateralPercentage : Maybe Int
-    , -- #[n(24)]
-      maxCollateralInputs : Maybe Int
+    { minFeeA : Maybe Int -- 0
+    , minFeeB : Maybe Int -- 1
+    , maxBlockBodySize : Maybe Int -- 2
+    , maxTransactionSize : Maybe Int -- 3
+    , maxBlockHeaderSize : Maybe Int -- 4
+    , keyDeposit : Maybe Int -- 5
+    , poolDeposit : Maybe Int -- 6
+    , maximumEpoch : Maybe Int -- 7
+    , desiredNumberOfStakePools : Maybe Int -- 8
+    , poolPledgeInfluence : Maybe RationalNumber -- 9
+    , expansionRate : Maybe UnitInterval -- 10
+    , treasuryGrowthRate : Maybe UnitInterval -- 11
+    , protocolVersion : Maybe ProtocolVersion -- 14
+    , minPoolCost : Maybe Int -- 16
+    , adaPerUtxoByte : Maybe Int -- 17
+    , costModelsForScriptLanguages : Maybe CostModels -- 18
+    , executionCosts : Maybe ExUnitPrices -- 19
+    , maxTxExUnits : Maybe ExUnits -- 20
+    , maxBlockExUnits : Maybe ExUnits -- 21
+    , maxValueSize : Maybe Int -- 22
+    , collateralPercentage : Maybe Int -- 23
+    , maxCollateralInputs : Maybe Int -- 24
     }
 
 
 {-| -}
 type alias CostModels =
-    { -- #[n(0)]
-      plutusV1 : Maybe (List Int)
-    , -- #[n(1)]
-      plutusV2 : Maybe (List Int)
+    { plutusV1 : Maybe (List Int) -- 0
+    , plutusV2 : Maybe (List Int) -- 1
     }
 
 
 {-| -}
 type alias ExUnitPrices =
-    { -- #[n(0)]
-      memPrice : PositiveInterval
-    , -- #[n(1)]
-      stepPrice : PositiveInterval
+    { memPrice : PositiveInterval -- 0
+    , stepPrice : PositiveInterval -- 1
     }
 
 
@@ -300,11 +279,15 @@ type Certificate
     | MoveInstantaneousRewardsCert MoveInstantaneousReward
 
 
+{-| A credential used in certificates.
+-}
 type StakeCredential
     = AddrKeyHash (Hash Blake2b_224)
     | ScriptHash (Hash Blake2b_224)
 
 
+{-| Parameters for stake pool registration.
+-}
 type alias PoolParams =
     { operator : Hash Blake2b_224
     , vrfKeyHash : Hash Blake2b_256
@@ -318,29 +301,43 @@ type alias PoolParams =
     }
 
 
+{-| A pool's relay information.
+-}
 type Relay
     = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe Bytes, ipv6 : Maybe Bytes }
     | SingleHostName { port_ : Maybe Int, dnsName : String }
     | MultiHostName { dnsName : String }
 
 
+{-| A pool's metadata hash.
+-}
 type alias PoolMetadata =
     { url : String -- tstr .size (0..64)
     , poolMetadataHash : Hash Blake2b_256
     }
 
 
+{-| Payload for [MoveInstantaneousRewardsCert].
+-}
 type alias MoveInstantaneousReward =
     { source : RewardSource
     , target : RewardTarget
     }
 
 
+{-| The source of rewards.
+-}
 type RewardSource
-    = Reserves
-    | Treasury
+    = Reserves -- 0
+    | Treasury -- 1
 
 
+{-| Reward target for a certificate's [MoveInstantaneousReward].
+
+If `StakeCredentials`, funds are moved to stake credentials,
+otherwise the funds are given to the other accounting pot.
+
+-}
 type RewardTarget
     = StakeCredentials (Dict StakeCredential Int)
     | OtherAccountingPot Int
@@ -350,13 +347,15 @@ type RewardTarget
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
 
-{-| -}
+{-| Serialize a [Transaction] into cbor bytes
+-}
 serialize : Transaction -> Bytes
 serialize =
     encodeTransaction >> E.encode >> Bytes.fromBytes
 
 
-{-| -}
+{-| Deserialize a transaction's cbor bytes into a [Transaction]
+-}
 deserialize : Bytes -> Maybe Transaction
 deserialize bytes =
     Bytes.toBytes bytes
@@ -578,8 +577,32 @@ encodePoolMetadata =
 
 
 encodeMoveInstantaneousReward : MoveInstantaneousReward -> E.Encoder
-encodeMoveInstantaneousReward moveInstantaneousReward =
-    todo ""
+encodeMoveInstantaneousReward =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeRewardSource .source
+            >> E.elem encodeRewardTarget .target
+
+
+encodeRewardSource : RewardSource -> E.Encoder
+encodeRewardSource source =
+    E.int <|
+        case source of
+            Reserves ->
+                0
+
+            Treasury ->
+                1
+
+
+encodeRewardTarget : RewardTarget -> E.Encoder
+encodeRewardTarget target =
+    case target of
+        StakeCredentials distribution ->
+            E.dict encodeStakeCredential E.int distribution
+
+        OtherAccountingPot n ->
+            E.int n
 
 
 {-| -}
