@@ -49,7 +49,6 @@ import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Debug exposing (todo)
 import Dict exposing (Dict)
-import ElmCardano.Address exposing (StakeCredential)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
@@ -288,13 +287,48 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = CredentialRegistration { delegator : StakeCredential }
-    | CredentialDeregistration { delegator : StakeCredential }
-    | CredentialDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
-    | PoolRegistration { poolId : Hash Blake2b_224, vrf : Hash Blake2b_224 }
-    | PoolDeregistration { poolId : Hash Blake2b_224, epoch : Int }
-    | Governance
-    | TreasuryMovement
+    = StakeRegistration { delegator : StakeCredential }
+    | StakeDeregistration { delegator : StakeCredential }
+    | StakeDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
+    | PoolRegistration PoolParams
+    | PoolRetirement { poolId : Hash Blake2b_224, epoch : Int }
+    | GenesisKeyDelegation { genesisHash : Hash Blake2b_224, genesisDelegateHash : Hash Blake2b_224, vrfKeyHash : Hash Blake2b_256 }
+    | MoveInstantaneousRewardsCert MoveInstantaneousReward
+
+
+type StakeCredential
+    = AddrKeyHash (Hash Blake2b_224)
+    | ScriptHash (Hash Blake2b_224)
+
+
+type alias PoolParams =
+    { operator : Hash Blake2b_224
+    , vrfKeyHash : Hash Blake2b_256
+    , pledge : Int
+    , cost : Int
+    , margin : UnitInterval
+    , reward_account : Bytes
+
+    -- , pool_owners:    set<addr_keyhash>
+    -- , relays:         [* relay]
+    -- , pool_metadata:  pool_metadata / null
+    }
+
+
+type alias MoveInstantaneousReward =
+    { source : RewardSource
+    , target : RewardTarget
+    }
+
+
+type RewardSource
+    = Reserves
+    | Treasury
+
+
+type RewardTarget
+    = StakeCredentials (Dict StakeCredential Int)
+    | OtherAccountingPot Int
 
 
 
@@ -431,8 +465,29 @@ encodeCertificates =
 
 {-| -}
 encodeCertificate : Certificate -> E.Encoder
-encodeCertificate _ =
-    todo "encode certificate"
+encodeCertificate certificate =
+    E.list identity <|
+        case certificate of
+            StakeRegistration { delegator } ->
+                todo ""
+
+            StakeDeregistration { delegator } ->
+                todo ""
+
+            StakeDelegation { delegator, delegatee } ->
+                todo ""
+
+            PoolRegistration poolParams ->
+                todo ""
+
+            PoolRetirement { poolId, epoch } ->
+                todo ""
+
+            GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
+                todo ""
+
+            MoveInstantaneousRewardsCert moveInstantaneousReward ->
+                todo ""
 
 
 {-| -}
