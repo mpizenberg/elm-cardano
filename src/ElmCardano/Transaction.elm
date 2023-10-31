@@ -472,7 +472,7 @@ encodeProtocolParamUpdate =
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
             >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
-            >> E.optionalField 14 (\_ -> todo "ProtocolVersion.toCbor") .protocolVersion
+            >> E.optionalField 14 (\( v, m ) -> E.list E.int [ v, m ]) .protocolVersion
             >> E.optionalField 16 E.int .minPoolCost
             >> E.optionalField 17 E.int .adaPerUtxoByte
             >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
