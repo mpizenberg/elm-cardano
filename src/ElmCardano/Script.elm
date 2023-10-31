@@ -1,11 +1,11 @@
 module ElmCardano.Script exposing
-    ( Script(..), NativeScript(..), PlutusScript
+    ( Script(..), NativeScript(..), PlutusScript, PlutusVersion(..)
     , encodeScript, encodeNativeScript, encodePlutusScript
     )
 
 {-| Script
 
-@docs Script, NativeScript, PlutusScript
+@docs Script, NativeScript, PlutusScript, PlutusVersion
 
 
 ## Encoders
@@ -54,11 +54,15 @@ type alias PlutusScript =
     }
 
 
+{-| The plutus version.
+-}
 type PlutusVersion
     = PlutusV1
     | PlutusV2
 
 
+{-| Cbor Encoder for [Script]
+-}
 encodeScript : Script -> E.Encoder
 encodeScript script =
     case script of
@@ -75,11 +79,15 @@ encodeScript script =
                 ]
 
 
+{-| Cbor Encoder for [NativeScript]
+-}
 encodeNativeScript : NativeScript -> E.Encoder
 encodeNativeScript _ =
     todo "encode NativeScript"
 
 
+{-| Cbor Encoder for PlutusScript
+-}
 encodePlutusScript : PlutusScript -> E.Encoder
 encodePlutusScript { script } =
     Bytes.toCbor script

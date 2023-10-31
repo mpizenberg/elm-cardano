@@ -54,7 +54,7 @@ import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import ElmCardano.Script exposing (NativeScript, PlutusScript)
+import ElmCardano.Script as Script exposing (NativeScript, PlutusScript)
 import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
@@ -367,12 +367,12 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (\_ -> todo "") .nativeScripts
+            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (\scripts -> E.list Bytes.toCbor scripts) .plutusV1Script
+            >> E.optionalField 3 (E.list Bytes.toCbor) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (\redeemers -> E.list Redeemer.encode redeemers) .redeemer
-            >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
+            >> E.optionalField 5 (E.list Redeemer.encode) .redeemer
+            >> E.optionalField 6 (E.list Bytes.toCbor) .plutusV2Script
 
 
 {-| -}
