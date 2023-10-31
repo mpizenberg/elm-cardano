@@ -16,8 +16,7 @@ module ElmCardano.Script exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
-import Debug exposing (todo)
-import ElmCardano.Hash exposing (Blake2b_224, Hash)
+import ElmCardano.Hash as Hash exposing (Blake2b_224, Hash)
 
 
 {-| Cardano script, either a native script or a plutus script.
@@ -82,8 +81,39 @@ encodeScript script =
 {-| Cbor Encoder for [NativeScript]
 -}
 encodeNativeScript : NativeScript -> E.Encoder
-encodeNativeScript _ =
-    todo "encode NativeScript"
+encodeNativeScript nativeScript =
+    E.list identity <|
+        case nativeScript of
+            ScriptPubkey addrKeyHash ->
+                [ E.int 0
+                , Hash.encode addrKeyHash
+                ]
+
+            ScriptAll nativeScripts ->
+                [ E.int 1
+                , E.list encodeNativeScript nativeScripts
+                ]
+
+            ScriptAny nativeScripts ->
+                [ E.int 2
+                , E.list encodeNativeScript nativeScripts
+                ]
+
+            ScriptNofK atLeast nativeScripts ->
+                [ E.int 3
+                , E.int atLeast
+                , E.list encodeNativeScript nativeScripts
+                ]
+
+            InvalidBefore start ->
+                [ E.int 4
+                , E.int start
+                ]
+
+            InvalidHereafter end ->
+                [ E.int 5
+                , E.int end
+                ]
 
 
 {-| Cbor Encoder for PlutusScript
