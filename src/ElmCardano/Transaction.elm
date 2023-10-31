@@ -292,7 +292,11 @@ type Certificate
     | StakeDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
     | PoolRegistration PoolParams
     | PoolRetirement { poolId : Hash Blake2b_224, epoch : Int }
-    | GenesisKeyDelegation { genesisHash : Hash Blake2b_224, genesisDelegateHash : Hash Blake2b_224, vrfKeyHash : Hash Blake2b_256 }
+    | GenesisKeyDelegation
+        { genesisHash : Hash Blake2b_224
+        , genesisDelegateHash : Hash Blake2b_224
+        , vrfKeyHash : Hash Blake2b_256
+        }
     | MoveInstantaneousRewardsCert MoveInstantaneousReward
 
 
@@ -307,11 +311,22 @@ type alias PoolParams =
     , pledge : Int
     , cost : Int
     , margin : UnitInterval
-    , reward_account : Bytes
+    , rewardAccount : Bytes
+    , poolOwners : List (Hash Blake2b_224)
+    , relays : List Relay
+    , poolMetadata : Maybe PoolMetadata
+    }
 
-    -- , pool_owners:    set<addr_keyhash>
-    -- , relays:         [* relay]
-    -- , pool_metadata:  pool_metadata / null
+
+type Relay
+    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe Bytes, ipv6 : Maybe Bytes }
+    | SingleHostName { port_ : Maybe Int, dnsName : String }
+    | MultiHostName { dnsName : String }
+
+
+type alias PoolMetadata =
+    { url : String -- tstr .size (0..64)
+    , poolMetadataHash : Hash Blake2b_256
     }
 
 
@@ -469,25 +484,102 @@ encodeCertificate certificate =
     E.list identity <|
         case certificate of
             StakeRegistration { delegator } ->
-                todo ""
+                [ E.int 0
+                , encodeStakeCredential delegator
+                ]
 
             StakeDeregistration { delegator } ->
-                todo ""
+                [ E.int 1
+                , encodeStakeCredential delegator
+                ]
 
             StakeDelegation { delegator, delegatee } ->
-                todo ""
+                [ E.int 2
+                , encodeStakeCredential delegator
+                , Hash.encode delegatee
+                ]
 
             PoolRegistration poolParams ->
-                todo ""
+                [ E.int 3
+                , Hash.encode poolParams.operator
+                , Hash.encode poolParams.vrfKeyHash
+                , E.int poolParams.pledge
+                , E.int poolParams.cost
+                , encodeRationalNumber poolParams.margin
+                , Bytes.toCbor poolParams.rewardAccount
+                , E.list Hash.encode poolParams.poolOwners
+                , E.list encodeRelay poolParams.relays
+                , E.maybe encodePoolMetadata poolParams.poolMetadata
+                ]
 
             PoolRetirement { poolId, epoch } ->
-                todo ""
+                [ E.int 4
+                , Hash.encode poolId
+                , E.int epoch
+                ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
-                todo ""
+                [ E.int 5
+                , Hash.encode genesisHash
+                , Hash.encode genesisDelegateHash
+                , Hash.encode vrfKeyHash
+                ]
 
             MoveInstantaneousRewardsCert moveInstantaneousReward ->
-                todo ""
+                [ E.int 6
+                , encodeMoveInstantaneousReward moveInstantaneousReward
+                ]
+
+
+encodeStakeCredential : StakeCredential -> E.Encoder
+encodeStakeCredential stakeCredential =
+    E.list identity <|
+        case stakeCredential of
+            AddrKeyHash addrKeyHash ->
+                [ E.int 0
+                , Hash.encode addrKeyHash
+                ]
+
+            ScriptHash scriptHash ->
+                [ E.int 1
+                , Hash.encode scriptHash
+                ]
+
+
+encodeRelay : Relay -> E.Encoder
+encodeRelay relay =
+    E.list identity <|
+        case relay of
+            SingleHostAddr { port_, ipv4, ipv6 } ->
+                [ E.int 0
+                , E.maybe E.int port_
+                , E.maybe Bytes.toCbor ipv4
+                , E.maybe Bytes.toCbor ipv6
+                ]
+
+            SingleHostName { port_, dnsName } ->
+                [ E.int 1
+                , E.maybe E.int port_
+                , E.string dnsName
+                ]
+
+            MultiHostName { dnsName } ->
+                [ E.int 2
+                , E.string dnsName
+                ]
+
+
+encodePoolMetadata : PoolMetadata -> E.Encoder
+encodePoolMetadata =
+    E.tuple <|
+        E.elems
+            >> E.elem E.string .url
+            >> E.elem Hash.encode .poolMetadataHash
+
+
+encodeMoveInstantaneousReward : MoveInstantaneousReward -> E.Encoder
+encodeMoveInstantaneousReward moveInstantaneousReward =
+    todo ""
 
 
 {-| -}
