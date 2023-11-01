@@ -2,14 +2,13 @@ module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, WitnessSet
     , NetworkId(..)
-    , AuxiliaryData
+    , AuxiliaryData(..), Metadata, Metadatum(..)
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), PoolParams, PoolMetadata
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
-    , Metadatum(..)
     , VKeyWitness, BootstrapWitness
     , deserialize, serialize
     )
@@ -22,7 +21,7 @@ module ElmCardano.Transaction exposing
 
 @docs NetworkId
 
-@docs AuxiliaryData
+@docs AuxiliaryData, Metadata, Metadatum
 
 @docs Update, ProtocolParamUpdate, ProtocolVersion
 
@@ -35,8 +34,6 @@ module ElmCardano.Transaction exposing
 @docs CostModels, ExUnitPrices
 
 @docs RationalNumber, UnitInterval, PositiveInterval
-
-@docs Metadatum
 
 @docs VKeyWitness, BootstrapWitness
 
@@ -118,12 +115,23 @@ type alias WitnessSet =
     }
 
 
-{-| -}
-type alias AuxiliaryData =
-    { metadata : Maybe (Dict Int Metadatum) -- 0
-    , nativeScripts : Maybe (List NativeScript) -- 1
-    , plutusScripts : Maybe (List PlutusScript) -- 1
-    }
+{-| metadata used in [AuxiliaryData].
+-}
+type alias Metadata =
+    Dict Int Metadatum
+
+
+{-| [Transaction] auxiliary data.
+-}
+type AuxiliaryData
+    = Shelley Metadata
+    | ShelleyMa { transactionMetadata : Metadata, auxiliaryScripts : List NativeScript }
+    | PostAlonzo
+        { metadata : Maybe (Dict Int Metadatum) -- 0
+        , nativeScripts : Maybe (List NativeScript) -- 1
+        , plutusV1Scripts : Maybe (List PlutusScript) -- 2
+        , plutusV2Scripts : Maybe (List PlutusScript) -- 2
+        }
 
 
 {-| Payload to update the protocol parameters at a specific epoch
@@ -208,7 +216,7 @@ type Metadatum
     | Bytes Bytes
     | String String
     | List (List Metadatum)
-    | Map (List ( Metadatum, Metadatum ))
+    | Map (Dict Metadatum Metadatum)
 
 
 {-| -}
@@ -455,8 +463,53 @@ encodeBootstrapWitness =
 
 {-| -}
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
-encodeAuxiliaryData _ =
-    todo "encode auxiliary data"
+encodeAuxiliaryData auxiliaryData =
+    let
+        encodeMetadata =
+            E.dict E.int encodeMetadatum
+    in
+    case auxiliaryData of
+        Shelley metadata ->
+            encodeMetadata metadata
+
+        ShelleyMa data ->
+            data
+                |> E.tuple
+                    (E.elems
+                        >> E.elem encodeMetadata .transactionMetadata
+                        >> E.elem (E.list Script.encodeNativeScript) .auxiliaryScripts
+                    )
+
+        PostAlonzo data ->
+            data
+                |> E.tagged (Tag.Unknown 259)
+                    (E.record E.int
+                        (E.fields
+                            >> E.optionalField 0 encodeMetadata .metadata
+                            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
+                            >> E.optionalField 2 (E.list Script.encodePlutusScript) .plutusV1Scripts
+                            >> E.optionalField 3 (E.list Script.encodePlutusScript) .plutusV2Scripts
+                        )
+                    )
+
+
+encodeMetadatum : Metadatum -> E.Encoder
+encodeMetadatum metadatum =
+    case metadatum of
+        Int n ->
+            E.int n
+
+        Bytes bytes ->
+            Bytes.toCbor bytes
+
+        String str ->
+            E.string str
+
+        List metadatums ->
+            E.list encodeMetadatum metadatums
+
+        Map metadatums ->
+            E.dict encodeMetadatum encodeMetadatum metadatums
 
 
 {-| -}
