@@ -5,6 +5,8 @@ function initElmCardanoJs(app) {
             if (value.requestType == "ogmios-connect") {
                 const websocket = await connectToOgmios(value.websocketAddress, value.connectionId)
                 app.ports.fromOgmios.send({responseType: "ogmios-connect", ws: websocket, connectionId: value.connectionId})
+            } else if (value.requestType == "ogmios-disconnect") {
+                value.ws.close()
             } else if (value.requestType == "ogmios-api") {
                 handleApiRequest(value)
             }

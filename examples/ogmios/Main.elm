@@ -26,6 +26,7 @@ port fromOgmios : (Value -> msg) -> Sub msg
 type Msg
     = OgmiosMsg Value
     | ConnectButtonClicked
+    | DisconnectButtonClicked
     | FindIntersectionButtonClicked
 
 
@@ -83,6 +84,7 @@ update msg model =
                 Err error ->
                     ( { model | lastError = JDecode.errorToString error }, Cmd.none )
 
+        -- Connect
         ( ConnectButtonClicked, Disconnected ) ->
             ( { model | connectionStatus = Connecting }
             , Ogmios6.connect { connectionId = "from-elm-to-" ++ model.websocketAddress, websocketAddress = model.websocketAddress }
@@ -90,6 +92,21 @@ update msg model =
                 |> toOgmios
             )
 
+        ( ConnectButtonClicked, _ ) ->
+            ( model, Cmd.none )
+
+        -- Disconnect
+        ( DisconnectButtonClicked, Connected { websocket } ) ->
+            ( { model | connectionStatus = Connecting }
+            , Ogmios6.disconnect { ws = websocket }
+                |> Ogmios6.encodeRequest
+                |> toOgmios
+            )
+
+        ( DisconnectButtonClicked, _ ) ->
+            ( model, Cmd.none )
+
+        -- Find Intersection
         ( FindIntersectionButtonClicked, Connected { websocket } ) ->
             ( model
             , Ogmios6.findIntersection { websocket = websocket }
@@ -97,7 +114,7 @@ update msg model =
                 |> toOgmios
             )
 
-        _ ->
+        ( FindIntersectionButtonClicked, _ ) ->
             ( model, Cmd.none )
 
 
@@ -127,4 +144,7 @@ viewConnectionStatus { connectionStatus, websocketAddress } =
             div [] [ text <| "Connecting to " ++ websocketAddress ++ " ..." ]
 
         Connected { connectionId } ->
-            div [] [ text <| "Connected | ID: " ++ connectionId ]
+            div []
+                [ text <| "Connected | ID: " ++ connectionId
+                , Html.button [ onClick DisconnectButtonClicked ] [ text <| "Disconnect" ]
+                ]

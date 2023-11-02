@@ -1,6 +1,6 @@
 module Ogmios6 exposing
     ( Request, encodeRequest
-    , connect, findIntersection
+    , connect, disconnect, findIntersection
     , Response(..), ApiResponse(..), responseDecoder
     )
 
@@ -8,7 +8,7 @@ module Ogmios6 exposing
 
 @docs Request, encodeRequest
 
-@docs connect, findIntersection
+@docs connect, disconnect, findIntersection
 
 @docs Response, ApiResponse, responseDecoder
 
@@ -23,6 +23,7 @@ import Json.Encode as JEncode
 -}
 type Request
     = Connect { connectionId : String, websocketAddress : String }
+    | Disconnect { ws : Value }
     | ApiRequest
         { ws : Value
         , method : String
@@ -41,6 +42,12 @@ encodeRequest request =
                 [ ( "requestType", JEncode.string "ogmios-connect" )
                 , ( "websocketAddress", JEncode.string websocketAddress )
                 , ( "connectionId", JEncode.string connectionId )
+                ]
+
+        Disconnect { ws } ->
+            JEncode.object
+                [ ( "requestType", JEncode.string "ogmios-disconnect" )
+                , ( "ws", ws )
                 ]
 
         ApiRequest { ws, method, params, id } ->
@@ -63,6 +70,11 @@ encodeRequest request =
 connect : { connectionId : String, websocketAddress : String } -> Request
 connect config =
     Connect config
+
+
+disconnect : { ws : Value } -> Request
+disconnect =
+    Disconnect
 
 
 findIntersection : { websocket : Value } -> Request
