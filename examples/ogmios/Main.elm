@@ -43,6 +43,7 @@ type alias Model =
 
 type ConnectionStatus
     = Disconnected
+    | Connecting
     | Connected { websocket : Value, connectionId : String }
 
 
@@ -83,8 +84,8 @@ update msg model =
                     ( { model | lastError = JDecode.errorToString error }, Cmd.none )
 
         ( ConnectButtonClicked, Disconnected ) ->
-            ( model
-            , Ogmios6.connect { connectionId = "from-elm", websocketAddress = model.websocketAddress }
+            ( { model | connectionStatus = Connecting }
+            , Ogmios6.connect { connectionId = "from-elm-to-" ++ model.websocketAddress, websocketAddress = model.websocketAddress }
                 |> Ogmios6.encodeRequest
                 |> toOgmios
             )
@@ -107,11 +108,23 @@ update msg model =
 view : Model -> Html Msg
 view model =
     div []
-        [ div [] [ text <| "Connection status: " ++ Debug.toString model.connectionStatus ]
-        , div [] [ Html.button [ onClick ConnectButtonClicked ] [ text <| "Connect to: " ++ model.websocketAddress ] ]
+        [ viewConnectionStatus model
         , div [] [ Html.button [ onClick FindIntersectionButtonClicked ] [ text <| "findIntersection(lastByronBlock)" ] ]
         , div [] [ text "Last API request response:" ]
         , Html.pre [] [ text model.lastApiResponse ]
         , div [] [ text "Last error:" ]
         , Html.pre [] [ text model.lastError ]
         ]
+
+
+viewConnectionStatus : Model -> Html Msg
+viewConnectionStatus { connectionStatus, websocketAddress } =
+    case connectionStatus of
+        Disconnected ->
+            div [] [ Html.button [ onClick ConnectButtonClicked ] [ text <| "Connect to: " ++ websocketAddress ] ]
+
+        Connecting ->
+            div [] [ text <| "Connecting to " ++ websocketAddress ++ " ..." ]
+
+        Connected { connectionId } ->
+            div [] [ text <| "Connected | ID: " ++ connectionId ]
