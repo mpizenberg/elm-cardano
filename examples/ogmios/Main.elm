@@ -2,7 +2,8 @@ port module Main exposing (..)
 
 import Browser
 import Html exposing (Html, div, text)
-import Html.Events exposing (onClick)
+import Html.Attributes as HA
+import Html.Events exposing (onClick, onInput)
 import Json.Decode as JDecode exposing (Value, value)
 import Ogmios6
 import Platform.Cmd as Cmd
@@ -25,6 +26,7 @@ port fromOgmios : (Value -> msg) -> Sub msg
 
 type Msg
     = OgmiosMsg Value
+    | WebsocketAddressInputChange String
     | ConnectButtonClicked
     | DisconnectButtonClicked
     | FindIntersectionButtonClicked
@@ -84,6 +86,13 @@ update msg model =
                 Err error ->
                     ( { model | lastError = JDecode.errorToString error }, Cmd.none )
 
+        -- Websocket address input change
+        ( WebsocketAddressInputChange address, Disconnected ) ->
+            ( { model | websocketAddress = address }, Cmd.none )
+
+        ( WebsocketAddressInputChange _, _ ) ->
+            ( model, Cmd.none )
+
         -- Connect
         ( ConnectButtonClicked, Disconnected ) ->
             ( { model | connectionStatus = Connecting }
@@ -138,7 +147,10 @@ viewConnectionStatus : Model -> Html Msg
 viewConnectionStatus { connectionStatus, websocketAddress } =
     case connectionStatus of
         Disconnected ->
-            div [] [ Html.button [ onClick ConnectButtonClicked ] [ text <| "Connect to: " ++ websocketAddress ] ]
+            div []
+                [ Html.button [ onClick ConnectButtonClicked ] [ text <| "Connect to: " ]
+                , viewInput "text" "ws://0.0.0.0:1337" websocketAddress WebsocketAddressInputChange
+                ]
 
         Connecting ->
             div [] [ text <| "Connecting to " ++ websocketAddress ++ " ..." ]
@@ -148,3 +160,8 @@ viewConnectionStatus { connectionStatus, websocketAddress } =
                 [ text <| "Connected | ID: " ++ connectionId
                 , Html.button [ onClick DisconnectButtonClicked ] [ text <| "Disconnect" ]
                 ]
+
+
+viewInput : String -> String -> String -> (String -> msg) -> Html msg
+viewInput t p v toMsg =
+    Html.input [ HA.type_ t, HA.placeholder p, HA.value v, onInput toMsg ] []
