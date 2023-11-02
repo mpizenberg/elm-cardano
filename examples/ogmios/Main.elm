@@ -33,6 +33,8 @@ type Msg
     | FindIntersectionButtonClicked
     | FindIntersectionSlotInputChange String
     | FindIntersectionIdInputChange String
+      -- Next Block
+    | NextBlockButtonClicked
 
 
 
@@ -151,6 +153,17 @@ update msg model =
         ( FindIntersectionIdInputChange id, _ ) ->
             ( { model | findIntersectionId = id }, Cmd.none )
 
+        -- Next Block
+        ( NextBlockButtonClicked, Connected { websocket } ) ->
+            ( model
+            , Ogmios6.nextBlock { websocket = websocket }
+                |> Ogmios6.encodeRequest
+                |> toOgmios
+            )
+
+        ( NextBlockButtonClicked, _ ) ->
+            ( model, Cmd.none )
+
 
 
 -- VIEW
@@ -161,6 +174,7 @@ view model =
     div []
         [ viewConnectionStatus model
         , viewFindIntersection model
+        , viewNextBlock model
         , div [] [ text "Last API request response:" ]
         , Html.pre [] [ text model.lastApiResponse ]
         , div [] [ text "Last error:" ]
@@ -193,6 +207,13 @@ viewFindIntersection { findIntersectionSlot, findIntersectionId } =
         [ Html.button [ onClick FindIntersectionButtonClicked ] [ text <| "Find Intersection" ]
         , viewInput "text" "4492799" findIntersectionSlot FindIntersectionSlotInputChange
         , viewInput "text" "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457" findIntersectionId FindIntersectionIdInputChange
+        ]
+
+
+viewNextBlock : Model -> Html Msg
+viewNextBlock _ =
+    div []
+        [ Html.button [ onClick NextBlockButtonClicked ] [ text <| "Next Block" ]
         ]
 
 

@@ -19,7 +19,7 @@ function initElmCardanoJs(app) {
         const client = new WebSocket(address)
         // Listen for messages
         client.addEventListener("message", (event) => {
-            console.log("Message from server (", typeof event.data, "):", event.data)
+            console.log("Message from ogmios (", typeof event.data, "):", event.data)
             // TODO: correctly handle big integers
             const parsedMessage = JSON.parse(event.data)
             app.ports.fromOgmios.send({responseType: "ogmios-message", connectionId, message: parsedMessage})

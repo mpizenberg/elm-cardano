@@ -1,6 +1,7 @@
 module Ogmios6 exposing
     ( Request, encodeRequest
-    , connect, disconnect, findIntersection
+    , connect, disconnect
+    , findIntersection, nextBlock
     , Response(..), ApiResponse(..), responseDecoder
     )
 
@@ -8,7 +9,9 @@ module Ogmios6 exposing
 
 @docs Request, encodeRequest
 
-@docs connect, disconnect, findIntersection
+@docs connect, disconnect
+
+@docs findIntersection, nextBlock
 
 @docs Response, ApiResponse, responseDecoder
 
@@ -95,6 +98,16 @@ findIntersection { websocket, slot, id } =
                   )
                 ]
         , id = "find-intersection"
+        }
+
+
+nextBlock : { websocket : Value } -> Request
+nextBlock { websocket } =
+    ApiRequest
+        { ws = websocket
+        , method = "nextBlock"
+        , params = Dict.empty
+        , id = "next-block"
         }
 
 
