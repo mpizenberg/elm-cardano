@@ -85,6 +85,10 @@ findIntersection { websocket } =
         }
 
 
+
+-- Responses
+
+
 {-| Response type for responses from Ogmios.
 -}
 type Response
