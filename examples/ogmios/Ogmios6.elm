@@ -15,6 +15,7 @@ module Ogmios6 exposing
 -}
 
 import Dict exposing (Dict)
+import Html.Attributes exposing (id)
 import Json.Decode as JDecode exposing (Decoder, Value)
 import Json.Encode as JEncode
 
@@ -77,8 +78,8 @@ disconnect =
     Disconnect
 
 
-findIntersection : { websocket : Value } -> Request
-findIntersection { websocket } =
+findIntersection : { websocket : Value, slot : Int, id : String } -> Request
+findIntersection { websocket, slot, id } =
     ApiRequest
         { ws = websocket
         , method = "findIntersection"
@@ -87,8 +88,8 @@ findIntersection { websocket } =
                 [ ( "points"
                   , JEncode.list (JEncode.dict identity identity)
                         [ Dict.fromList
-                            [ ( "slot", JEncode.int 4492799 )
-                            , ( "id", JEncode.string "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457" )
+                            [ ( "slot", JEncode.int slot )
+                            , ( "id", JEncode.string id )
                             ]
                         ]
                   )

@@ -29,7 +29,10 @@ type Msg
     | WebsocketAddressInputChange String
     | ConnectButtonClicked
     | DisconnectButtonClicked
+      -- Find Intersection
     | FindIntersectionButtonClicked
+    | FindIntersectionSlotInputChange String
+    | FindIntersectionIdInputChange String
 
 
 
@@ -39,6 +42,12 @@ type Msg
 type alias Model =
     { connectionStatus : ConnectionStatus
     , websocketAddress : String
+
+    -- findIntersection form
+    , findIntersectionSlot : String
+    , findIntersectionId : String
+
+    -- Responses
     , lastApiResponse : String
     , lastError : String
     }
@@ -52,7 +61,13 @@ type ConnectionStatus
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { connectionStatus = Disconnected, websocketAddress = "ws://0.0.0.0:1337", lastApiResponse = "", lastError = "" }
+    ( { connectionStatus = Disconnected
+      , websocketAddress = "ws://0.0.0.0:1337"
+      , findIntersectionSlot = "4492799"
+      , findIntersectionId = "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457"
+      , lastApiResponse = ""
+      , lastError = ""
+      }
     , Cmd.none
     )
 
@@ -118,13 +133,23 @@ update msg model =
         -- Find Intersection
         ( FindIntersectionButtonClicked, Connected { websocket } ) ->
             ( model
-            , Ogmios6.findIntersection { websocket = websocket }
+            , Ogmios6.findIntersection
+                { websocket = websocket
+                , slot = Maybe.withDefault 0 <| String.toInt model.findIntersectionSlot
+                , id = model.findIntersectionId
+                }
                 |> Ogmios6.encodeRequest
                 |> toOgmios
             )
 
         ( FindIntersectionButtonClicked, _ ) ->
             ( model, Cmd.none )
+
+        ( FindIntersectionSlotInputChange slot, _ ) ->
+            ( { model | findIntersectionSlot = slot }, Cmd.none )
+
+        ( FindIntersectionIdInputChange id, _ ) ->
+            ( { model | findIntersectionId = id }, Cmd.none )
 
 
 
@@ -135,7 +160,7 @@ view : Model -> Html Msg
 view model =
     div []
         [ viewConnectionStatus model
-        , div [] [ Html.button [ onClick FindIntersectionButtonClicked ] [ text <| "findIntersection(lastByronBlock)" ] ]
+        , viewFindIntersection model
         , div [] [ text "Last API request response:" ]
         , Html.pre [] [ text model.lastApiResponse ]
         , div [] [ text "Last error:" ]
@@ -160,6 +185,15 @@ viewConnectionStatus { connectionStatus, websocketAddress } =
                 [ text <| "Connected | ID: " ++ connectionId
                 , Html.button [ onClick DisconnectButtonClicked ] [ text <| "Disconnect" ]
                 ]
+
+
+viewFindIntersection : Model -> Html Msg
+viewFindIntersection { findIntersectionSlot, findIntersectionId } =
+    div []
+        [ Html.button [ onClick FindIntersectionButtonClicked ] [ text <| "Find Intersection" ]
+        , viewInput "text" "4492799" findIntersectionSlot FindIntersectionSlotInputChange
+        , viewInput "text" "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457" findIntersectionId FindIntersectionIdInputChange
+        ]
 
 
 viewInput : String -> String -> String -> (String -> msg) -> Html msg
