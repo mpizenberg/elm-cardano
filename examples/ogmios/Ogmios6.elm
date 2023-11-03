@@ -2,7 +2,7 @@ module Ogmios6 exposing
     ( Request, encodeRequest
     , connect, disconnect
     , findIntersection, nextBlock
-    , Response(..), ApiResponse(..), responseDecoder
+    , Response(..), ApiResponse(..), Block, BlockType(..), responseDecoder
     )
 
 {-| Ogmios 6 support.
@@ -13,11 +13,10 @@ module Ogmios6 exposing
 
 @docs findIntersection, nextBlock
 
-@docs Response, ApiResponse, responseDecoder
+@docs Response, ApiResponse, Block, BlockType, responseDecoder
 
 -}
 
-import Browser.Navigation exposing (forward)
 import Dict exposing (Dict)
 import Html.Attributes exposing (id)
 import Json.Decode as JDecode exposing (Decoder, Value)
@@ -134,6 +133,8 @@ type ApiResponse
     | RollForward Block
 
 
+{-| Block data from Ogmios response.
+-}
 type alias Block =
     { era : String
     , id : String
@@ -143,6 +144,8 @@ type alias Block =
     }
 
 
+{-| Block type.
+-}
 type BlockType
     = EpochBoundaryBlock
     | RegularBlock { slot : Int, transactions : List String }

@@ -7,6 +7,8 @@ import Html.Events exposing (onClick, onInput)
 import Json.Decode as JDecode exposing (Value, value)
 import Ogmios6
 import Platform.Cmd as Cmd
+import Process
+import Task
 
 
 main =
@@ -35,6 +37,7 @@ type Msg
     | FindIntersectionIdInputChange String
       -- Next Block
     | NextBlockButtonClicked
+    | RockRollButtonClicked
 
 
 
@@ -52,6 +55,9 @@ type alias Model =
     -- Responses
     , lastApiResponse : String
     , lastError : String
+
+    -- Transactions unrolling
+    , unrolledTxs : List String
     }
 
 
@@ -69,6 +75,7 @@ init _ =
       , findIntersectionId = "f8084c61b6a238acec985b59310b6ecec49c0ab8352249afd7268da5cff2a457"
       , lastApiResponse = ""
       , lastError = ""
+      , unrolledTxs = []
       }
     , Cmd.none
     )
@@ -92,7 +99,12 @@ update msg model =
                     ( { model | connectionStatus = Disconnected }, Cmd.none )
 
                 Ok (Ogmios6.ApiResponse _ response) ->
-                    ( { model | lastApiResponse = Debug.toString response }, Cmd.none )
+                    ( { model
+                        | lastApiResponse = Debug.toString response
+                        , unrolledTxs = updateUnrolledTxs response model.unrolledTxs
+                      }
+                    , Cmd.none
+                    )
 
                 Ok (Ogmios6.Error error) ->
                     ( { model | lastError = error }, Cmd.none )
@@ -164,6 +176,37 @@ update msg model =
         ( NextBlockButtonClicked, _ ) ->
             ( model, Cmd.none )
 
+        ( RockRollButtonClicked, Connected _ ) ->
+            ( model
+            , Cmd.batch
+                [ Task.succeed NextBlockButtonClicked |> Task.perform identity
+                , Process.sleep 2000 |> Task.perform (always RockRollButtonClicked)
+                ]
+            )
+
+        ( RockRollButtonClicked, _ ) ->
+            ( model, Cmd.none )
+
+
+updateUnrolledTxs : Ogmios6.ApiResponse -> List String -> List String
+updateUnrolledTxs response txs =
+    case response of
+        Ogmios6.IntersectionFound _ ->
+            []
+
+        Ogmios6.RollBackward { slot, id } ->
+            [ "RollBack {slot:" ++ String.fromInt slot ++ " , id:" ++ id ++ " }" ]
+
+        Ogmios6.RollForward { era, height, blockType } ->
+            case blockType of
+                Ogmios6.EpochBoundaryBlock ->
+                    ("======= Epoch boundary !!! " ++ era ++ " =======") :: txs
+
+                Ogmios6.RegularBlock { transactions } ->
+                    ("block " ++ String.fromInt height)
+                        :: List.map ((++) "   tx: ") transactions
+                        ++ txs
+
 
 
 -- VIEW
@@ -179,6 +222,9 @@ view model =
         , Html.pre [] [ text model.lastApiResponse ]
         , div [] [ text "Last error:" ]
         , Html.pre [] [ text model.lastError ]
+        , div [] [ Html.button [ onClick RockRollButtonClicked ] [ text <| "Rock'N'Roll! (2s loop)" ] ]
+        , div [] [ text "Transactions unrolling:" ]
+        , Html.pre [] [ text <| String.join "\n" model.unrolledTxs ]
         ]
 
 
