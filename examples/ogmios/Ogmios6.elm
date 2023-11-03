@@ -17,6 +17,7 @@ module Ogmios6 exposing
 
 -}
 
+import Browser.Navigation exposing (forward)
 import Dict exposing (Dict)
 import Html.Attributes exposing (id)
 import Json.Decode as JDecode exposing (Decoder, Value)
@@ -125,10 +126,26 @@ type Response
     | UnhandledResponseType String
 
 
-{-| Response type for all API requests sent to Ogmios.
+{-| Response type for API requests sent to Ogmios.
 -}
 type ApiResponse
     = IntersectionFound { slot : Int, id : String }
+    | RollBackward { slot : Int, id : String }
+    | RollForward Block
+
+
+type alias Block =
+    { era : String
+    , id : String
+    , ancestor : String
+    , height : Int
+    , blockType : BlockType
+    }
+
+
+type BlockType
+    = EpochBoundaryBlock
+    | RegularBlock { slot : Int, transactions : List String }
 
 
 {-| Decoder for the [Response] type.
@@ -146,9 +163,17 @@ responseDecoder =
                         disconnectedDecoder
 
                     "ogmios-message" ->
-                        JDecode.map2 (\connectionId method -> { connectionId = connectionId, method = method })
+                        -- TODO: is it guarantied that ogmios returns the request id?
+                        JDecode.map3
+                            (\connectionId method requestId ->
+                                { connectionId = connectionId
+                                , method = method
+                                , requestId = requestId
+                                }
+                            )
                             (JDecode.field "connectionId" JDecode.string)
                             (JDecode.at [ "message", "method" ] JDecode.string)
+                            (JDecode.at [ "message", "id" ] JDecode.string)
                             |> JDecode.andThen (JDecode.field "message" << messageDecoder)
 
                     "ogmios-error" ->
@@ -173,19 +198,82 @@ disconnectedDecoder =
         (JDecode.field "connectionId" JDecode.string)
 
 
-messageDecoder : { connectionId : String, method : String } -> Decoder Response
-messageDecoder { connectionId, method } =
+messageDecoder : { connectionId : String, method : String, requestId : String } -> Decoder Response
+messageDecoder { connectionId, method, requestId } =
     case method of
-        -- TODO: handle error cases
+        -- TODO: handle other cases
         "findIntersection" ->
-            JDecode.map3
-                (\requestId slot id ->
+            JDecode.map2
+                (\slot id ->
                     ApiResponse { connectionId = connectionId, requestId = requestId } <|
                         IntersectionFound { slot = slot, id = id }
                 )
-                (JDecode.field "id" JDecode.string)
                 (JDecode.at [ "result", "intersection", "slot" ] JDecode.int)
                 (JDecode.at [ "result", "intersection", "id" ] JDecode.string)
 
+        "nextBlock" ->
+            JDecode.at [ "result", "direction" ] JDecode.string
+                |> JDecode.andThen
+                    (\direction -> JDecode.field "result" (blockResponseDecoder direction))
+                |> JDecode.map (ApiResponse { connectionId = connectionId, requestId = requestId })
+
         _ ->
             JDecode.succeed (UnhandledResponseType method)
+
+
+blockResponseDecoder : String -> Decoder ApiResponse
+blockResponseDecoder direction =
+    case direction of
+        "forward" ->
+            JDecode.field "block" <|
+                JDecode.map RollForward blockDecoder
+
+        "backward" ->
+            JDecode.map2 (\slot id -> RollBackward { slot = slot, id = id })
+                (JDecode.at [ "point", "slot" ] JDecode.int)
+                (JDecode.at [ "point", "id" ] JDecode.string)
+
+        _ ->
+            JDecode.fail ("Unknown nextBlock direction: " ++ direction)
+
+
+blockDecoder : Decoder Block
+blockDecoder =
+    JDecode.map5 Block
+        (JDecode.field "era" JDecode.string)
+        (JDecode.field "id" JDecode.string)
+        (JDecode.field "ancestor" JDecode.string)
+        (JDecode.field "height" JDecode.int)
+        blockTypeDecoder
+
+
+blockTypeDecoder : Decoder BlockType
+blockTypeDecoder =
+    JDecode.field "type" JDecode.string
+        |> JDecode.andThen
+            (\blockType ->
+                case blockType of
+                    "ebb" ->
+                        JDecode.succeed EpochBoundaryBlock
+
+                    "bft" ->
+                        regularBlockDecoder
+
+                    "praos" ->
+                        regularBlockDecoder
+
+                    _ ->
+                        JDecode.fail ("Unknown block type: " ++ blockType)
+            )
+
+
+regularBlockDecoder : Decoder BlockType
+regularBlockDecoder =
+    JDecode.map2 (\slot transactions -> RegularBlock { slot = slot, transactions = transactions })
+        (JDecode.field "slot" JDecode.int)
+        (JDecode.field "transactions" <| JDecode.list transactionDecoder)
+
+
+transactionDecoder : Decoder String
+transactionDecoder =
+    JDecode.field "cbor" JDecode.string
