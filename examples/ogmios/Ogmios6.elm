@@ -148,7 +148,7 @@ type alias Block =
 -}
 type BlockType
     = EpochBoundaryBlock
-    | RegularBlock { slot : Int, transactions : List String }
+    | RegularBlock { slot : Int, transactions : List { id : String, cbor : String } }
 
 
 {-| Decoder for the [Response] type.
@@ -277,6 +277,8 @@ regularBlockDecoder =
         (JDecode.field "transactions" <| JDecode.list transactionDecoder)
 
 
-transactionDecoder : Decoder String
+transactionDecoder : Decoder { id : String, cbor : String }
 transactionDecoder =
-    JDecode.field "cbor" JDecode.string
+    JDecode.map2 (\id cbor -> { id = id, cbor = cbor })
+        (JDecode.field "id" JDecode.string)
+        (JDecode.field "cbor" JDecode.string)
