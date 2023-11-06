@@ -308,8 +308,9 @@ serialize =
 
 {-| -}
 deserialize : Bytes -> Maybe Transaction
-deserialize =
-    Bytes.toBytes >> D.decode decodeTransaction
+deserialize bytes =
+    Bytes.toBytes bytes
+        |> D.decode decodeTransaction
 
 
 {-| -}
@@ -442,4 +443,5 @@ encodeRequiredSigners =
 {-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
-    todo "decode tx"
+    -- TODO: decode tx
+    D.fail
