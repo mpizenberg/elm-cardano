@@ -1,5 +1,6 @@
 module ElmCardano.Cip67 exposing
     ( fromBytes
+    , toBytes
     , Cip67
     )
 
@@ -8,6 +9,8 @@ module ElmCardano.Cip67 exposing
 @docs Cip67
 
 @docs fromBytes
+
+@docs toBytes
 
 -}
 
@@ -63,6 +66,27 @@ fromBytes tnBytes =
             Nothing
     else
         Nothing
+
+
+{-| Converts a [Cip67] to [Bytes].
+-}
+toBytes : Cip67 -> Bytes
+toBytes cip67 =
+    let
+        labelBytes =
+            Bytes.fromDecimal cip67.label
+                |> Bytes.toString
+                |> String.padLeft 4 '0'
+                |> Bytes.fromStringUnchecked
+
+        checksumStr =
+            Bytes.toString <| crc8 labelBytes
+
+        tnStr =
+            Bytes.toString cip67.assetName
+    in
+    "0" ++ (Bytes.toString labelBytes) ++ checksumStr ++ "0" ++ tnStr
+        |> Bytes.fromStringUnchecked
 
 
 crc8 : Bytes -> Bytes
