@@ -1,16 +1,16 @@
 module Bytes.Comparable exposing
     ( Bytes
     , chunksOf, width
-    , bytes, fromBytes, fromString, fromStringUnchecked
-    , toBytes, toString, toCbor
+    , bytes, fromBytes, fromString, fromStringUnchecked, fromDecimal
+    , toBytes, toString, toCbor, toDecimal, toWord8s
     )
 
 {-| Comparable Bytes
 
 @docs Bytes
 @docs chunksOf, width
-@docs bytes, fromBytes, fromString, fromStringUnchecked
-@docs toBytes, toString, toCbor
+@docs bytes, fromBytes, fromString, fromStringUnchecked, fromDecimal
+@docs toBytes, toString, toCbor, toDecimal, toWord8s
 
 -}
 
@@ -19,6 +19,7 @@ import Bytes.Decode as D
 import Bytes.Encode as E
 import Cbor.Encode as Cbor
 import Hex.Convert as Hex
+import Hex as HexString
 
 
 {-| A custom `Bytes` type that is comparable with `==`.
@@ -66,6 +67,13 @@ fromBytes bs =
     Bytes (Hex.toString bs)
 
 
+{-| Convert a decimal integer to [Bytes].
+-}
+fromDecimal : Int -> Bytes
+fromDecimal d =
+    Bytes <| HexString.toString d
+
+
 {-| Convert [Bytes] into a hex-encoded String.
 -}
 toString : Bytes -> String
@@ -78,6 +86,18 @@ toString (Bytes str) =
 toBytes : Bytes -> Bytes.Bytes
 toBytes (Bytes str) =
     str |> Hex.toBytes |> Maybe.withDefault absurd
+
+
+{-| Convert a [Bytes] into its decimal equivalent.
+-}
+toDecimal : Bytes -> Int
+toDecimal (Bytes str) =
+    case HexString.fromString (String.toLower str) of
+        Ok d ->
+            d
+
+        Err _ ->
+            0
 
 
 {-| Cbor encoder.
@@ -117,3 +137,10 @@ chunksOf n =
                     |> Maybe.withDefault []
            )
         >> List.map fromBytes
+
+
+{-| Convert a given [Bytes] into a list of decimal byte values.
+-}
+toWord8s : Bytes -> List Int
+toWord8s =
+    chunksOf 1 >> List.map toDecimal
