@@ -71,7 +71,15 @@ fromBytes bs =
 -}
 fromDecimal : Int -> Bytes
 fromDecimal d =
-    Bytes <| HexString.toString d
+    let
+        str =
+            HexString.toString d
+    in
+    if modBy 2 (String.length str) == 0 then
+        Bytes str
+
+    else
+        Bytes <| "0" ++ str
 
 
 {-| Convert [Bytes] into a hex-encoded String.

@@ -1,6 +1,6 @@
 module ElmCardano.Cip67 exposing
     ( fromBytes
-    , Cip67(..)
+    , Cip67
     )
 
 {-| CIP 67 support.
@@ -14,7 +14,6 @@ module ElmCardano.Cip67 exposing
 import Array exposing (Array)
 import Bitwise
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Debug
 
 
 {-| Datatype for modeling CIP-0067.
