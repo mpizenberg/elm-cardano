@@ -47,7 +47,6 @@ import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Debug exposing (todo)
 import Dict exposing (Dict)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
@@ -466,7 +465,7 @@ encodeAuxiliaryData : AuxiliaryData -> E.Encoder
 encodeAuxiliaryData auxiliaryData =
     let
         encodeMetadata =
-            E.dict E.int encodeMetadatum
+            E.ledgerDict E.int encodeMetadatum
     in
     case auxiliaryData of
         Shelley metadata ->
@@ -509,7 +508,7 @@ encodeMetadatum metadatum =
             E.list encodeMetadatum metadatums
 
         Map metadatums ->
-            E.dict encodeMetadatum encodeMetadatum metadatums
+            E.ledgerDict encodeMetadatum encodeMetadatum metadatums
 
 
 {-| -}
@@ -652,7 +651,7 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.dict encodeStakeCredential E.int distribution
+            E.ledgerDict encodeStakeCredential E.int distribution
 
         OtherAccountingPot n ->
             E.int n
