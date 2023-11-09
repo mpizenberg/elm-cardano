@@ -1,12 +1,12 @@
 module Cbor.Encode.Extra exposing
     ( nonEmptyField
-    , ledgerDict, ledgerAssociativeList
+    , ledgerList, ledgerDict, ledgerAssociativeList
     )
 
 {-| Extra CBOR encoding utility functions.
 
 @docs nonEmptyField
-@docs ledgerDict, ledgerAssociativeList
+@docs ledgerList, ledgerDict, ledgerAssociativeList
 
 -}
 
@@ -33,6 +33,18 @@ nonEmptyField key isEmpty encode extract =
                     else
                         Just xs
                )
+
+
+{-| List CBOR encoder that encodes values as indefinite sequences
+if containing 24 or more elements, and as finite for 23 or less elements.
+-}
+ledgerList : (v -> E.Encoder) -> List v -> E.Encoder
+ledgerList valueEncoder list =
+    if List.length list <= 23 then
+        E.list valueEncoder list
+
+    else
+        E.indefiniteList valueEncoder list
 
 
 {-| Dict CBOR encoder that encodes dicts as indefinite sequences

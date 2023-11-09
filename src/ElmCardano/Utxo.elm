@@ -37,6 +37,7 @@ module ElmCardano.Utxo exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Hash as Hash exposing (Blake2b_256, Hash)
@@ -163,7 +164,7 @@ type DatumOption
 -}
 encodeDatumOption : DatumOption -> E.Encoder
 encodeDatumOption datumOption =
-    E.list identity <|
+    EE.ledgerList identity <|
         case datumOption of
             DatumHash hash ->
                 [ E.int 0
