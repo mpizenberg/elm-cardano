@@ -52,6 +52,7 @@ Insert, remove, and query operations all take O(log n) time.
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import Dict exposing (Dict)
 
 
@@ -284,18 +285,9 @@ merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
 {-| Cbor encoder.
 -}
 toCbor : (v -> E.Encoder) -> BytesMap k v -> E.Encoder
-toCbor apply (BytesMap data) =
+toCbor valueEncoder (BytesMap data) =
     let
         keyEncoder =
             Bytes.fromStringUnchecked >> Bytes.toCbor
     in
-    if Dict.size data <= 23 then
-        E.dict keyEncoder apply data
-
-    else
-        E.sequence <|
-            E.beginDict
-                :: Dict.foldl
-                    (\key value acc -> E.keyValue keyEncoder apply ( key, value ) :: acc)
-                    [ E.break ]
-                    data
+    EE.ledgerDict keyEncoder valueEncoder data
