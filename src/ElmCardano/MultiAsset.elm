@@ -14,6 +14,7 @@ module ElmCardano.MultiAsset exposing
 
 import Bytes.Comparable as Bytes
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import Dict exposing (Dict)
 
 
@@ -45,4 +46,4 @@ toCbor (MultiAsset inner) =
         keyEncoder =
             Bytes.fromStringUnchecked >> Bytes.toCbor
     in
-    E.dict keyEncoder (E.dict keyEncoder E.int) inner
+    EE.ledgerDict keyEncoder (EE.ledgerDict keyEncoder E.int) inner
