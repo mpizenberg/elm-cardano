@@ -422,18 +422,18 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
+            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (E.list Bytes.toCbor) .plutusV1Script
+            >> E.optionalField 3 (E.ledgerList Bytes.toCbor) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (E.list Redeemer.encode) .redeemer
-            >> E.optionalField 6 (E.list Bytes.toCbor) .plutusV2Script
+            >> E.optionalField 5 (E.ledgerList Redeemer.encode) .redeemer
+            >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
 
 
 {-| -}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
-    E.list encodeVKeyWitness v
+    E.ledgerList encodeVKeyWitness v
 
 
 {-| -}
@@ -448,7 +448,7 @@ encodeVKeyWitness =
 {-| -}
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
 encodeBootstrapWitnesses b =
-    E.list encodeBootstrapWitness b
+    E.ledgerList encodeBootstrapWitness b
 
 
 {-| -}
@@ -476,7 +476,7 @@ encodeAuxiliaryData auxiliaryData =
                 |> E.tuple
                     (E.elems
                         >> E.elem encodeMetadata .transactionMetadata
-                        >> E.elem (E.list Script.encodeNativeScript) .auxiliaryScripts
+                        >> E.elem (E.ledgerList Script.encodeNativeScript) .auxiliaryScripts
                     )
 
         PostAlonzo data ->
@@ -485,9 +485,9 @@ encodeAuxiliaryData auxiliaryData =
                     (E.record E.int
                         (E.fields
                             >> E.optionalField 0 encodeMetadata .metadata
-                            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
-                            >> E.optionalField 2 (E.list Script.encodePlutusScript) .plutusV1Scripts
-                            >> E.optionalField 3 (E.list Script.encodePlutusScript) .plutusV2Scripts
+                            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
+                            >> E.optionalField 2 (E.ledgerList Script.encodePlutusScript) .plutusV1Scripts
+                            >> E.optionalField 3 (E.ledgerList Script.encodePlutusScript) .plutusV2Scripts
                         )
                     )
 
@@ -505,7 +505,7 @@ encodeMetadatum metadatum =
             E.string str
 
         List metadatums ->
-            E.list encodeMetadatum metadatums
+            E.ledgerList encodeMetadatum metadatums
 
         Map metadatums ->
             E.ledgerDict encodeMetadatum encodeMetadatum metadatums
@@ -514,25 +514,25 @@ encodeMetadatum metadatum =
 {-| -}
 encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.list encodeOutputReference inputs
+    E.ledgerList encodeOutputReference inputs
 
 
 {-| -}
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
-    E.list encodeOutput outputs
+    E.ledgerList encodeOutput outputs
 
 
 {-| -}
 encodeCertificates : List Certificate -> E.Encoder
 encodeCertificates =
-    E.list encodeCertificate
+    E.ledgerList encodeCertificate
 
 
 {-| -}
 encodeCertificate : Certificate -> E.Encoder
 encodeCertificate certificate =
-    E.list identity <|
+    E.ledgerList identity <|
         case certificate of
             StakeRegistration { delegator } ->
                 [ E.int 0
@@ -558,8 +558,8 @@ encodeCertificate certificate =
                 , E.int poolParams.cost
                 , encodeRationalNumber poolParams.margin
                 , Bytes.toCbor poolParams.rewardAccount
-                , E.list Hash.encode poolParams.poolOwners
-                , E.list encodeRelay poolParams.relays
+                , E.ledgerList Hash.encode poolParams.poolOwners
+                , E.ledgerList encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
@@ -584,7 +584,7 @@ encodeCertificate certificate =
 
 encodeStakeCredential : StakeCredential -> E.Encoder
 encodeStakeCredential stakeCredential =
-    E.list identity <|
+    E.ledgerList identity <|
         case stakeCredential of
             AddrKeyHash addrKeyHash ->
                 [ E.int 0
@@ -599,7 +599,7 @@ encodeStakeCredential stakeCredential =
 
 encodeRelay : Relay -> E.Encoder
 encodeRelay relay =
-    E.list identity <|
+    E.ledgerList identity <|
         case relay of
             SingleHostAddr { port_, ipv4, ipv6 } ->
                 [ E.int 0
@@ -660,7 +660,7 @@ encodeRewardTarget target =
 {-| -}
 encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
 encodeRequiredSigners =
-    E.list Hash.encode
+    E.ledgerList Hash.encode
 
 
 {-| -}
@@ -694,7 +694,7 @@ encodeProtocolParamUpdate =
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
             >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
-            >> E.optionalField 14 (\( v, m ) -> E.list E.int [ v, m ]) .protocolVersion
+            >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
             >> E.optionalField 16 E.int .minPoolCost
             >> E.optionalField 17 E.int .adaPerUtxoByte
             >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
@@ -718,8 +718,8 @@ encodeCostModels : CostModels -> E.Encoder
 encodeCostModels =
     E.record E.int <|
         E.fields
-            >> E.optionalField 0 (E.list E.int) .plutusV1
-            >> E.optionalField 1 (E.list E.int) .plutusV2
+            >> E.optionalField 0 (E.ledgerList E.int) .plutusV1
+            >> E.optionalField 1 (E.ledgerList E.int) .plutusV2
 
 
 encodeRationalNumber : RationalNumber -> E.Encoder

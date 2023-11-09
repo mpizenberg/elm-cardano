@@ -16,6 +16,7 @@ module ElmCardano.Script exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import ElmCardano.Hash as Hash exposing (Blake2b_224, Hash)
 
 
@@ -66,13 +67,13 @@ encodeScript : Script -> E.Encoder
 encodeScript script =
     case script of
         Native nativeScript ->
-            E.list identity
+            EE.ledgerList identity
                 [ E.int 0
                 , encodeNativeScript nativeScript
                 ]
 
         Plutus plutusScript ->
-            E.list identity
+            EE.ledgerList identity
                 [ encodePlutusVersion plutusScript.version
                 , encodePlutusScript plutusScript
                 ]
@@ -82,7 +83,7 @@ encodeScript script =
 -}
 encodeNativeScript : NativeScript -> E.Encoder
 encodeNativeScript nativeScript =
-    E.list identity <|
+    EE.ledgerList identity <|
         case nativeScript of
             ScriptPubkey addrKeyHash ->
                 [ E.int 0
@@ -91,18 +92,18 @@ encodeNativeScript nativeScript =
 
             ScriptAll nativeScripts ->
                 [ E.int 1
-                , E.list encodeNativeScript nativeScripts
+                , EE.ledgerList encodeNativeScript nativeScripts
                 ]
 
             ScriptAny nativeScripts ->
                 [ E.int 2
-                , E.list encodeNativeScript nativeScripts
+                , EE.ledgerList encodeNativeScript nativeScripts
                 ]
 
             ScriptNofK atLeast nativeScripts ->
                 [ E.int 3
                 , E.int atLeast
-                , E.list encodeNativeScript nativeScripts
+                , EE.ledgerList encodeNativeScript nativeScripts
                 ]
 
             InvalidBefore start ->
