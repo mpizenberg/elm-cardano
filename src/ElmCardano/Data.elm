@@ -10,6 +10,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 
 
@@ -62,7 +63,7 @@ toCbor data =
                     { ix = ix, fields = fields }
 
         Map xs ->
-            E.associativeList toCbor toCbor xs
+            EE.ledgerAssociativeList toCbor toCbor xs
 
         List xs ->
             encodeList xs
