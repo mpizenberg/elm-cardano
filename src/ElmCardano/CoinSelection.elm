@@ -21,6 +21,7 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 -}
 
 import Bytes.Comparable exposing (Bytes)
+import ElmCardano.Address exposing (Address)
 import ElmCardano.Utxo
     exposing
         ( Output
@@ -52,7 +53,7 @@ type alias Context =
     { availableOutputs : List Output
     , alreadySelectedOutputs : List Output
     , targetAmount : Int
-    , changeAddress : Bytes
+    , changeAddress : Bytes Address
     }
 
 
@@ -94,7 +95,7 @@ doLargestFirst :
     , availableOutputs : List Output
     , selectedOutputs : List Output
     }
-    -> Result Error (Bytes -> Selection)
+    -> Result Error (Bytes Address -> Selection)
 doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOutputs, selectedOutputs } =
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded

@@ -4,6 +4,6 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Expect
 
 
-expectBytes : String -> Bytes -> Expect.Expectation
+expectBytes : String -> Bytes a -> Expect.Expectation
 expectBytes expected got =
     got |> Bytes.toString |> Expect.equal expected

@@ -1,12 +1,12 @@
-module ElmCardano.Address exposing (Address, Credential(..), StakeCredential(..))
+module ElmCardano.Address exposing (Address, Credential(..), StakeCredential(..), CredentialHash)
 
 {-| Handling Cardano addresses.
 
-@docs Address, Credential, StakeCredential
+@docs Address, Credential, StakeCredential, CredentialHash
 
 -}
 
-import ElmCardano.Hash exposing (Blake2b_224, Hash)
+import Bytes.Comparable exposing (Bytes)
 
 
 {-| A Cardano address typically holding one or two credential references.
@@ -27,8 +27,8 @@ Credentials are always one of two kinds: a direct public/private key pair, or a 
 
 -}
 type Credential
-    = VerificationKeyCredential (Hash Blake2b_224)
-    | ScriptCredential (Hash Blake2b_224)
+    = VerificationKeyCredential (Bytes CredentialHash)
+    | ScriptCredential (Bytes CredentialHash)
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
@@ -40,3 +40,10 @@ Read more about pointers in CIP-0019 :: Pointers.
 type StakeCredential
     = InlineCredential Credential
     | PointerCredential { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
+
+
+{-| Phantom type for 28-bytes credential hashes.
+This is a Blake2b-224 hash.
+-}
+type CredentialHash
+    = CredentialHash Never

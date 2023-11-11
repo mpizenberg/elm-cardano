@@ -1,5 +1,5 @@
 module ElmCardano.Utxo exposing
-    ( OutputReference, Output(..), DatumOption(..)
+    ( OutputReference, TransactionId, Output(..), DatumHash, DatumOption(..)
     , fromLovelace
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
@@ -11,7 +11,7 @@ module ElmCardano.Utxo exposing
 
 ## Definitions
 
-@docs OutputReference, Output, DatumOption
+@docs OutputReference, TransactionId, Output, DatumHash, DatumOption
 
 
 ## Build
@@ -39,8 +39,8 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
+import ElmCardano.Address exposing (Address)
 import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.Hash as Hash exposing (Blake2b_256, Hash)
 import ElmCardano.Script as Script exposing (Script)
 import ElmCardano.Value as Value exposing (Value)
 
@@ -48,9 +48,16 @@ import ElmCardano.Value as Value exposing (Value)
 {-| The reference for a eUTxO.
 -}
 type alias OutputReference =
-    { transactionId : Hash Blake2b_256
+    { transactionId : Bytes TransactionId
     , outputIndex : Int
     }
+
+
+{-| Phantom type for 32-bytes transaction IDs.
+This is a Blake2b-256 hash.
+-}
+type TransactionId
+    = TransactionId Never
 
 
 {-| CBOR encoder for [OutputReference].
@@ -59,7 +66,7 @@ encodeOutputReference : OutputReference -> E.Encoder
 encodeOutputReference =
     E.tuple <|
         E.elems
-            >> E.elem Hash.encode .transactionId
+            >> E.elem Bytes.toCbor .transactionId
             >> E.elem E.int .outputIndex
 
 
@@ -67,16 +74,23 @@ encodeOutputReference =
 -}
 type Output
     = Legacy
-        { address : Bytes
+        { address : Bytes Address -- TODO: should we have actual Address here instead?
         , amount : Value
-        , datumHash : Maybe (Hash Blake2b_256)
+        , datumHash : Maybe (Bytes DatumHash)
         }
     | PostAlonzo
-        { address : Bytes
+        { address : Bytes Address -- TODO: shoul we have actual Address here instead?
         , value : Value
         , datumOption : Maybe DatumOption
         , referenceScript : Maybe Script
         }
+
+
+{-| Phantom type for 32-bytes datum hashes.
+This is a Blake2b-256 hash.
+-}
+type DatumHash
+    = DatumHash_ Never
 
 
 {-| Sorts a list of UTXOs in descending order by lovelace value.
@@ -95,7 +109,7 @@ sortByAscendingLovelace =
 
 {-| Construct an `Output` from an `Address` and a lovelace amount
 -}
-fromLovelace : Bytes -> Int -> Output
+fromLovelace : Bytes Address -> Int -> Output
 fromLovelace address amount =
     Legacy
         { address = address
@@ -133,7 +147,7 @@ encodeOutput output =
                 (E.elems
                     >> E.elem Bytes.toCbor .address
                     >> E.elem Value.encode .amount
-                    >> E.optionalElem Hash.encode .datumHash
+                    >> E.optionalElem Bytes.toCbor .datumHash
                 )
                 fields
 
@@ -156,7 +170,7 @@ encodeOutput output =
 {-| Nickname for data stored in a eUTxO.
 -}
 type DatumOption
-    = DatumHash (Hash Blake2b_256)
+    = DatumHash (Bytes DatumHash)
     | Datum Data
 
 
@@ -168,7 +182,7 @@ encodeDatumOption datumOption =
         case datumOption of
             DatumHash hash ->
                 [ E.int 0
-                , Hash.encode hash
+                , Bytes.toCbor hash
                 ]
 
             Datum datum ->

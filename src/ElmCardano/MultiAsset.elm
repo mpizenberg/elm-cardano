@@ -1,49 +1,55 @@
 module ElmCardano.MultiAsset exposing
-    ( MultiAsset
-    , empty, isEmpty
-    , toCbor
+    ( MultiAsset, PolicyId, AssetName
+    , empty, isEmpty, toCbor
     )
 
 {-| Handling multi-asset values.
 
-@docs MultiAsset
-@docs empty, isEmpty
-@docs toCbor
+@docs MultiAsset, PolicyId, AssetName
+@docs empty, isEmpty, toCbor
 
 -}
 
-import Bytes.Comparable as Bytes
+import BytesMap exposing (BytesMap)
 import Cbor.Encode as E
-import Cbor.Encode.Extra as EE
-import Dict exposing (Dict)
 
 
-{-| Opaque type for handling multi-asset values.
+{-| Type alias for handling multi-asset values.
 -}
-type MultiAsset
-    = MultiAsset (Dict String (Dict String Int)) -- Dict PolicyId (Dict AssetName Int)
+type alias MultiAsset =
+    BytesMap PolicyId (BytesMap AssetName Int)
 
 
-{-| Create an empty multi-asset value.
+{-| Phantom type for 28-bytes policy id.
+This is a Blacke2b-224 hash.
+-}
+type PolicyId
+    = PolicyId Never
+
+
+{-| Phantom type for asset names.
+This is a free-form bytes array of length <= 32 bytes.
+-}
+type AssetName
+    = AssetName Never
+
+
+{-| Create an empty [MultiAsset].
 -}
 empty : MultiAsset
 empty =
-    MultiAsset Dict.empty
+    BytesMap.empty
 
 
-{-| Check if a multi-asset value is empty.
+{-| Check if the [MultiAsset] contains no token.
 -}
 isEmpty : MultiAsset -> Bool
-isEmpty (MultiAsset assets) =
-    Dict.isEmpty assets
+isEmpty =
+    BytesMap.isEmpty
 
 
 {-| CBOR encoder for [MultiAsset].
 -}
 toCbor : MultiAsset -> E.Encoder
-toCbor (MultiAsset inner) =
-    let
-        keyEncoder =
-            Bytes.fromStringUnchecked >> Bytes.toCbor
-    in
-    EE.ledgerDict keyEncoder (EE.ledgerDict keyEncoder E.int) inner
+toCbor multiAsset =
+    BytesMap.toCbor (BytesMap.toCbor E.int) multiAsset

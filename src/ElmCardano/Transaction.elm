@@ -1,15 +1,16 @@
 module ElmCardano.Transaction exposing
     ( Transaction
-    , TransactionBody, WitnessSet
+    , TransactionBody, AuxiliaryDataHash, ScriptDataHash
+    , WitnessSet
     , NetworkId(..)
-    , AuxiliaryData(..), Metadata, Metadatum(..)
+    , AuxiliaryData(..), Metadata, Metadatum(..), MetadatumBytes
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
-    , Certificate(..), StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
-    , Relay(..), PoolParams, PoolMetadata
+    , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
+    , Relay(..), IpV4, IpV6, PoolParams, RewardAccount, PoolMetadata, PoolMetadataHash
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
-    , VKeyWitness, BootstrapWitness
+    , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , deserialize, serialize
     )
 
@@ -17,25 +18,27 @@ module ElmCardano.Transaction exposing
 
 @docs Transaction
 
-@docs TransactionBody, WitnessSet
+@docs TransactionBody, AuxiliaryDataHash, ScriptDataHash
+
+@docs WitnessSet
 
 @docs NetworkId
 
-@docs AuxiliaryData, Metadata, Metadatum
+@docs AuxiliaryData, Metadata, Metadatum, MetadatumBytes
 
 @docs Update, ProtocolParamUpdate, ProtocolVersion
 
 @docs ScriptContext, ScriptPurpose
 
-@docs Certificate, StakeCredential, RewardSource, RewardTarget, MoveInstantaneousReward
+@docs Certificate, PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential, RewardSource, RewardTarget, MoveInstantaneousReward
 
-@docs Relay, PoolParams, PoolMetadata
+@docs Relay, IpV4, IpV6, PoolParams, RewardAccount, PoolMetadata, PoolMetadataHash
 
 @docs CostModels, ExUnitPrices
 
 @docs RationalNumber, UnitInterval, PositiveInterval
 
-@docs VKeyWitness, BootstrapWitness
+@docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
 @docs deserialize, serialize
 
@@ -48,11 +51,11 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Dict exposing (Dict)
+import ElmCardano.Address exposing (CredentialHash)
 import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
-import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import ElmCardano.Script as Script exposing (NativeScript, PlutusScript)
+import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
 import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
@@ -74,19 +77,33 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap Bytes Int -- 5
+    , withdrawals : BytesMap RewardAccount Int -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
+    , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
     , mint : MultiAsset -- 9
-    , scriptDataHash : Maybe Bytes -- 11
+    , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
-    , requiredSigners : List (Hash Blake2b_224) -- 14
+    , requiredSigners : List (Bytes CredentialHash) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
     , referenceInputs : List OutputReference -- 18
     }
+
+
+{-| Phantom type for auxiliary data hashes.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type AuxiliaryDataHash
+    = AuxiliaryDataHash Never
+
+
+{-| Phantom type for script data hashes.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type ScriptDataHash
+    = ScriptDataHash Never
 
 
 {-| The network ID of a transaction.
@@ -107,10 +124,10 @@ type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
-    , plutusV1Script : Maybe (List Bytes) -- 3
+    , plutusV1Script : Maybe (List (Bytes ScriptCbor)) -- 3
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
-    , plutusV2Script : Maybe (List Bytes) -- 6
+    , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
     }
 
 
@@ -136,7 +153,7 @@ type AuxiliaryData
 {-| Payload to update the protocol parameters at a specific epoch
 -}
 type alias Update =
-    { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
+    { proposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate
     , epoch : Int
     }
 
@@ -212,16 +229,23 @@ type alias RationalNumber =
 {-| -}
 type Metadatum
     = Int Int
-    | Bytes Bytes
+    | Bytes (Bytes MetadatumBytes)
     | String String
     | List (List Metadatum)
     | Map (Dict Metadatum Metadatum)
 
 
+{-| Phantom type for the Bytes variant of Metadatum.
+It is supposed to have a length <= 64 bytes according to the CDDL.
+-}
+type MetadatumBytes
+    = MetadatumBytes Never
+
+
 {-| -}
 type alias VKeyWitness =
-    { vkey : Bytes -- 0
-    , signature : Bytes
+    { vkey : Bytes Ed25519PublicKey -- 0
+    , signature : Bytes Ed25519Signature -- 1
     }
 
 
@@ -231,11 +255,37 @@ type alias VKeyWitness =
 
 {-| -}
 type alias BootstrapWitness =
-    { publicKey : Bytes -- 0
-    , signature : Bytes -- 1
-    , chainCode : Bytes -- 2
-    , attributes : Bytes -- 3
+    { publicKey : Bytes Ed25519PublicKey -- 0
+    , signature : Bytes Ed25519Signature -- 1
+    , chainCode : Bytes BootstrapWitnessChainCode -- 2
+    , attributes : Bytes BootstrapWitnessAttributes -- 3
     }
+
+
+{-| Phantom type for ED25519 public keys, of length 32 bytes.
+-}
+type Ed25519PublicKey
+    = Ed25519PublicKey Never
+
+
+{-| Phantom type for ED25519 signatures, of length 64 bytes.
+-}
+type Ed25519Signature
+    = Ed25519Signature Never
+
+
+{-| Phantom type for [BootstrapWitness] chain code.
+It has a length of 32 bytes.
+-}
+type BootstrapWitnessChainCode
+    = BootstrapWitnessChainCode Never
+
+
+{-| Phantom type for [BootstrapWitness] attributes.
+Bytes of this type can be of any length.
+-}
+type BootstrapWitnessAttributes
+    = BootstrapWitnessAttributes Never
 
 
 
@@ -258,7 +308,7 @@ type alias ScriptContext =
 {-| Characterizes the kind of script being executed and the associated resource.
 -}
 type ScriptPurpose
-    = SPMint { policyId : Hash Blake2b_224 }
+    = SPMint { policyId : Bytes PolicyId }
     | SPSpend OutputReference
     | SPWithdrawFrom StakeCredential
     | SPPublish Certificate
@@ -275,53 +325,107 @@ Most of the time, they require signatures from specific keys.
 type Certificate
     = StakeRegistration { delegator : StakeCredential }
     | StakeDeregistration { delegator : StakeCredential }
-    | StakeDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
+    | StakeDelegation { delegator : StakeCredential, poolId : Bytes PoolId }
     | PoolRegistration PoolParams
-    | PoolRetirement { poolId : Hash Blake2b_224, epoch : Int }
+    | PoolRetirement { poolId : Bytes PoolId, epoch : Int }
     | GenesisKeyDelegation
-        { genesisHash : Hash Blake2b_224
-        , genesisDelegateHash : Hash Blake2b_224
-        , vrfKeyHash : Hash Blake2b_256
+        { genesisHash : Bytes GenesisHash
+        , genesisDelegateHash : Bytes GenesisDelegateHash
+        , vrfKeyHash : Bytes VrfKeyHash
         }
     | MoveInstantaneousRewardsCert MoveInstantaneousReward
+
+
+{-| Phantom type for pool ID.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type PoolId
+    = PoolId Never
+
+
+{-| Phantom type for Genesis hash.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type GenesisHash
+    = GenesisHash Never
+
+
+{-| Phantom type for Genesis delegate hash.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type GenesisDelegateHash
+    = GenesisDelegateHash Never
+
+
+{-| Phantom type for VRF key hash.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type VrfKeyHash
+    = VrfKeyHash Never
 
 
 {-| A credential used in certificates.
 -}
 type StakeCredential
-    = AddrKeyHash (Hash Blake2b_224)
-    | ScriptHash (Hash Blake2b_224)
+    = AddrKeyHash (Bytes CredentialHash)
+    | ScriptHash (Bytes CredentialHash)
 
 
 {-| Parameters for stake pool registration.
 -}
 type alias PoolParams =
-    { operator : Hash Blake2b_224
-    , vrfKeyHash : Hash Blake2b_256
+    { operator : Bytes PoolId
+    , vrfKeyHash : Bytes VrfKeyHash
     , pledge : Int
     , cost : Int
     , margin : UnitInterval
-    , rewardAccount : Bytes
-    , poolOwners : List (Hash Blake2b_224)
+    , rewardAccount : Bytes RewardAccount
+    , poolOwners : List (Bytes CredentialHash)
     , relays : List Relay
     , poolMetadata : Maybe PoolMetadata
     }
 
 
+{-| Phantom type for [PoolParams] reward account.
+The cddl does not say what bytes length it is.
+-}
+type RewardAccount
+    = RewardAccount Never
+
+
 {-| A pool's relay information.
 -}
 type Relay
-    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe Bytes, ipv6 : Maybe Bytes }
+    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe (Bytes IpV4), ipv6 : Maybe (Bytes IpV6) }
     | SingleHostName { port_ : Maybe Int, dnsName : String }
     | MultiHostName { dnsName : String }
+
+
+{-| Phantom type for 4-bytes IPV4 addresses.
+-}
+type IpV4
+    = IpV4 Never
+
+
+{-| Phantom type for 16-bytes IPV6 addresses.
+-}
+type IpV6
+    = IpV6 Never
 
 
 {-| A pool's metadata hash.
 -}
 type alias PoolMetadata =
     { url : String -- tstr .size (0..64)
-    , poolMetadataHash : Hash Blake2b_256
+    , poolMetadataHash : Bytes PoolMetadataHash
     }
+
+
+{-| Phantom type for 32-bytes pool metadata hash.
+This is a Blacke2b-256 hash.
+-}
+type PoolMetadataHash
+    = PoolMetadataHash Never
 
 
 {-| Payload for [MoveInstantaneousRewardsCert].
@@ -356,14 +460,14 @@ type RewardTarget
 
 {-| Serialize a [Transaction] into cbor bytes
 -}
-serialize : Transaction -> Bytes
+serialize : Transaction -> Bytes Transaction
 serialize =
     encodeTransaction >> E.encode >> Bytes.fromBytes
 
 
 {-| Deserialize a transaction's cbor bytes into a [Transaction]
 -}
-deserialize : Bytes -> Maybe Transaction
+deserialize : Bytes a -> Maybe Transaction
 deserialize bytes =
     Bytes.toBytes bytes
         |> D.decode decodeTransaction
@@ -392,7 +496,7 @@ encodeTransactionBody =
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 BytesMap.isEmpty (BytesMap.toCbor E.int) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
-            >> E.optionalField 7 Hash.encode .auxiliaryDataHash
+            >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.toCbor .mint
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
@@ -544,36 +648,36 @@ encodeCertificate certificate =
                 , encodeStakeCredential delegator
                 ]
 
-            StakeDelegation { delegator, delegatee } ->
+            StakeDelegation { delegator, poolId } ->
                 [ E.int 2
                 , encodeStakeCredential delegator
-                , Hash.encode delegatee
+                , Bytes.toCbor poolId
                 ]
 
             PoolRegistration poolParams ->
                 [ E.int 3
-                , Hash.encode poolParams.operator
-                , Hash.encode poolParams.vrfKeyHash
+                , Bytes.toCbor poolParams.operator
+                , Bytes.toCbor poolParams.vrfKeyHash
                 , E.int poolParams.pledge
                 , E.int poolParams.cost
                 , encodeRationalNumber poolParams.margin
                 , Bytes.toCbor poolParams.rewardAccount
-                , E.ledgerList Hash.encode poolParams.poolOwners
+                , E.ledgerList Bytes.toCbor poolParams.poolOwners
                 , E.ledgerList encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
             PoolRetirement { poolId, epoch } ->
                 [ E.int 4
-                , Hash.encode poolId
+                , Bytes.toCbor poolId
                 , E.int epoch
                 ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
                 [ E.int 5
-                , Hash.encode genesisHash
-                , Hash.encode genesisDelegateHash
-                , Hash.encode vrfKeyHash
+                , Bytes.toCbor genesisHash
+                , Bytes.toCbor genesisDelegateHash
+                , Bytes.toCbor vrfKeyHash
                 ]
 
             MoveInstantaneousRewardsCert moveInstantaneousReward ->
@@ -588,12 +692,12 @@ encodeStakeCredential stakeCredential =
         case stakeCredential of
             AddrKeyHash addrKeyHash ->
                 [ E.int 0
-                , Hash.encode addrKeyHash
+                , Bytes.toCbor addrKeyHash
                 ]
 
             ScriptHash scriptHash ->
                 [ E.int 1
-                , Hash.encode scriptHash
+                , Bytes.toCbor scriptHash
                 ]
 
 
@@ -625,7 +729,7 @@ encodePoolMetadata =
     E.tuple <|
         E.elems
             >> E.elem E.string .url
-            >> E.elem Hash.encode .poolMetadataHash
+            >> E.elem Bytes.toCbor .poolMetadataHash
 
 
 encodeMoveInstantaneousReward : MoveInstantaneousReward -> E.Encoder
@@ -658,9 +762,9 @@ encodeRewardTarget target =
 
 
 {-| -}
-encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
+encodeRequiredSigners : List (Bytes CredentialHash) -> E.Encoder
 encodeRequiredSigners =
-    E.ledgerList Hash.encode
+    E.ledgerList Bytes.toCbor
 
 
 {-| -}
@@ -673,7 +777,7 @@ encodeUpdate =
 
 
 {-| -}
-encodeProposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate -> E.Encoder
+encodeProposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate -> E.Encoder
 encodeProposedProtocolParameterUpdates =
     BytesMap.toCbor encodeProtocolParamUpdate
 
