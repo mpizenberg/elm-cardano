@@ -78,21 +78,21 @@ empty =
 
 {-| Create a `BytesMap` with one key-value pair.
 -}
-singleton : Bytes -> v -> BytesMap k v
+singleton : Bytes k -> v -> BytesMap k v
 singleton k v =
     BytesMap <| Dict.singleton (Bytes.toString k) v
 
 
 {-| Insert a key-value pair into a `BytesMap`. Replaces value when there is a collision.
 -}
-insert : Bytes -> v -> BytesMap k v -> BytesMap k v
+insert : Bytes k -> v -> BytesMap k v -> BytesMap k v
 insert k v (BytesMap m) =
     BytesMap <| Dict.insert (Bytes.toString k) v m
 
 
 {-| Update the value of a `BytesMap` for a specific key with a given function.
 -}
-update : Bytes -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
+update : Bytes k -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
 update k f (BytesMap m) =
     BytesMap <| Dict.update (Bytes.toString k) f m
 
@@ -100,7 +100,7 @@ update k f (BytesMap m) =
 {-| Remove a key-value pair from a `BytesMap`. If the key is not found, no changes
 are made.
 -}
-remove : Bytes -> BytesMap k v -> BytesMap k v
+remove : Bytes k -> BytesMap k v -> BytesMap k v
 remove k (BytesMap m) =
     BytesMap <| Dict.remove (Bytes.toString k) m
 
@@ -118,14 +118,14 @@ isEmpty (BytesMap m) =
 
 {-| Determine if a key is in a `BytesMap`.
 -}
-member : Bytes -> BytesMap k v -> Bool
+member : Bytes k -> BytesMap k v -> Bool
 member k (BytesMap m) =
     Dict.member (Bytes.toString k) m
 
 
 {-| Get the value associated with a key. If the key is not found, return `Nothing`. This is useful when you are not sure if a key will be in the `BytesMap`
 -}
-get : Bytes -> BytesMap k v -> Maybe v
+get : Bytes k -> BytesMap k v -> Maybe v
 get k (BytesMap m) =
     Dict.get (Bytes.toString k) m
 
@@ -143,7 +143,7 @@ size (BytesMap m) =
 
 {-| Get all of the keys in a `BytesMap`, sorted from lowest to highest.
 -}
-keys : BytesMap k v -> List Bytes
+keys : BytesMap k v -> List (Bytes k)
 keys (BytesMap m) =
     Dict.foldr (\k _ ks -> Bytes.fromStringUnchecked k :: ks) [] m
 
@@ -157,14 +157,14 @@ values (BytesMap m) =
 
 {-| Convert a `BytesMap` into an association list of key-value pairs, sorted by keys.
 -}
-toList : BytesMap k v -> List ( Bytes, v )
+toList : BytesMap k v -> List ( Bytes k, v )
 toList (BytesMap m) =
     Dict.foldr (\k v ks -> ( Bytes.fromStringUnchecked k, v ) :: ks) [] m
 
 
 {-| Convert an association list into a `BytesMap`.
 -}
-fromList : List ( Bytes, v ) -> BytesMap k v
+fromList : List ( Bytes k, v ) -> BytesMap k v
 fromList =
     List.foldr (\( k, v ) -> insert k v) empty
 
@@ -182,7 +182,7 @@ map f (BytesMap m) =
 
 {-| Apply a function to all keys and values in a `BytesMap`.
 -}
-mapWithKeys : (Bytes -> a -> b) -> BytesMap k a -> BytesMap k b
+mapWithKeys : (Bytes k -> a -> b) -> BytesMap k a -> BytesMap k b
 mapWithKeys f (BytesMap m) =
     BytesMap <| Dict.map (Bytes.fromStringUnchecked >> f) m
 
@@ -196,7 +196,7 @@ foldl f zero (BytesMap m) =
 
 {-| Fold over the key-value pairs in a `BytesMap` from lowest key to highest key.
 -}
-foldlWithKeys : (Bytes -> v -> result -> result) -> result -> BytesMap k v -> result
+foldlWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
 foldlWithKeys f zero (BytesMap m) =
     Dict.foldl (Bytes.fromStringUnchecked >> f) zero m
 
@@ -210,7 +210,7 @@ foldr f zero (BytesMap m) =
 
 {-| Fold over the key-value pairs in a `BytesMap` from highest key to lowest key.
 -}
-foldrWithKeys : (Bytes -> v -> result -> result) -> result -> BytesMap k v -> result
+foldrWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
 foldrWithKeys f zero (BytesMap m) =
     Dict.foldr (Bytes.fromStringUnchecked >> f) zero m
 
@@ -224,7 +224,7 @@ filter f (BytesMap m) =
 
 {-| Keep only the key-value pairs that pass the given test.
 -}
-filterWithKeys : (Bytes -> v -> Bool) -> BytesMap k v -> BytesMap k v
+filterWithKeys : (Bytes k -> v -> Bool) -> BytesMap k v -> BytesMap k v
 filterWithKeys f (BytesMap m) =
     BytesMap <| Dict.filter (Bytes.fromStringUnchecked >> f) m
 
@@ -266,9 +266,9 @@ You then traverse all the keys from lowest to highest, building up whatever you 
 
 -}
 merge :
-    (Bytes -> a -> result -> result)
-    -> (Bytes -> a -> b -> result -> result)
-    -> (Bytes -> b -> result -> result)
+    (Bytes k -> a -> result -> result)
+    -> (Bytes k -> a -> b -> result -> result)
+    -> (Bytes k -> b -> result -> result)
     -> BytesMap k a
     -> BytesMap k b
     -> result

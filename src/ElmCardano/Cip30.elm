@@ -203,7 +203,7 @@ getRewardAddresses wallet =
 
 {-| Sign an arbitrary payload with your stake key.
 -}
-signData : Wallet -> { addr : String, payload : Bytes } -> Request
+signData : Wallet -> { addr : String, payload : Bytes a } -> Request
 signData wallet { addr, payload } =
     apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
 

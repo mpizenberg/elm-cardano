@@ -10,7 +10,6 @@
         "ElmCardano.Address",
         "ElmCardano.Cip30",
         "ElmCardano.Data",
-        "ElmCardano.Hash",
         "ElmCardano.Interval",
         "ElmCardano.MultiAsset",
         "ElmCardano.Redeemer",

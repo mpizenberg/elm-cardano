@@ -6,7 +6,7 @@ module ElmCardano.Data exposing (Data(..), fromCbor, toCbor)
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
@@ -24,7 +24,7 @@ type Data
     | Map (List ( Data, Data ))
     | List (List Data)
     | Int Int
-    | Bytes Bytes
+    | Bytes (Bytes Any)
 
 
 {-| CBOR encoder for [Data].

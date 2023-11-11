@@ -1,11 +1,11 @@
 module ElmCardano.Script exposing
-    ( Script(..), NativeScript(..), PlutusScript, PlutusVersion(..)
+    ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
     , encodeScript, encodeNativeScript, encodePlutusScript
     )
 
 {-| Script
 
-@docs Script, NativeScript, PlutusScript, PlutusVersion
+@docs Script, NativeScript, NativeScriptPubkeyHash, PlutusScript, PlutusVersion, ScriptCbor
 
 
 ## Encoders
@@ -17,7 +17,6 @@ module ElmCardano.Script exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import ElmCardano.Hash as Hash exposing (Blake2b_224, Hash)
 
 
 {-| Cardano script, either a native script or a plutus script.
@@ -38,7 +37,7 @@ type Script
 <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
 -}
 type NativeScript
-    = ScriptPubkey (Hash Blake2b_224)
+    = ScriptPubkey (Bytes NativeScriptPubkeyHash)
     | ScriptAll (List NativeScript)
     | ScriptAny (List NativeScript)
     | ScriptNofK Int (List NativeScript)
@@ -46,11 +45,18 @@ type NativeScript
     | InvalidHereafter Int
 
 
+{-| Phantom type for 28-bytes native script public key hash.
+This is a Blake2b-224 hash.
+-}
+type NativeScriptPubkeyHash
+    = NativeScriptPubkeyHash Never
+
+
 {-| A plutus script.
 -}
 type alias PlutusScript =
     { version : PlutusVersion
-    , script : Bytes
+    , script : Bytes ScriptCbor
     }
 
 
@@ -59,6 +65,12 @@ type alias PlutusScript =
 type PlutusVersion
     = PlutusV1
     | PlutusV2
+
+
+{-| Phantom type describing the kind of bytes within a [PlutusScript] object.
+-}
+type ScriptCbor
+    = ScriptCbor Never
 
 
 {-| Cbor Encoder for [Script]
@@ -87,7 +99,7 @@ encodeNativeScript nativeScript =
         case nativeScript of
             ScriptPubkey addrKeyHash ->
                 [ E.int 0
-                , Hash.encode addrKeyHash
+                , Bytes.toCbor addrKeyHash
                 ]
 
             ScriptAll nativeScripts ->
