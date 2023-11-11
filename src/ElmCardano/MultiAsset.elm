@@ -10,7 +10,7 @@ module ElmCardano.MultiAsset exposing
 
 -}
 
-import BytesMap exposing (BytesMap)
+import Bytes.Map exposing (BytesMap)
 import Cbor.Encode as E
 
 
@@ -38,18 +38,18 @@ type AssetName
 -}
 empty : MultiAsset
 empty =
-    BytesMap.empty
+    Bytes.Map.empty
 
 
 {-| Check if the [MultiAsset] contains no token.
 -}
 isEmpty : MultiAsset -> Bool
 isEmpty =
-    BytesMap.isEmpty
+    Bytes.Map.isEmpty
 
 
 {-| CBOR encoder for [MultiAsset].
 -}
 toCbor : MultiAsset -> E.Encoder
 toCbor multiAsset =
-    BytesMap.toCbor (BytesMap.toCbor E.int) multiAsset
+    Bytes.Map.toCbor (Bytes.Map.toCbor E.int) multiAsset

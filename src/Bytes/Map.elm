@@ -1,4 +1,4 @@
-module BytesMap exposing
+module Bytes.Map exposing
     ( BytesMap
     , empty, singleton, insert, update, remove
     , isEmpty, member, get, size
@@ -60,6 +60,8 @@ import Dict exposing (Dict)
 -------- BytesMaps
 
 
+{-| Dictionary mapping [Bytes] keys to values.
+-}
 type BytesMap k v
     = BytesMap (Dict String v)
 
