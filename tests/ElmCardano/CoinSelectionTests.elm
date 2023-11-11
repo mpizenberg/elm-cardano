@@ -3,7 +3,8 @@ module ElmCardano.CoinSelectionTests exposing (..)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import ElmCardano.Address exposing (Address)
 import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import ElmCardano.Utxo exposing (fromLovelace, lovelace, totalLovelace)
+import ElmCardano.Utxo exposing (fromLovelace, totalLovelace)
+import ElmCardano.Value exposing (onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Result.Extra as Result
@@ -36,8 +37,6 @@ basicScenarioTest _ =
                 ]
             , alreadySelectedOutputs = []
             , targetAmount = 30
-            , changeAddress =
-                address "change"
             }
 
         maxInputCount =
@@ -46,7 +45,7 @@ basicScenarioTest _ =
         expectedResult =
             Ok
                 { selectedOutputs = [ fromLovelace (address "1") 50 ]
-                , changeOutput = Just <| fromLovelace context.changeAddress 20
+                , change = Just <| onlyLovelace 20
                 }
     in
     largestFirst maxInputCount context
@@ -60,7 +59,6 @@ noOutputsTest _ =
             { availableOutputs = []
             , alreadySelectedOutputs = []
             , targetAmount = 30
-            , changeAddress = address "change"
             }
 
         maxInputCount =
@@ -82,7 +80,6 @@ insufficientFundsTest _ =
             { availableOutputs = availableOutputs
             , alreadySelectedOutputs = []
             , targetAmount = 30
-            , changeAddress = address "change"
             }
 
         result =
@@ -98,7 +95,6 @@ singleUtxoSingleOutputEqualValueTest _ =
             { availableOutputs = [ fromLovelace (address "1") 10 ]
             , alreadySelectedOutputs = []
             , targetAmount = 10
-            , changeAddress = address "change"
             }
 
         maxInputCount =
@@ -107,7 +103,7 @@ singleUtxoSingleOutputEqualValueTest _ =
         expectedResult =
             Ok
                 { selectedOutputs = context.availableOutputs
-                , changeOutput = Nothing
+                , change = Nothing
                 }
     in
     largestFirst maxInputCount context
@@ -153,7 +149,7 @@ contextFuzzer maxInputCount =
                 (Fuzz.int |> Fuzz.map (\i -> address <| "_" ++ String.fromInt i))
                 (Fuzz.intRange 1 maxInt)
     in
-    Fuzz.map4 CoinSelection.Context
+    Fuzz.map3 CoinSelection.Context
         (Fuzz.frequency
             [ ( 1, Fuzz.constant [] )
             , ( 9, Fuzz.listOfLengthBetween 1 (maxInputCount + 1) outputFuzzer )
@@ -165,7 +161,6 @@ contextFuzzer maxInputCount =
             ]
         )
         (Fuzz.intRange 0 maxInt)
-        (Fuzz.constant <| address "change")
 
 
 contextDistribution : Int -> Test.Distribution CoinSelection.Context
@@ -206,12 +201,11 @@ propCorrectnessOfChange maxInputCount context =
         Err _ ->
             Expect.pass
 
-        Ok { selectedOutputs, changeOutput } ->
+        Ok { selectedOutputs, change } ->
             let
-                change =
-                    changeOutput
-                        |> Maybe.map lovelace
+                changeAmount =
+                    Maybe.map .lovelace change
                         |> Maybe.withDefault 0
             in
             totalLovelace selectedOutputs
-                |> Expect.equal (change + context.targetAmount)
+                |> Expect.equal (changeAmount + context.targetAmount)

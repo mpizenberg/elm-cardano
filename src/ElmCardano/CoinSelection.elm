@@ -20,16 +20,14 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 
 -}
 
-import Bytes.Comparable exposing (Bytes)
-import ElmCardano.Address exposing (Address)
 import ElmCardano.Utxo
     exposing
         ( Output
-        , fromLovelace
         , lovelace
         , sortByDescendingLovelace
         , totalLovelace
         )
+import ElmCardano.Value exposing (Value, onlyLovelace)
 
 
 {-| Enumerates the possible errors that can occur during coin selection.
@@ -43,7 +41,7 @@ type Error
 -}
 type alias Selection =
     { selectedOutputs : List Output
-    , changeOutput : Maybe Output
+    , change : Maybe Value
     }
 
 
@@ -53,7 +51,6 @@ type alias Context =
     { availableOutputs : List Output
     , alreadySelectedOutputs : List Output
     , targetAmount : Int
-    , changeAddress : Bytes Address
     }
 
 
@@ -81,7 +78,6 @@ largestFirst maxInputCount context =
         , availableOutputs = sortedAvailableUtxo
         , selectedOutputs = context.alreadySelectedOutputs
         }
-        |> Result.map (\withAddress -> withAddress context.changeAddress)
 
 
 
@@ -95,7 +91,7 @@ doLargestFirst :
     , availableOutputs : List Output
     , selectedOutputs : List Output
     }
-    -> Result Error (Bytes Address -> Selection)
+    -> Result Error Selection
 doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOutputs, selectedOutputs } =
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
@@ -115,13 +111,12 @@ doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOu
                     }
 
     else
-        Ok <|
-            \changeAddress ->
-                { selectedOutputs = selectedOutputs
-                , changeOutput =
-                    if remainingAmount == 0 then
-                        Nothing
+        Ok
+            { selectedOutputs = selectedOutputs
+            , change =
+                if remainingAmount == 0 then
+                    Nothing
 
-                    else
-                        Just (fromLovelace changeAddress -remainingAmount)
-                }
+                else
+                    Just (onlyLovelace -remainingAmount)
+            }
