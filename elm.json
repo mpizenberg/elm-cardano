@@ -6,7 +6,7 @@
     "version": "1.0.0",
     "exposed-modules": [
         "Bytes.Comparable",
-        "BytesMap",
+        "Bytes.Map",
         "ElmCardano.Address",
         "ElmCardano.Cip30",
         "ElmCardano.Data",

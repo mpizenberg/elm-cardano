@@ -45,7 +45,7 @@ module ElmCardano.Transaction exposing
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import BytesMap exposing (BytesMap)
+import Bytes.Map exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
@@ -494,7 +494,7 @@ encodeTransactionBody =
             >> E.optionalField 2 E.int .fee
             >> E.optionalField 3 E.int .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 BytesMap.isEmpty (BytesMap.toCbor E.int) .withdrawals
+            >> E.nonEmptyField 5 Bytes.Map.isEmpty (Bytes.Map.toCbor E.int) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
@@ -779,7 +779,7 @@ encodeUpdate =
 {-| -}
 encodeProposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate -> E.Encoder
 encodeProposedProtocolParameterUpdates =
-    BytesMap.toCbor encodeProtocolParamUpdate
+    Bytes.Map.toCbor encodeProtocolParamUpdate
 
 
 encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
