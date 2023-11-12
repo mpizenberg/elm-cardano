@@ -1,7 +1,7 @@
 module ElmCardano.Cip67 exposing
     ( Cip67
-    , fromBytes, fromCbor
-    , toBytes, toCbor
+    , fromBytes, labelFromHex, fromCbor
+    , toBytes, labelToHex, toCbor
     )
 
 {-| CIP-0067 support.
@@ -13,9 +13,9 @@ easily distinguish between CIP-0068 assets and their reference counterparts.
 
 @docs Cip67
 
-@docs fromBytes, fromCbor
+@docs fromBytes, labelFromHex, fromCbor
 
-@docs toBytes, toCbor
+@docs toBytes, labelToHex, toCbor
 
 -}
 
@@ -86,12 +86,20 @@ fromBytes tnBytes =
         tnString =
             Bytes.toString tnBytes
 
-        fullLabelStr =
-            String.left 8 tnString
+        assetName =
+            Bytes.fromStringUnchecked <| String.dropLeft 8 tnString
+    in
+    labelFromHex (String.left 8 tnString)
+        |> Maybe.map (\label -> Cip67 label assetName)
 
+
+{-| Extract the label if it is valid. Return Nothing otherwise.
+-}
+labelFromHex : String -> Maybe Int
+labelFromHex fullLabelStr =
+    let
         hasBracketsAndProperLength =
-            String.length fullLabelStr
-                == 8
+            (String.length fullLabelStr == 8)
                 && String.startsWith "0" fullLabelStr
                 && String.endsWith "0" fullLabelStr
     in
@@ -107,10 +115,7 @@ fromBytes tnBytes =
                 Bytes.fromStringUnchecked <| String.right 2 labelWithChecksum
         in
         if Crc8.digest labelBytes == checksumBytes then
-            Just
-                { label = Bytes.toDecimal labelBytes
-                , assetName = Bytes.fromStringUnchecked <| String.dropLeft 8 tnString
-                }
+            Just <| Bytes.toDecimal labelBytes
 
         else
             Nothing
@@ -130,26 +135,26 @@ fromCbor =
 {-| Converts a [Cip67] to [Bytes].
 -}
 toBytes : Cip67 -> Bytes AssetName
-toBytes cip67 =
+toBytes { label, assetName } =
+    (labelToHex label ++ Bytes.toString assetName)
+        |> Bytes.fromStringUnchecked
+
+
+{-| Convert an Int label into its CIP-0067 hex string.
+-}
+labelToHex : Int -> String
+labelToHex label =
     let
         labelBytes =
-            Bytes.fromDecimal cip67.label
+            Bytes.fromDecimal label
                 |> Bytes.toString
                 |> String.padLeft 4 '0'
                 |> Bytes.fromStringUnchecked
 
         checksumStr =
             Bytes.toString <| Crc8.digest labelBytes
-
-        tnStr =
-            Bytes.toString cip67.assetName
     in
-    "0"
-        ++ Bytes.toString labelBytes
-        ++ checksumStr
-        ++ "0"
-        ++ tnStr
-        |> Bytes.fromStringUnchecked
+    "0" ++ Bytes.toString labelBytes ++ checksumStr ++ "0"
 
 
 {-| CBOR encoder.
