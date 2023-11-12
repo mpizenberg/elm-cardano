@@ -1,15 +1,15 @@
 module ElmCardano.Address exposing
-    ( Address, NetworkId(..)
-    , OnChainAddress, Credential(..), StakeCredential(..), CredentialHash
+    ( Address, NetworkId(..), ByronAddress
+    , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script
     , toCbor, encodeNetworkId
     )
 
 {-| Handling Cardano addresses.
 
-@docs Address, NetworkId
+@docs Address, NetworkId, ByronAddress
 
-@docs OnChainAddress, Credential, StakeCredential, CredentialHash
+@docs Credential, StakeCredential, CredentialHash
 
 @docs enterprise, script
 
@@ -23,10 +23,10 @@ import Cbor.Encode as E
 
 {-| Full address, including the network ID.
 -}
-type alias Address =
-    { networkId : NetworkId
-    , onChainAddress : OnChainAddress
-    }
+type Address
+    = Byron (Bytes ByronAddress)
+    | Shelley { networkId : NetworkId, paymentCredential : Credential, stakeCredential : Maybe StakeCredential }
+    | Stake { networkId : NetworkId, stakeCredential : Credential }
 
 
 {-| The network ID of a transaction.
@@ -36,25 +36,10 @@ type NetworkId
     | Mainnet -- 1
 
 
-{-| An on-chain address with a structure matching Aiken `Address`.
-
-Beware that they are to be encoded differently depending on the context.
-In the off-chain context, within our [Address] type, the CBOR encoding for the whole address (with network ID),
-must follow CIP-0019::ShelleyAddresses specification with the header and credentials.
-So in the off-chain context, it makes no sense to encode [OnChainAddress].
-One should directly encode [Address] instead to have the network ID.
-
-In the on-chain (Plutus) context, [OnChainAddress] can be encoded to a structure equivalent to Aiken `Address`.
-This is convenient to be able to use these addresses in datums and redeemers.
-
-Note that legacy bootstrap addresses (a.k.a. "Byron addresses") are completely excluded from Plutus contexts.
-Thus, from an on-chain perspective only exists addresses of type 00, 01, …, 07 as detailed in CIP-0019 :: Shelley Addresses.
-
+{-| Phantom type for Byron addresses.
 -}
-type alias OnChainAddress =
-    { paymentCredential : Credential
-    , stakeCredential : Maybe StakeCredential
-    }
+type ByronAddress
+    = ByronAddress Never
 
 
 {-| A general structure for representing an on-chain credential.
@@ -87,23 +72,29 @@ type CredentialHash
 
 {-| Create a simple enterprise address, with only a payment credential and no stake credential.
 -}
-enterprise : Bytes CredentialHash -> OnChainAddress
-enterprise credentials =
-    { paymentCredential = VerificationKeyCredential credentials
-    , stakeCredential = Nothing
-    }
+enterprise : NetworkId -> Bytes CredentialHash -> Address
+enterprise networkId credentials =
+    Shelley
+        { networkId = networkId
+        , paymentCredential = VerificationKeyCredential credentials
+        , stakeCredential = Nothing
+        }
 
 
 {-| Create a simple script address, with only a payment credential and no stake credential.
 -}
-script : Bytes CredentialHash -> OnChainAddress
-script credentials =
-    { paymentCredential = ScriptCredential credentials
-    , stakeCredential = Nothing
-    }
+script : NetworkId -> Bytes CredentialHash -> Address
+script networkId credentials =
+    Shelley
+        { networkId = networkId
+        , paymentCredential = ScriptCredential credentials
+        , stakeCredential = Nothing
+        }
 
 
 {-| Encode an [Address] to CBOR.
+
+Byron addresses are left untouched as we don't plan to have full support of Byron era.
 
 Shelley address description from CIP-0019:
 
@@ -123,12 +114,66 @@ Shelley address description from CIP-0019:
 
 For example, `61....(56 chars / 28 bytes)....` is an enterprise address (6, only a payment key) on mainnet (1).
 
-Warning: do not use [onChainAddressToCbor] encoder inside this encoder.
-The on-chain encoder is to match Aiken on-chain addresses.
+Stake address description from CIP-0019:
+
+    Header type (tttt....)  Stake Reference
+    (14) 1110....           StakeKeyHash
+    (15) 1111....           ScriptHash
 
 -}
 toCbor : Address -> E.Encoder
-toCbor { networkId, onChainAddress } =
+toCbor address =
+    case address of
+        Byron bytes ->
+            Bytes.toCbor bytes
+
+        Shelley { networkId, paymentCredential, stakeCredential } ->
+            case ( paymentCredential, stakeCredential ) of
+                -- (0) 0000.... PaymentKeyHash StakeKeyHash
+                ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
+                    encodeAddress networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
+
+                -- (1) 0001.... ScriptHash StakeKeyHash
+                ( ScriptCredential paymentScriptHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
+                    encodeAddress networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
+
+                -- (2) 0010.... PaymentKeyHash ScriptHash
+                ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
+                    encodeAddress networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
+
+                -- (3) 0011.... ScriptHash ScriptHash
+                ( ScriptCredential paymentScriptHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
+                    encodeAddress networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
+
+                -- (4) 0100.... PaymentKeyHash Pointer
+                ( VerificationKeyCredential paymentKeyHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
+                    encodeAddress networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
+
+                -- (5) 0101.... ScriptHash Pointer
+                ( ScriptCredential paymentScriptHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
+                    encodeAddress networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
+
+                -- (6) 0110.... PaymentKeyHash ø
+                ( VerificationKeyCredential paymentKeyHash, Nothing ) ->
+                    encodeAddress networkId "6" (Bytes.toString paymentKeyHash)
+
+                -- (7) 0111.... ScriptHash ø
+                ( ScriptCredential paymentScriptHash, Nothing ) ->
+                    encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
+
+        Stake { networkId, stakeCredential } ->
+            case stakeCredential of
+                -- (14) 1110.... StakeKeyHash
+                VerificationKeyCredential stakeKeyHash ->
+                    encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
+
+                -- (15) 1111.... ScriptHash
+                ScriptCredential stakeScriptHash ->
+                    encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
+
+
+encodeAddress : NetworkId -> String -> String -> E.Encoder
+encodeAddress networkId headerType payload =
     let
         network =
             case networkId of
@@ -137,44 +182,10 @@ toCbor { networkId, onChainAddress } =
 
                 Mainnet ->
                     "1"
-
-        encodeAddress headerType payment stake =
-            (headerType ++ network ++ payment ++ stake)
-                |> Bytes.fromStringUnchecked
-                |> Bytes.toCbor
     in
-    case ( onChainAddress.paymentCredential, onChainAddress.stakeCredential ) of
-        -- (0) 0000.... PaymentKeyHash StakeKeyHash
-        ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
-            encodeAddress "0" (Bytes.toString paymentKeyHash) (Bytes.toString stakeKeyHash)
-
-        -- (1) 0001.... ScriptHash StakeKeyHash
-        ( ScriptCredential paymentScriptHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
-            encodeAddress "1" (Bytes.toString paymentScriptHash) (Bytes.toString stakeKeyHash)
-
-        -- (2) 0010.... PaymentKeyHash ScriptHash
-        ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
-            encodeAddress "2" (Bytes.toString paymentKeyHash) (Bytes.toString stakeScriptHash)
-
-        -- (3) 0011.... ScriptHash ScriptHash
-        ( ScriptCredential paymentScriptHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
-            encodeAddress "3" (Bytes.toString paymentScriptHash) (Bytes.toString stakeScriptHash)
-
-        -- (4) 0100.... PaymentKeyHash Pointer
-        ( VerificationKeyCredential paymentKeyHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
-            encodeAddress "4" (Bytes.toString paymentKeyHash) (Debug.todo "encode pointer credential")
-
-        -- (5) 0101.... ScriptHash Pointer
-        ( ScriptCredential paymentScriptHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
-            encodeAddress "5" (Bytes.toString paymentScriptHash) (Debug.todo "encode pointer credential")
-
-        -- (6) 0110.... PaymentKeyHash ø
-        ( VerificationKeyCredential paymentKeyHash, Nothing ) ->
-            encodeAddress "6" (Bytes.toString paymentKeyHash) ""
-
-        -- (7) 0111.... ScriptHash ø
-        ( ScriptCredential paymentScriptHash, Nothing ) ->
-            encodeAddress "7" (Bytes.toString paymentScriptHash) ""
+    (headerType ++ network ++ payload)
+        |> Bytes.fromStringUnchecked
+        |> Bytes.toCbor
 
 
 {-| CBOR encoder for [NetworkId].
@@ -188,10 +199,3 @@ encodeNetworkId networkId =
 
             Mainnet ->
                 1
-
-
-{-| Encode to CBOR an on-chain address for use in a datum or redeemer (matching Aiken `Address`).
--}
-onChainAddressToCbor : OnChainAddress -> E.Encoder
-onChainAddressToCbor onChainAddress =
-    Debug.todo "onChainAddressToCbor"

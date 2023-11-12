@@ -117,8 +117,7 @@ singleUtxoSingleOutputEqualValueTest _ =
 address : String -> Address
 address suffix =
     Bytes.fromStringUnchecked ("addr" ++ suffix)
-        |> Address.enterprise
-        |> Address Testnet
+        |> Address.enterprise Testnet
 
 
 

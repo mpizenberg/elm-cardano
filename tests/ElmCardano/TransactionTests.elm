@@ -21,15 +21,14 @@ suite =
 
                         -- "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5"
                         contractAddress =
-                            Address.script (Bytes.fromStringUnchecked "589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
-                                |> Address Testnet
+                            Address.script Testnet (Bytes.fromStringUnchecked "589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
 
                         paymentCredential =
                             Bytes.fromStringUnchecked "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae"
 
                         -- "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae"
                         userAddress =
-                            Address Testnet (Address.enterprise paymentCredential)
+                            Address.enterprise Testnet paymentCredential
                     in
                     Tx.new
                         |> Tx.input { transactionId = transactionId, outputIndex = 1 }
