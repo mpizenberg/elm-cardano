@@ -24,6 +24,7 @@ import Bitwise
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
+import ElmCardano.MultiAsset exposing (AssetName)
 
 
 {-| Datatype for modeling CIP-0067.
@@ -64,8 +65,14 @@ Finally, a complete CIP-0067 example:
 -}
 type alias Cip67 =
     { label : Int
-    , assetName : Bytes
+    , assetName : Bytes Cip67AssetName
     }
+
+
+{-| Phantom type for CIP-0067 asset names.
+-}
+type Cip67AssetName
+    = Cip67AssetName Never
 
 
 {-| Validate and separate the label of a CIP-0067 asset name.
@@ -74,7 +81,7 @@ Given a valid CIP-0067 token name [Bytes], this function separates the label as
 an [Int], and returns the asset name without the label bytes.
 
 -}
-fromBytes : Bytes -> Maybe Cip67
+fromBytes : Bytes AssetName -> Maybe Cip67
 fromBytes tnBytes =
     let
         tnString =
@@ -123,7 +130,7 @@ fromCbor =
 
 {-| Converts a [Cip67] to [Bytes].
 -}
-toBytes : Cip67 -> Bytes
+toBytes : Cip67 -> Bytes AssetName
 toBytes cip67 =
     let
         labelBytes =
@@ -153,13 +160,19 @@ toCbor =
     toBytes >> Bytes.toCbor
 
 
+{-| Phantom type for CRC8 checksum.
+-}
+type CRC8
+    = CRC8 Never
+
+
 {-| Function for finding the CRC-8 digest of a given [`Bytes`].
 
 Taken from [Haskell's `crc` library](https://hackage.haskell.org/package/crc-0.1.1.1/docs/src/Data.Digest.CRC8.html#updateDigest8), this
 implementation uses the table lookup optimizatino for finding the digest.
 
 -}
-crc8 : Bytes -> Bytes
+crc8 : Bytes a -> Bytes CRC8
 crc8 bs =
     let
         go : Int -> Int -> Int
