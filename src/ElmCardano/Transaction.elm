@@ -2,7 +2,6 @@ module ElmCardano.Transaction exposing
     ( Transaction
     , TransactionBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet
-    , NetworkId(..)
     , AuxiliaryData(..), Metadata, Metadatum(..), MetadatumBytes
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
@@ -21,8 +20,6 @@ module ElmCardano.Transaction exposing
 @docs TransactionBody, AuxiliaryDataHash, ScriptDataHash
 
 @docs WitnessSet
-
-@docs NetworkId
 
 @docs AuxiliaryData, Metadata, Metadatum, MetadatumBytes
 
@@ -51,7 +48,7 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Dict exposing (Dict)
-import ElmCardano.Address exposing (CredentialHash)
+import ElmCardano.Address as Address exposing (CredentialHash, NetworkId)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
@@ -104,13 +101,6 @@ This is a 32-bytes Blake2b-256 hash.
 -}
 type ScriptDataHash
     = ScriptDataHash Never
-
-
-{-| The network ID of a transaction.
--}
-type NetworkId
-    = Testnet -- 0
-    | Mainnet -- 1
 
 
 {-| A Cardano transaction witness set.
@@ -502,22 +492,10 @@ encodeTransactionBody =
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
-            >> E.optionalField 15 encodeNetworkId .networkId
+            >> E.optionalField 15 Address.encodeNetworkId .networkId
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
-
-
-{-| -}
-encodeNetworkId : NetworkId -> E.Encoder
-encodeNetworkId networkId =
-    E.int <|
-        case networkId of
-            Testnet ->
-                0
-
-            Mainnet ->
-                1
 
 
 {-| -}

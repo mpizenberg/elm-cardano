@@ -1,6 +1,7 @@
 module ElmCardano.TransactionTests exposing (..)
 
 import Bytes.Comparable as Bytes
+import ElmCardano.Address as Address exposing (Address, NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
 import ElmCardano.Redeemer exposing (RedeemerTag(..))
 import ElmCardano.Transaction.Builder as Tx
@@ -17,6 +18,18 @@ suite =
                     let
                         transactionId =
                             Bytes.fromStringUnchecked "9D7F457DD62D2062565F794E42F9ECA458D9CFBCA73A7893899D16F02C2B36B6"
+
+                        -- "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5"
+                        contractAddress =
+                            Address.script (Bytes.fromStringUnchecked "589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
+                                |> Address Testnet
+
+                        paymentCredential =
+                            Bytes.fromStringUnchecked "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae"
+
+                        -- "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae"
+                        userAddress =
+                            Address Testnet (Address.enterprise paymentCredential)
                     in
                     Tx.new
                         |> Tx.input { transactionId = transactionId, outputIndex = 1 }
@@ -28,16 +41,13 @@ suite =
                             , data = Constr 0 []
                             , exUnits = { mem = 49435, steps = 18305237 }
                             }
-                        |> Tx.payToContract
-                            (Bytes.fromStringUnchecked "70589144cc521615315237f12698f063220efa4bc2f315b6c6e718a6d5")
-                            50000000
-                            (Constr 0 [ Bytes <| Bytes.fromStringUnchecked "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae" ])
-                        |> Tx.payToAddress (Bytes.fromStringUnchecked "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1947597502
+                        |> Tx.payToContract contractAddress 50000000 (Constr 0 [ Bytes paymentCredential ])
+                        |> Tx.payToAddress userAddress 1947597502
                         |> Tx.fee 182302
                         |> Tx.scriptDataHash (Bytes.fromStringUnchecked "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
-                        |> Tx.requiredSigner (Bytes.fromStringUnchecked "dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae")
-                        |> Tx.collateralReturn (Bytes.fromStringUnchecked "60dd4edd90a2299da2525053c5e18e7c72625f7cf926f5731139d93bae") 1897506351
+                        |> Tx.requiredSigner paymentCredential
+                        |> Tx.collateralReturn userAddress 1897506351
                         |> Tx.totalCollateral 273453
                         |> Tx.referenceInput { transactionId = Bytes.fromStringUnchecked "517b059959fc8ee584689f71cf1d9bb94fc36802aec0faa7fd96182c0ab090c4", outputIndex = 0 }
                         |> Tx.complete

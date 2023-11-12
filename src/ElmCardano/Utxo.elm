@@ -39,7 +39,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
-import ElmCardano.Address exposing (Address)
+import ElmCardano.Address as Address exposing (Address)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.Script as Script exposing (Script)
 import ElmCardano.Value as Value exposing (Value)
@@ -74,12 +74,12 @@ encodeOutputReference =
 -}
 type Output
     = Legacy
-        { address : Bytes Address -- TODO: should we have actual Address here instead?
+        { address : Address
         , amount : Value
         , datumHash : Maybe (Bytes DatumHash)
         }
     | PostAlonzo
-        { address : Bytes Address -- TODO: shoul we have actual Address here instead?
+        { address : Address
         , value : Value
         , datumOption : Maybe DatumOption
         , referenceScript : Maybe Script
@@ -109,7 +109,7 @@ sortByAscendingLovelace =
 
 {-| Construct an `Output` from an `Address` and a lovelace amount
 -}
-fromLovelace : Bytes Address -> Int -> Output
+fromLovelace : Address -> Int -> Output
 fromLovelace address amount =
     Legacy
         { address = address
@@ -145,7 +145,7 @@ encodeOutput output =
         Legacy fields ->
             E.tuple
                 (E.elems
-                    >> E.elem Bytes.toCbor .address
+                    >> E.elem Address.toCbor .address
                     >> E.elem Value.encode .amount
                     >> E.optionalElem Bytes.toCbor .datumHash
                 )
@@ -154,7 +154,7 @@ encodeOutput output =
         PostAlonzo fields ->
             E.record E.int
                 (E.fields
-                    >> E.field 0 Bytes.toCbor .address
+                    >> E.field 0 Address.toCbor .address
                     >> E.field 1 Value.encode .value
                     >> E.optionalField 2 encodeDatumOption .datumOption
                     >> E.optionalField 3
