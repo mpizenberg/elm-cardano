@@ -1,5 +1,5 @@
 module ElmCardano.Address exposing
-    ( Address, NetworkId(..), ByronAddress
+    ( Address(..), NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script
     , toCbor, encodeNetworkId
@@ -146,11 +146,11 @@ toCbor address =
                     encodeAddress networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
 
                 -- (4) 0100.... PaymentKeyHash Pointer
-                ( VerificationKeyCredential paymentKeyHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
+                ( VerificationKeyCredential paymentKeyHash, Just (PointerCredential _) ) ->
                     encodeAddress networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
 
                 -- (5) 0101.... ScriptHash Pointer
-                ( ScriptCredential paymentScriptHash, Just (PointerCredential { slotNumber, transactionIndex, certificateIndex }) ) ->
+                ( ScriptCredential paymentScriptHash, Just (PointerCredential _) ) ->
                     encodeAddress networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
 
                 -- (6) 0110.... PaymentKeyHash ø

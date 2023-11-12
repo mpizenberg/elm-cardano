@@ -1,7 +1,7 @@
 module ElmCardano.TransactionTests exposing (..)
 
 import Bytes.Comparable as Bytes
-import ElmCardano.Address as Address exposing (Address, NetworkId(..))
+import ElmCardano.Address as Address exposing (NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
 import ElmCardano.Redeemer exposing (RedeemerTag(..))
 import ElmCardano.Transaction.Builder as Tx
