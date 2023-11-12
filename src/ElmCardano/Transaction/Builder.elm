@@ -19,14 +19,15 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes.Comparable exposing (Bytes)
-import BytesMap
+import Bytes.Map
+import ElmCardano.Address exposing (Address, CredentialHash)
 import ElmCardano.Data exposing (Data)
-import ElmCardano.Hash exposing (Blake2b_224, Hash)
 import ElmCardano.MultiAsset as MultiAsset
 import ElmCardano.Redeemer exposing (Redeemer)
 import ElmCardano.Transaction
     exposing
-        ( Transaction
+        ( ScriptDataHash
+        , Transaction
         , TransactionBody
         , WitnessSet
         , serialize
@@ -48,7 +49,7 @@ new =
             , fee = Nothing
             , ttl = Nothing
             , certificates = []
-            , withdrawals = BytesMap.empty
+            , withdrawals = Bytes.Map.empty
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
@@ -130,7 +131,7 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Bytes -> Int -> Data -> Tx -> Tx
+payToContract : Bytes Address -> Int -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
@@ -143,7 +144,7 @@ payToContract address amount datum tx =
             )
 
 
-payToAddress : Bytes -> Int -> Tx -> Tx
+payToAddress : Bytes Address -> Int -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
@@ -175,12 +176,12 @@ addFee amount body =
     { body | fee = Just amount }
 
 
-scriptDataHash : Bytes -> Tx -> Tx
+scriptDataHash : Bytes ScriptDataHash -> Tx -> Tx
 scriptDataHash dataHash (Tx inner) =
     inner |> updateBody (addScriptDataHash dataHash)
 
 
-addScriptDataHash : Bytes -> TransactionBody -> TransactionBody
+addScriptDataHash : Bytes ScriptDataHash -> TransactionBody -> TransactionBody
 addScriptDataHash dataHash body =
     { body | scriptDataHash = Just dataHash }
 
@@ -197,19 +198,19 @@ addCollateral newInput body =
     }
 
 
-requiredSigner : Hash Blake2b_224 -> Tx -> Tx
+requiredSigner : Bytes CredentialHash -> Tx -> Tx
 requiredSigner signer (Tx inner) =
     inner |> updateBody (addRequiredSigner signer)
 
 
-addRequiredSigner : Hash Blake2b_224 -> TransactionBody -> TransactionBody
+addRequiredSigner : Bytes CredentialHash -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
         | requiredSigners = signer :: body.requiredSigners
     }
 
 
-collateralReturn : Bytes -> Int -> Tx -> Tx
+collateralReturn : Bytes Address -> Int -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody
@@ -250,7 +251,7 @@ addReferenceInput newInput body =
     }
 
 
-complete : Tx -> Bytes
+complete : Tx -> Bytes Transaction
 complete (Tx inner) =
     serialize inner
 

@@ -1,15 +1,16 @@
 module ElmCardano.Transaction exposing
     ( Transaction
-    , TransactionBody, WitnessSet
+    , TransactionBody, AuxiliaryDataHash, ScriptDataHash
+    , WitnessSet
     , NetworkId(..)
-    , AuxiliaryData
+    , AuxiliaryData(..), Metadata, Metadatum(..), MetadatumBytes
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
-    , Certificate(..)
+    , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
+    , Relay(..), IpV4, IpV6, PoolParams, RewardAccount, PoolMetadata, PoolMetadataHash
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
-    , Metadatum(..)
-    , VKeyWitness, BootstrapWitness
+    , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , deserialize, serialize
     )
 
@@ -17,43 +18,44 @@ module ElmCardano.Transaction exposing
 
 @docs Transaction
 
-@docs TransactionBody, WitnessSet
+@docs TransactionBody, AuxiliaryDataHash, ScriptDataHash
+
+@docs WitnessSet
 
 @docs NetworkId
 
-@docs AuxiliaryData
+@docs AuxiliaryData, Metadata, Metadatum, MetadatumBytes
 
 @docs Update, ProtocolParamUpdate, ProtocolVersion
 
 @docs ScriptContext, ScriptPurpose
 
-@docs Certificate
+@docs Certificate, PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential, RewardSource, RewardTarget, MoveInstantaneousReward
+
+@docs Relay, IpV4, IpV6, PoolParams, RewardAccount, PoolMetadata, PoolMetadataHash
 
 @docs CostModels, ExUnitPrices
 
 @docs RationalNumber, UnitInterval, PositiveInterval
 
-@docs Metadatum
-
-@docs VKeyWitness, BootstrapWitness
+@docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
 @docs deserialize, serialize
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import BytesMap exposing (BytesMap)
+import Bytes.Map exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
-import Debug exposing (todo)
+import Cbor.Tag as Tag
 import Dict exposing (Dict)
-import ElmCardano.Address exposing (StakeCredential)
+import ElmCardano.Address exposing (CredentialHash)
 import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.Hash as Hash exposing (Blake2b_224, Blake2b_256, Hash)
-import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import ElmCardano.Script exposing (NativeScript, PlutusScript)
+import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
 import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
@@ -75,19 +77,33 @@ type alias TransactionBody =
     , fee : Maybe Int -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : BytesMap Bytes Int -- 5
+    , withdrawals : BytesMap RewardAccount Int -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe (Hash Blake2b_256) -- 7
+    , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
     , mint : MultiAsset -- 9
-    , scriptDataHash : Maybe Bytes -- 11
+    , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
-    , requiredSigners : List (Hash Blake2b_224) -- 14
+    , requiredSigners : List (Bytes CredentialHash) -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
     , referenceInputs : List OutputReference -- 18
     }
+
+
+{-| Phantom type for auxiliary data hashes.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type AuxiliaryDataHash
+    = AuxiliaryDataHash Never
+
+
+{-| Phantom type for script data hashes.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type ScriptDataHash
+    = ScriptDataHash Never
 
 
 {-| The network ID of a transaction.
@@ -108,92 +124,79 @@ type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
-    , plutusV1Script : Maybe (List Bytes) -- 3
+    , plutusV1Script : Maybe (List (Bytes ScriptCbor)) -- 3
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
-    , plutusV2Script : Maybe (List Bytes) -- 6
+    , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
     }
 
 
-{-| -}
-type alias AuxiliaryData =
-    { metadata : Maybe (Dict Int Metadatum) -- 0
-    , nativeScripts : Maybe (List NativeScript) -- 1
-    , plutusScripts : Maybe (List PlutusScript) -- 1
-    }
+{-| metadata used in [AuxiliaryData].
+-}
+type alias Metadata =
+    Dict Int Metadatum
 
 
-{-| -}
+{-| [Transaction] auxiliary data.
+-}
+type AuxiliaryData
+    = Shelley Metadata
+    | ShelleyMa { transactionMetadata : Metadata, auxiliaryScripts : List NativeScript }
+    | PostAlonzo
+        { metadata : Maybe (Dict Int Metadatum) -- 0
+        , nativeScripts : Maybe (List NativeScript) -- 1
+        , plutusV1Scripts : Maybe (List PlutusScript) -- 2
+        , plutusV2Scripts : Maybe (List PlutusScript) -- 2
+        }
+
+
+{-| Payload to update the protocol parameters at a specific epoch
+-}
 type alias Update =
-    { proposedProtocolParameterUpdates : BytesMap (Hash Blake2b_224) ProtocolParamUpdate
+    { proposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate
     , epoch : Int
     }
 
 
-{-| -}
+{-| Adjustable parameters that power key aspects of the network.
+-}
 type alias ProtocolParamUpdate =
-    { -- #[n(0)]
-      minfeeA : Maybe Int
-    , -- #[n(1)]
-      minfeeB : Maybe Int
-    , -- #[n(2)]
-      maxBlockBodySize : Maybe Int
-    , -- #[n(3)]
-      maxTransactionSize : Maybe Int
-    , -- #[n(4)]
-      maxBlockHeaderSize : Maybe Int
-    , -- #[n(5)]
-      keyDeposit : Maybe Int
-    , -- #[n(6)]
-      poolDeposit : Maybe Int
-    , -- #[n(7)]
-      maximumEpoch : Maybe Int
-    , -- #[n(8)]
-      desiredNumberOfStakePools : Maybe Int
-    , -- #[n(9)]
-      poolPledgeInfluence : Maybe RationalNumber
-    , -- #[n(10)]
-      expansionRate : Maybe UnitInterval
-    , -- #[n(11)]
-      treasuryGrowthRate : Maybe UnitInterval
-    , -- #[n(14)]
-      protocolVersion : Maybe ProtocolVersion
-    , -- #[n(16)]
-      minPoolCost : Maybe Int
-    , -- #[n(17)]
-      adaPerUtxoByte : Maybe Int
-    , -- #[n(18)]
-      costModelsForScriptLanguages : Maybe CostModels
-    , -- #[n(19)]
-      executionCosts : Maybe ExUnitPrices
-    , -- #[n(20)]
-      maxTxExUnits : Maybe ExUnits
-    , -- #[n(21)]
-      maxBlockExUnits : Maybe ExUnits
-    , -- #[n(22)]
-      maxValueSize : Maybe Int
-    , -- #[n(23)]
-      collateralPercentage : Maybe Int
-    , -- #[n(24)]
-      maxCollateralInputs : Maybe Int
+    { minFeeA : Maybe Int -- 0
+    , minFeeB : Maybe Int -- 1
+    , maxBlockBodySize : Maybe Int -- 2
+    , maxTransactionSize : Maybe Int -- 3
+    , maxBlockHeaderSize : Maybe Int -- 4
+    , keyDeposit : Maybe Int -- 5
+    , poolDeposit : Maybe Int -- 6
+    , maximumEpoch : Maybe Int -- 7
+    , desiredNumberOfStakePools : Maybe Int -- 8
+    , poolPledgeInfluence : Maybe RationalNumber -- 9
+    , expansionRate : Maybe UnitInterval -- 10
+    , treasuryGrowthRate : Maybe UnitInterval -- 11
+    , protocolVersion : Maybe ProtocolVersion -- 14
+    , minPoolCost : Maybe Int -- 16
+    , adaPerUtxoByte : Maybe Int -- 17
+    , costModelsForScriptLanguages : Maybe CostModels -- 18
+    , executionCosts : Maybe ExUnitPrices -- 19
+    , maxTxExUnits : Maybe ExUnits -- 20
+    , maxBlockExUnits : Maybe ExUnits -- 21
+    , maxValueSize : Maybe Int -- 22
+    , collateralPercentage : Maybe Int -- 23
+    , maxCollateralInputs : Maybe Int -- 24
     }
 
 
 {-| -}
 type alias CostModels =
-    { -- #[n(0)]
-      plutusV1 : Maybe (List Int)
-    , -- #[n(1)]
-      plutusV2 : Maybe (List Int)
+    { plutusV1 : Maybe (List Int) -- 0
+    , plutusV2 : Maybe (List Int) -- 1
     }
 
 
 {-| -}
 type alias ExUnitPrices =
-    { -- #[n(0)]
-      memPrice : PositiveInterval
-    , -- #[n(1)]
-      stepPrice : PositiveInterval
+    { memPrice : PositiveInterval -- 0
+    , stepPrice : PositiveInterval -- 1
     }
 
 
@@ -226,16 +229,23 @@ type alias RationalNumber =
 {-| -}
 type Metadatum
     = Int Int
-    | Bytes Bytes
+    | Bytes (Bytes MetadatumBytes)
     | String String
     | List (List Metadatum)
-    | Map (List ( Metadatum, Metadatum ))
+    | Map (Dict Metadatum Metadatum)
+
+
+{-| Phantom type for the Bytes variant of Metadatum.
+It is supposed to have a length <= 64 bytes according to the CDDL.
+-}
+type MetadatumBytes
+    = MetadatumBytes Never
 
 
 {-| -}
 type alias VKeyWitness =
-    { vkey : Bytes -- 0
-    , signature : Bytes
+    { vkey : Bytes Ed25519PublicKey -- 0
+    , signature : Bytes Ed25519Signature -- 1
     }
 
 
@@ -245,11 +255,37 @@ type alias VKeyWitness =
 
 {-| -}
 type alias BootstrapWitness =
-    { publicKey : Bytes -- 0
-    , signature : Bytes -- 1
-    , chainCode : Bytes -- 2
-    , attributes : Bytes -- 3
+    { publicKey : Bytes Ed25519PublicKey -- 0
+    , signature : Bytes Ed25519Signature -- 1
+    , chainCode : Bytes BootstrapWitnessChainCode -- 2
+    , attributes : Bytes BootstrapWitnessAttributes -- 3
     }
+
+
+{-| Phantom type for ED25519 public keys, of length 32 bytes.
+-}
+type Ed25519PublicKey
+    = Ed25519PublicKey Never
+
+
+{-| Phantom type for ED25519 signatures, of length 64 bytes.
+-}
+type Ed25519Signature
+    = Ed25519Signature Never
+
+
+{-| Phantom type for [BootstrapWitness] chain code.
+It has a length of 32 bytes.
+-}
+type BootstrapWitnessChainCode
+    = BootstrapWitnessChainCode Never
+
+
+{-| Phantom type for [BootstrapWitness] attributes.
+Bytes of this type can be of any length.
+-}
+type BootstrapWitnessAttributes
+    = BootstrapWitnessAttributes Never
 
 
 
@@ -272,7 +308,7 @@ type alias ScriptContext =
 {-| Characterizes the kind of script being executed and the associated resource.
 -}
 type ScriptPurpose
-    = SPMint { policyId : Hash Blake2b_224 }
+    = SPMint { policyId : Bytes PolicyId }
     | SPSpend OutputReference
     | SPWithdrawFrom StakeCredential
     | SPPublish Certificate
@@ -287,27 +323,151 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = CredentialRegistration { delegator : StakeCredential }
-    | CredentialDeregistration { delegator : StakeCredential }
-    | CredentialDelegation { delegator : StakeCredential, delegatee : Hash Blake2b_224 }
-    | PoolRegistration { poolId : Hash Blake2b_224, vrf : Hash Blake2b_224 }
-    | PoolDeregistration { poolId : Hash Blake2b_224, epoch : Int }
-    | Governance
-    | TreasuryMovement
+    = StakeRegistration { delegator : StakeCredential }
+    | StakeDeregistration { delegator : StakeCredential }
+    | StakeDelegation { delegator : StakeCredential, poolId : Bytes PoolId }
+    | PoolRegistration PoolParams
+    | PoolRetirement { poolId : Bytes PoolId, epoch : Int }
+    | GenesisKeyDelegation
+        { genesisHash : Bytes GenesisHash
+        , genesisDelegateHash : Bytes GenesisDelegateHash
+        , vrfKeyHash : Bytes VrfKeyHash
+        }
+    | MoveInstantaneousRewardsCert MoveInstantaneousReward
+
+
+{-| Phantom type for pool ID.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type PoolId
+    = PoolId Never
+
+
+{-| Phantom type for Genesis hash.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type GenesisHash
+    = GenesisHash Never
+
+
+{-| Phantom type for Genesis delegate hash.
+This is a 28-bytes Blake2b-224 hash.
+-}
+type GenesisDelegateHash
+    = GenesisDelegateHash Never
+
+
+{-| Phantom type for VRF key hash.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type VrfKeyHash
+    = VrfKeyHash Never
+
+
+{-| A credential used in certificates.
+-}
+type StakeCredential
+    = AddrKeyHash (Bytes CredentialHash)
+    | ScriptHash (Bytes CredentialHash)
+
+
+{-| Parameters for stake pool registration.
+-}
+type alias PoolParams =
+    { operator : Bytes PoolId
+    , vrfKeyHash : Bytes VrfKeyHash
+    , pledge : Int
+    , cost : Int
+    , margin : UnitInterval
+    , rewardAccount : Bytes RewardAccount
+    , poolOwners : List (Bytes CredentialHash)
+    , relays : List Relay
+    , poolMetadata : Maybe PoolMetadata
+    }
+
+
+{-| Phantom type for [PoolParams] reward account.
+The cddl does not say what bytes length it is.
+-}
+type RewardAccount
+    = RewardAccount Never
+
+
+{-| A pool's relay information.
+-}
+type Relay
+    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe (Bytes IpV4), ipv6 : Maybe (Bytes IpV6) }
+    | SingleHostName { port_ : Maybe Int, dnsName : String }
+    | MultiHostName { dnsName : String }
+
+
+{-| Phantom type for 4-bytes IPV4 addresses.
+-}
+type IpV4
+    = IpV4 Never
+
+
+{-| Phantom type for 16-bytes IPV6 addresses.
+-}
+type IpV6
+    = IpV6 Never
+
+
+{-| A pool's metadata hash.
+-}
+type alias PoolMetadata =
+    { url : String -- tstr .size (0..64)
+    , poolMetadataHash : Bytes PoolMetadataHash
+    }
+
+
+{-| Phantom type for 32-bytes pool metadata hash.
+This is a Blacke2b-256 hash.
+-}
+type PoolMetadataHash
+    = PoolMetadataHash Never
+
+
+{-| Payload for [MoveInstantaneousRewardsCert].
+-}
+type alias MoveInstantaneousReward =
+    { source : RewardSource
+    , target : RewardTarget
+    }
+
+
+{-| The source of rewards.
+-}
+type RewardSource
+    = Reserves -- 0
+    | Treasury -- 1
+
+
+{-| Reward target for a certificate's [MoveInstantaneousReward].
+
+If `StakeCredentials`, funds are moved to stake credentials,
+otherwise the funds are given to the other accounting pot.
+
+-}
+type RewardTarget
+    = StakeCredentials (Dict StakeCredential Int)
+    | OtherAccountingPot Int
 
 
 
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
 
-{-| -}
-serialize : Transaction -> Bytes
+{-| Serialize a [Transaction] into cbor bytes
+-}
+serialize : Transaction -> Bytes Transaction
 serialize =
     encodeTransaction >> E.encode >> Bytes.fromBytes
 
 
-{-| -}
-deserialize : Bytes -> Maybe Transaction
+{-| Deserialize a transaction's cbor bytes into a [Transaction]
+-}
+deserialize : Bytes a -> Maybe Transaction
 deserialize bytes =
     Bytes.toBytes bytes
         |> D.decode decodeTransaction
@@ -334,11 +494,11 @@ encodeTransactionBody =
             >> E.optionalField 2 E.int .fee
             >> E.optionalField 3 E.int .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 BytesMap.isEmpty (\_ -> todo "BytesMap.toCbor") .withdrawals
-            >> E.optionalField 6 (\_ -> todo "Update.toCbor") .update
-            >> E.optionalField 7 Hash.encode .auxiliaryDataHash
+            >> E.nonEmptyField 5 Bytes.Map.isEmpty (Bytes.Map.toCbor E.int) .withdrawals
+            >> E.optionalField 6 encodeUpdate .update
+            >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 MultiAsset.isEmpty (\_ -> todo "Multiasset.toCbor") .mint
+            >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.toCbor .mint
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
@@ -366,18 +526,18 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (\_ -> todo "") .nativeScripts
+            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (\scripts -> E.list Bytes.toCbor scripts) .plutusV1Script
+            >> E.optionalField 3 (E.ledgerList Bytes.toCbor) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (\redeemers -> E.list Redeemer.encode redeemers) .redeemer
-            >> E.optionalField 6 (\scripts -> E.list Bytes.toCbor scripts) .plutusV2Script
+            >> E.optionalField 5 (E.ledgerList Redeemer.encode) .redeemer
+            >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
 
 
 {-| -}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
-    E.list encodeVKeyWitness v
+    E.ledgerList encodeVKeyWitness v
 
 
 {-| -}
@@ -392,7 +552,7 @@ encodeVKeyWitness =
 {-| -}
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
 encodeBootstrapWitnesses b =
-    E.list encodeBootstrapWitness b
+    E.ledgerList encodeBootstrapWitness b
 
 
 {-| -}
@@ -406,38 +566,273 @@ encodeBootstrapWitness =
 
 {-| -}
 encodeAuxiliaryData : AuxiliaryData -> E.Encoder
-encodeAuxiliaryData _ =
-    todo "encode auxiliary data"
+encodeAuxiliaryData auxiliaryData =
+    let
+        encodeMetadata =
+            E.ledgerDict E.int encodeMetadatum
+    in
+    case auxiliaryData of
+        Shelley metadata ->
+            encodeMetadata metadata
+
+        ShelleyMa data ->
+            data
+                |> E.tuple
+                    (E.elems
+                        >> E.elem encodeMetadata .transactionMetadata
+                        >> E.elem (E.ledgerList Script.encodeNativeScript) .auxiliaryScripts
+                    )
+
+        PostAlonzo data ->
+            data
+                |> E.tagged (Tag.Unknown 259)
+                    (E.record E.int
+                        (E.fields
+                            >> E.optionalField 0 encodeMetadata .metadata
+                            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
+                            >> E.optionalField 2 (E.ledgerList Script.encodePlutusScript) .plutusV1Scripts
+                            >> E.optionalField 3 (E.ledgerList Script.encodePlutusScript) .plutusV2Scripts
+                        )
+                    )
+
+
+encodeMetadatum : Metadatum -> E.Encoder
+encodeMetadatum metadatum =
+    case metadatum of
+        Int n ->
+            E.int n
+
+        Bytes bytes ->
+            Bytes.toCbor bytes
+
+        String str ->
+            E.string str
+
+        List metadatums ->
+            E.ledgerList encodeMetadatum metadatums
+
+        Map metadatums ->
+            E.ledgerDict encodeMetadatum encodeMetadatum metadatums
 
 
 {-| -}
 encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.list encodeOutputReference inputs
+    E.ledgerList encodeOutputReference inputs
 
 
 {-| -}
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
-    E.list encodeOutput outputs
+    E.ledgerList encodeOutput outputs
 
 
 {-| -}
 encodeCertificates : List Certificate -> E.Encoder
 encodeCertificates =
-    E.list encodeCertificate
+    E.ledgerList encodeCertificate
 
 
 {-| -}
 encodeCertificate : Certificate -> E.Encoder
-encodeCertificate _ =
-    todo "encode certificate"
+encodeCertificate certificate =
+    E.ledgerList identity <|
+        case certificate of
+            StakeRegistration { delegator } ->
+                [ E.int 0
+                , encodeStakeCredential delegator
+                ]
+
+            StakeDeregistration { delegator } ->
+                [ E.int 1
+                , encodeStakeCredential delegator
+                ]
+
+            StakeDelegation { delegator, poolId } ->
+                [ E.int 2
+                , encodeStakeCredential delegator
+                , Bytes.toCbor poolId
+                ]
+
+            PoolRegistration poolParams ->
+                [ E.int 3
+                , Bytes.toCbor poolParams.operator
+                , Bytes.toCbor poolParams.vrfKeyHash
+                , E.int poolParams.pledge
+                , E.int poolParams.cost
+                , encodeRationalNumber poolParams.margin
+                , Bytes.toCbor poolParams.rewardAccount
+                , E.ledgerList Bytes.toCbor poolParams.poolOwners
+                , E.ledgerList encodeRelay poolParams.relays
+                , E.maybe encodePoolMetadata poolParams.poolMetadata
+                ]
+
+            PoolRetirement { poolId, epoch } ->
+                [ E.int 4
+                , Bytes.toCbor poolId
+                , E.int epoch
+                ]
+
+            GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
+                [ E.int 5
+                , Bytes.toCbor genesisHash
+                , Bytes.toCbor genesisDelegateHash
+                , Bytes.toCbor vrfKeyHash
+                ]
+
+            MoveInstantaneousRewardsCert moveInstantaneousReward ->
+                [ E.int 6
+                , encodeMoveInstantaneousReward moveInstantaneousReward
+                ]
+
+
+encodeStakeCredential : StakeCredential -> E.Encoder
+encodeStakeCredential stakeCredential =
+    E.ledgerList identity <|
+        case stakeCredential of
+            AddrKeyHash addrKeyHash ->
+                [ E.int 0
+                , Bytes.toCbor addrKeyHash
+                ]
+
+            ScriptHash scriptHash ->
+                [ E.int 1
+                , Bytes.toCbor scriptHash
+                ]
+
+
+encodeRelay : Relay -> E.Encoder
+encodeRelay relay =
+    E.ledgerList identity <|
+        case relay of
+            SingleHostAddr { port_, ipv4, ipv6 } ->
+                [ E.int 0
+                , E.maybe E.int port_
+                , E.maybe Bytes.toCbor ipv4
+                , E.maybe Bytes.toCbor ipv6
+                ]
+
+            SingleHostName { port_, dnsName } ->
+                [ E.int 1
+                , E.maybe E.int port_
+                , E.string dnsName
+                ]
+
+            MultiHostName { dnsName } ->
+                [ E.int 2
+                , E.string dnsName
+                ]
+
+
+encodePoolMetadata : PoolMetadata -> E.Encoder
+encodePoolMetadata =
+    E.tuple <|
+        E.elems
+            >> E.elem E.string .url
+            >> E.elem Bytes.toCbor .poolMetadataHash
+
+
+encodeMoveInstantaneousReward : MoveInstantaneousReward -> E.Encoder
+encodeMoveInstantaneousReward =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeRewardSource .source
+            >> E.elem encodeRewardTarget .target
+
+
+encodeRewardSource : RewardSource -> E.Encoder
+encodeRewardSource source =
+    E.int <|
+        case source of
+            Reserves ->
+                0
+
+            Treasury ->
+                1
+
+
+encodeRewardTarget : RewardTarget -> E.Encoder
+encodeRewardTarget target =
+    case target of
+        StakeCredentials distribution ->
+            E.ledgerDict encodeStakeCredential E.int distribution
+
+        OtherAccountingPot n ->
+            E.int n
 
 
 {-| -}
-encodeRequiredSigners : List (Hash Blake2b_224) -> E.Encoder
+encodeRequiredSigners : List (Bytes CredentialHash) -> E.Encoder
 encodeRequiredSigners =
-    E.list Hash.encode
+    E.ledgerList Bytes.toCbor
+
+
+{-| -}
+encodeUpdate : Update -> E.Encoder
+encodeUpdate =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeProposedProtocolParameterUpdates .proposedProtocolParameterUpdates
+            >> E.elem E.int .epoch
+
+
+{-| -}
+encodeProposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate -> E.Encoder
+encodeProposedProtocolParameterUpdates =
+    Bytes.Map.toCbor encodeProtocolParamUpdate
+
+
+encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
+encodeProtocolParamUpdate =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 E.int .minFeeA
+            >> E.optionalField 1 E.int .minFeeB
+            >> E.optionalField 2 E.int .maxBlockBodySize
+            >> E.optionalField 3 E.int .maxTransactionSize
+            >> E.optionalField 4 E.int .maxBlockHeaderSize
+            >> E.optionalField 5 E.int .keyDeposit
+            >> E.optionalField 6 E.int .poolDeposit
+            >> E.optionalField 7 E.int .maximumEpoch
+            >> E.optionalField 8 E.int .desiredNumberOfStakePools
+            >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
+            >> E.optionalField 10 encodeRationalNumber .expansionRate
+            >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
+            >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
+            >> E.optionalField 16 E.int .minPoolCost
+            >> E.optionalField 17 E.int .adaPerUtxoByte
+            >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
+            >> E.optionalField 19 encodeExUnitPrices .executionCosts
+            >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
+            >> E.optionalField 21 Redeemer.encodeExUnits .maxBlockExUnits
+            >> E.optionalField 22 E.int .maxValueSize
+            >> E.optionalField 23 E.int .collateralPercentage
+            >> E.optionalField 24 E.int .maxCollateralInputs
+
+
+encodeExUnitPrices : ExUnitPrices -> E.Encoder
+encodeExUnitPrices =
+    E.tuple <|
+        E.elems
+            >> E.elem encodeRationalNumber .memPrice
+            >> E.elem encodeRationalNumber .stepPrice
+
+
+encodeCostModels : CostModels -> E.Encoder
+encodeCostModels =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 (E.ledgerList E.int) .plutusV1
+            >> E.optionalField 1 (E.ledgerList E.int) .plutusV2
+
+
+encodeRationalNumber : RationalNumber -> E.Encoder
+encodeRationalNumber =
+    E.tagged (Tag.Unknown 30) <|
+        E.tuple <|
+            E.elems
+                >> E.elem E.int .numerator
+                >> E.elem E.int .denominator
 
 
 {-| -}

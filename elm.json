@@ -6,11 +6,10 @@
     "version": "1.0.0",
     "exposed-modules": [
         "Bytes.Comparable",
-        "BytesMap",
+        "Bytes.Map",
         "ElmCardano.Address",
         "ElmCardano.Cip30",
         "ElmCardano.Data",
-        "ElmCardano.Hash",
         "ElmCardano.Interval",
         "ElmCardano.MultiAsset",
         "ElmCardano.Redeemer",

@@ -19,6 +19,7 @@ import NoConfusingPrefixOperator
 import NoDebug.Log
 import NoDebug.TodoOrToString
 import NoExposingEverything
+import NoFunctionOutsideOfModules
 import NoImportingEverything
 import NoMissingTypeAnnotation
 import NoMissingTypeAnnotationInLetIn
@@ -67,4 +68,16 @@ config =
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
+
+    -- No direct CBOR encoding of sequences outside Cbor.Encode.Extra.
+    -- To make sure things are encoded as definite sequences <= 23 elements
+    -- and indefinite sequences with >= 24 elements.
+    , NoFunctionOutsideOfModules.rule
+        [ ( [ "Cbor.Encode.list"
+            , "Cbor.Encode.associativeList"
+            , "Cbor.Encode.dict"
+            ]
+          , [ "Cbor.Encode.Extra" ]
+          )
+        ]
     ]

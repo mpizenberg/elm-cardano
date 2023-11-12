@@ -40,6 +40,6 @@ encode { lovelace, assets } =
         E.sequence
             [ E.beginList
             , E.int lovelace
-            , MultiAsset.encode assets
+            , MultiAsset.toCbor assets
             , E.break
             ]
