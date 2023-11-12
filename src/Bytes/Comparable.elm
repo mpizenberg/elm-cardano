@@ -18,8 +18,8 @@ import Bytes
 import Bytes.Decode as D
 import Bytes.Encode as E
 import Cbor.Encode as Cbor
-import Hex.Convert as Hex
 import Hex as HexString
+import Hex.Convert as Hex
 
 
 {-| A custom `Bytes` type that is comparable with `==`.
