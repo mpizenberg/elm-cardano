@@ -1,11 +1,8 @@
-module Bytes.Crc8 exposing
-    ( digest
-    , Crc8
-    )
+module Bytes.Crc8 exposing (Crc8, digest)
 
 {-| CRC-8 digests
 
-@docs CRC8, digest
+@docs Crc8, digest
 
 -}
 

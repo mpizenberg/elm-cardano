@@ -1,5 +1,5 @@
 module ElmCardano.Cip67 exposing
-    ( Cip67
+    ( Cip67, AssetName
     , fromBytes, labelFromHex, fromCbor
     , toBytes, labelToHex, toCbor
     )
@@ -11,7 +11,7 @@ a standard format for assets so that their purpose can be deduced solely by
 their token names. So far, the primary application of this standard is to
 easily distinguish between CIP-0068 assets and their reference counterparts.
 
-@docs Cip67
+@docs Cip67, AssetName
 
 @docs fromBytes, labelFromHex, fromCbor
 
@@ -23,7 +23,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Crc8 as Crc8
 import Cbor.Decode as D
 import Cbor.Encode as E
-import ElmCardano.MultiAsset exposing (AssetName)
+import ElmCardano.MultiAsset as MultiAsset
 
 
 {-| Datatype for modeling CIP-0067.
@@ -64,14 +64,14 @@ Finally, a complete CIP-0067 example:
 -}
 type alias Cip67 =
     { label : Int
-    , assetName : Bytes Cip67AssetName
+    , assetName : Bytes AssetName
     }
 
 
-{-| Phantom type for CIP-0067 asset names.
+{-| Phantom type for CIP-0067 asset names with the label prefix removed.
 -}
-type Cip67AssetName
-    = Cip67AssetName Never
+type AssetName
+    = AssetName Never
 
 
 {-| Validate and separate the label of a CIP-0067 asset name.
@@ -80,17 +80,19 @@ Given a valid CIP-0067 token name [Bytes], this function separates the label as
 an [Int], and returns the asset name without the label bytes.
 
 -}
-fromBytes : Bytes AssetName -> Maybe Cip67
+fromBytes : Bytes MultiAsset.AssetName -> Maybe Cip67
 fromBytes tnBytes =
     let
         tnString =
             Bytes.toString tnBytes
-
-        assetName =
-            Bytes.fromStringUnchecked <| String.dropLeft 8 tnString
     in
     labelFromHex (String.left 8 tnString)
-        |> Maybe.map (\label -> Cip67 label assetName)
+        |> Maybe.map
+            (\label ->
+                { label = label
+                , assetName = Bytes.fromStringUnchecked <| String.dropLeft 8 tnString
+                }
+            )
 
 
 {-| Extract the label if it is valid. Return Nothing otherwise.
@@ -134,7 +136,7 @@ fromCbor =
 
 {-| Converts a [Cip67] to [Bytes].
 -}
-toBytes : Cip67 -> Bytes AssetName
+toBytes : Cip67 -> Bytes MultiAsset.AssetName
 toBytes { label, assetName } =
     (labelToHex label ++ Bytes.toString assetName)
         |> Bytes.fromStringUnchecked
