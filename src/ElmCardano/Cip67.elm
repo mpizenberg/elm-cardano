@@ -1,7 +1,7 @@
 module ElmCardano.Cip67 exposing
     ( Cip67
-    , fromBytes
-    , toBytes
+    , fromBytes, fromCbor
+    , toBytes, toCbor
     )
 
 {-| CIP-0067 support.
@@ -13,15 +13,17 @@ easily distinguish between CIP-0068 assets and their reference counterparts.
 
 @docs Cip67
 
-@docs fromBytes
+@docs fromBytes, fromCbor
 
-@docs toBytes
+@docs toBytes, toCbor
 
 -}
 
 import Array exposing (Array)
 import Bitwise
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Decode as D
+import Cbor.Encode as E
 
 
 {-| Datatype for modeling CIP-0067.
@@ -111,6 +113,14 @@ fromBytes tnBytes =
         Nothing
 
 
+{-| CBOR decoder for [Cip67].
+-}
+fromCbor : D.Decoder Cip67
+fromCbor =
+    -- TODO
+    D.fail
+
+
 {-| Converts a [Cip67] to [Bytes].
 -}
 toBytes : Cip67 -> Bytes
@@ -134,6 +144,13 @@ toBytes cip67 =
         ++ "0"
         ++ tnStr
         |> Bytes.fromStringUnchecked
+
+
+{-| CBOR encoder.
+-}
+toCbor : Cip67 -> E.Encoder
+toCbor =
+    toBytes >> Bytes.toCbor
 
 
 {-| Function for finding the CRC-8 digest of a given [`Bytes`].
