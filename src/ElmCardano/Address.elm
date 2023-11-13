@@ -1,19 +1,19 @@
 module ElmCardano.Address exposing
-    ( Address(..), NetworkId(..), ByronAddress
+    ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script
-    , toCbor, encodeNetworkId
+    , toCbor, stakeAddressToCbor, encodeNetworkId
     )
 
 {-| Handling Cardano addresses.
 
-@docs Address, NetworkId, ByronAddress
+@docs Address, StakeAddress, NetworkId, ByronAddress
 
 @docs Credential, StakeCredential, CredentialHash
 
 @docs enterprise, script
 
-@docs toCbor, encodeNetworkId
+@docs toCbor, stakeAddressToCbor, encodeNetworkId
 
 -}
 
@@ -26,7 +26,14 @@ import Cbor.Encode as E
 type Address
     = Byron (Bytes ByronAddress)
     | Shelley { networkId : NetworkId, paymentCredential : Credential, stakeCredential : Maybe StakeCredential }
-    | Stake { networkId : NetworkId, stakeCredential : Credential }
+
+
+{-| An address type only use for things related to staking, such as delegation and reward withdrawals.
+-}
+type alias StakeAddress =
+    { networkId : NetworkId
+    , stakeCredential : Credential
+    }
 
 
 {-| The network ID of a transaction.
@@ -161,15 +168,19 @@ toCbor address =
                 ( ScriptCredential paymentScriptHash, Nothing ) ->
                     encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
 
-        Stake { networkId, stakeCredential } ->
-            case stakeCredential of
-                -- (14) 1110.... StakeKeyHash
-                VerificationKeyCredential stakeKeyHash ->
-                    encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
 
-                -- (15) 1111.... ScriptHash
-                ScriptCredential stakeScriptHash ->
-                    encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
+{-| CBOR encoder for a stake address.
+-}
+stakeAddressToCbor : StakeAddress -> E.Encoder
+stakeAddressToCbor { networkId, stakeCredential } =
+    case stakeCredential of
+        -- (14) 1110.... StakeKeyHash
+        VerificationKeyCredential stakeKeyHash ->
+            encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
+
+        -- (15) 1111.... ScriptHash
+        ScriptCredential stakeScriptHash ->
+            encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
 
 
 encodeAddress : NetworkId -> String -> String -> E.Encoder
