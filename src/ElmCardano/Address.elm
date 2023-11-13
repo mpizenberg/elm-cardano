@@ -2,7 +2,7 @@ module ElmCardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script
-    , toCbor, stakeAddressToCbor, encodeNetworkId
+    , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     )
 
 {-| Handling Cardano addresses.
@@ -13,12 +13,13 @@ module ElmCardano.Address exposing
 
 @docs enterprise, script
 
-@docs toCbor, stakeAddressToCbor, encodeNetworkId
+@docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 
 
 {-| Full address, including the network ID.
@@ -51,12 +52,14 @@ type ByronAddress
 
 {-| A general structure for representing an on-chain credential.
 
+[Credential] can represent both payment credentials or stake credentials.
+
 Credentials are always one of two kinds: a direct public/private key pair, or a script (native or Plutus).
 
 -}
 type Credential
-    = VerificationKeyCredential (Bytes CredentialHash)
-    | ScriptCredential (Bytes CredentialHash)
+    = VKeyHash (Bytes CredentialHash)
+    | ScriptHash (Bytes CredentialHash)
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
@@ -83,7 +86,7 @@ enterprise : NetworkId -> Bytes CredentialHash -> Address
 enterprise networkId credentials =
     Shelley
         { networkId = networkId
-        , paymentCredential = VerificationKeyCredential credentials
+        , paymentCredential = VKeyHash credentials
         , stakeCredential = Nothing
         }
 
@@ -94,7 +97,7 @@ script : NetworkId -> Bytes CredentialHash -> Address
 script networkId credentials =
     Shelley
         { networkId = networkId
-        , paymentCredential = ScriptCredential credentials
+        , paymentCredential = ScriptHash credentials
         , stakeCredential = Nothing
         }
 
@@ -137,35 +140,35 @@ toCbor address =
         Shelley { networkId, paymentCredential, stakeCredential } ->
             case ( paymentCredential, stakeCredential ) of
                 -- (0) 0000.... PaymentKeyHash StakeKeyHash
-                ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
+                ( VKeyHash paymentKeyHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
                     encodeAddress networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
 
                 -- (1) 0001.... ScriptHash StakeKeyHash
-                ( ScriptCredential paymentScriptHash, Just (InlineCredential (VerificationKeyCredential stakeKeyHash)) ) ->
+                ( ScriptHash paymentScriptHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
                     encodeAddress networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
 
                 -- (2) 0010.... PaymentKeyHash ScriptHash
-                ( VerificationKeyCredential paymentKeyHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
+                ( VKeyHash paymentKeyHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
                     encodeAddress networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
 
                 -- (3) 0011.... ScriptHash ScriptHash
-                ( ScriptCredential paymentScriptHash, Just (InlineCredential (ScriptCredential stakeScriptHash)) ) ->
+                ( ScriptHash paymentScriptHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
                     encodeAddress networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
 
                 -- (4) 0100.... PaymentKeyHash Pointer
-                ( VerificationKeyCredential paymentKeyHash, Just (PointerCredential _) ) ->
+                ( VKeyHash paymentKeyHash, Just (PointerCredential _) ) ->
                     encodeAddress networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
 
                 -- (5) 0101.... ScriptHash Pointer
-                ( ScriptCredential paymentScriptHash, Just (PointerCredential _) ) ->
+                ( ScriptHash paymentScriptHash, Just (PointerCredential _) ) ->
                     encodeAddress networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
 
                 -- (6) 0110.... PaymentKeyHash ø
-                ( VerificationKeyCredential paymentKeyHash, Nothing ) ->
+                ( VKeyHash paymentKeyHash, Nothing ) ->
                     encodeAddress networkId "6" (Bytes.toString paymentKeyHash)
 
                 -- (7) 0111.... ScriptHash ø
-                ( ScriptCredential paymentScriptHash, Nothing ) ->
+                ( ScriptHash paymentScriptHash, Nothing ) ->
                     encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
 
 
@@ -175,11 +178,11 @@ stakeAddressToCbor : StakeAddress -> E.Encoder
 stakeAddressToCbor { networkId, stakeCredential } =
     case stakeCredential of
         -- (14) 1110.... StakeKeyHash
-        VerificationKeyCredential stakeKeyHash ->
+        VKeyHash stakeKeyHash ->
             encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
 
         -- (15) 1111.... ScriptHash
-        ScriptCredential stakeScriptHash ->
+        ScriptHash stakeScriptHash ->
             encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
 
 
@@ -197,6 +200,23 @@ encodeAddress networkId headerType payload =
     (headerType ++ network ++ payload)
         |> Bytes.fromStringUnchecked
         |> Bytes.toCbor
+
+
+{-| CBOR encoder for a [Credential], be it for payment or for stake.
+-}
+credentialToCbor : Credential -> E.Encoder
+credentialToCbor stakeCredential =
+    EE.ledgerList identity <|
+        case stakeCredential of
+            VKeyHash addrKeyHash ->
+                [ E.int 0
+                , Bytes.toCbor addrKeyHash
+                ]
+
+            ScriptHash scriptHash ->
+                [ E.int 1
+                , Bytes.toCbor scriptHash
+                ]
 
 
 {-| CBOR encoder for [NetworkId].

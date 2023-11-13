@@ -5,7 +5,7 @@ module ElmCardano.Transaction exposing
     , AuxiliaryData(..), Metadata, Metadatum(..), MetadatumBytes
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
-    , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential(..), RewardSource(..), RewardTarget(..), MoveInstantaneousReward
+    , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
@@ -27,7 +27,7 @@ module ElmCardano.Transaction exposing
 
 @docs ScriptContext, ScriptPurpose
 
-@docs Certificate, PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, StakeCredential, RewardSource, RewardTarget, MoveInstantaneousReward
+@docs Certificate, PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource, RewardTarget, MoveInstantaneousReward
 
 @docs Relay, IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
 
@@ -48,7 +48,7 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Dict exposing (Dict)
-import ElmCardano.Address as Address exposing (CredentialHash, NetworkId, StakeAddress)
+import ElmCardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
@@ -300,7 +300,7 @@ type alias ScriptContext =
 type ScriptPurpose
     = SPMint { policyId : Bytes PolicyId }
     | SPSpend OutputReference
-    | SPWithdrawFrom StakeCredential
+    | SPWithdrawFrom Credential
     | SPPublish Certificate
 
 
@@ -313,9 +313,9 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = StakeRegistration { delegator : StakeCredential }
-    | StakeDeregistration { delegator : StakeCredential }
-    | StakeDelegation { delegator : StakeCredential, poolId : Bytes PoolId }
+    = StakeRegistration { delegator : Credential }
+    | StakeDeregistration { delegator : Credential }
+    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId }
     | PoolRegistration PoolParams
     | PoolRetirement { poolId : Bytes PoolId, epoch : Int }
     | GenesisKeyDelegation
@@ -352,13 +352,6 @@ This is a 32-bytes Blake2b-256 hash.
 -}
 type VrfKeyHash
     = VrfKeyHash Never
-
-
-{-| A credential used in certificates.
--}
-type StakeCredential
-    = AddrKeyHash (Bytes CredentialHash)
-    | ScriptHash (Bytes CredentialHash)
 
 
 {-| Parameters for stake pool registration.
@@ -433,7 +426,7 @@ otherwise the funds are given to the other accounting pot.
 
 -}
 type RewardTarget
-    = StakeCredentials (Dict StakeCredential Int)
+    = StakeCredentials (Dict Credential Int)
     | OtherAccountingPot Int
 
 
@@ -611,17 +604,17 @@ encodeCertificate certificate =
         case certificate of
             StakeRegistration { delegator } ->
                 [ E.int 0
-                , encodeStakeCredential delegator
+                , Address.credentialToCbor delegator
                 ]
 
             StakeDeregistration { delegator } ->
                 [ E.int 1
-                , encodeStakeCredential delegator
+                , Address.credentialToCbor delegator
                 ]
 
             StakeDelegation { delegator, poolId } ->
                 [ E.int 2
-                , encodeStakeCredential delegator
+                , Address.credentialToCbor delegator
                 , Bytes.toCbor poolId
                 ]
 
@@ -654,21 +647,6 @@ encodeCertificate certificate =
             MoveInstantaneousRewardsCert moveInstantaneousReward ->
                 [ E.int 6
                 , encodeMoveInstantaneousReward moveInstantaneousReward
-                ]
-
-
-encodeStakeCredential : StakeCredential -> E.Encoder
-encodeStakeCredential stakeCredential =
-    E.ledgerList identity <|
-        case stakeCredential of
-            AddrKeyHash addrKeyHash ->
-                [ E.int 0
-                , Bytes.toCbor addrKeyHash
-                ]
-
-            ScriptHash scriptHash ->
-                [ E.int 1
-                , Bytes.toCbor scriptHash
                 ]
 
 
@@ -726,7 +704,7 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerDict encodeStakeCredential E.int distribution
+            E.ledgerDict Address.credentialToCbor E.int distribution
 
         OtherAccountingPot n ->
             E.int n
