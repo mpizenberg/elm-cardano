@@ -1,7 +1,9 @@
 module Crc8Tests exposing (suite)
 
+import Bytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Crc8 as Crc8
+import Bytes.Encode as BE
 import Expect
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
@@ -31,7 +33,5 @@ equalDigest n digest =
 
 u16Bytes : Int -> Bytes a
 u16Bytes n =
-    Bytes.fromDecimal n
-        |> Bytes.toString
-        |> String.padLeft 4 '0'
-        |> Bytes.fromStringUnchecked
+    BE.encode (BE.unsignedInt16 Bytes.BE n)
+        |> Bytes.fromBytes

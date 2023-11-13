@@ -9,9 +9,10 @@ module Bytes.Crc8 exposing (Crc8, digest)
 import Array exposing (Array)
 import Bitwise
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Encode as BE
 
 
-{-| Phantom type for CRC8 checksum.
+{-| Phantom type for a 1-byte CRC8 checksum.
 -}
 type Crc8
     = Crc8 Never
@@ -42,7 +43,9 @@ digest bs =
     in
     Bytes.toWord8s bs
         |> List.foldl go 0
-        |> Bytes.fromDecimal
+        |> BE.unsignedInt8
+        |> BE.encode
+        |> Bytes.fromBytes
 
 
 crc8Table : Array Int

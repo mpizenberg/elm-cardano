@@ -2,7 +2,7 @@ module Bytes.Comparable exposing
     ( Bytes
     , Any, toAny
     , chunksOf, width, isEmpty
-    , bytes, fromBytes, fromString, fromStringUnchecked, fromDecimal
+    , bytes, fromBytes, fromString, fromStringUnchecked
     , toBytes, toString, toCbor, toDecimal, toWord8s
     )
 
@@ -11,7 +11,7 @@ module Bytes.Comparable exposing
 @docs Bytes
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
-@docs bytes, fromBytes, fromString, fromStringUnchecked, fromDecimal
+@docs bytes, fromBytes, fromString, fromStringUnchecked
 @docs toBytes, toString, toCbor, toDecimal, toWord8s
 
 -}
@@ -87,22 +87,7 @@ fromStringUnchecked =
 -}
 fromBytes : Bytes.Bytes -> Bytes a
 fromBytes bs =
-    Bytes (Hex.toString bs)
-
-
-{-| Convert a decimal integer to [Bytes].
--}
-fromDecimal : Int -> Bytes a
-fromDecimal d =
-    let
-        str =
-            HexString.toString d
-    in
-    if modBy 2 (String.length str) == 0 then
-        Bytes str
-
-    else
-        Bytes <| "0" ++ str
+    Bytes (String.toLower <| Hex.toString bs)
 
 
 {-| Convert [Bytes] into a hex-encoded String.

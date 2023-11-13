@@ -6,4 +6,4 @@ import Expect
 
 expectBytes : String -> Bytes a -> Expect.Expectation
 expectBytes expected got =
-    got |> Bytes.toString |> Expect.equal expected
+    got |> Bytes.toString |> Expect.equal (String.toLower expected)

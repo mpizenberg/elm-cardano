@@ -19,8 +19,10 @@ easily distinguish between CIP-0068 assets and their reference counterparts.
 
 -}
 
+import Bytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Crc8 as Crc8
+import Bytes.Encode as BE
 import Cbor.Decode as D
 import Cbor.Encode as E
 import ElmCardano.MultiAsset as MultiAsset
@@ -148,10 +150,8 @@ labelToHex : Int -> String
 labelToHex label =
     let
         labelBytes =
-            Bytes.fromDecimal label
-                |> Bytes.toString
-                |> String.padLeft 4 '0'
-                |> Bytes.fromStringUnchecked
+            BE.encode (BE.unsignedInt16 Bytes.BE label)
+                |> Bytes.fromBytes
 
         checksumStr =
             Bytes.toString <| Crc8.digest labelBytes
