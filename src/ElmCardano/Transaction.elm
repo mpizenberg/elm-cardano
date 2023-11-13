@@ -222,7 +222,7 @@ type Metadatum
     | Bytes (Bytes MetadatumBytes)
     | String String
     | List (List Metadatum)
-    | Map (Dict Metadatum Metadatum)
+    | Map (List ( Metadatum, Metadatum ))
 
 
 {-| Phantom type for the Bytes variant of Metadatum.
@@ -426,7 +426,7 @@ otherwise the funds are given to the other accounting pot.
 
 -}
 type RewardTarget
-    = StakeCredentials (Dict Credential Int)
+    = StakeCredentials (List ( Credential, Int ))
     | OtherAccountingPot Int
 
 
@@ -576,7 +576,7 @@ encodeMetadatum metadatum =
             E.ledgerList encodeMetadatum metadatums
 
         Map metadatums ->
-            E.ledgerDict encodeMetadatum encodeMetadatum metadatums
+            E.ledgerAssociativeList encodeMetadatum encodeMetadatum metadatums
 
 
 {-| -}
@@ -704,7 +704,7 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerDict Address.credentialToCbor E.int distribution
+            E.ledgerAssociativeList Address.credentialToCbor E.int distribution
 
         OtherAccountingPot n ->
             E.int n
