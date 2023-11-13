@@ -19,7 +19,6 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes.Comparable exposing (Bytes)
-import Bytes.Map
 import ElmCardano.Address exposing (Address, CredentialHash)
 import ElmCardano.Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset
@@ -49,7 +48,7 @@ new =
             , fee = Nothing
             , ttl = Nothing
             , certificates = []
-            , withdrawals = Bytes.Map.empty
+            , withdrawals = []
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
@@ -131,7 +130,7 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Bytes Address -> Int -> Data -> Tx -> Tx
+payToContract : Address -> Int -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
@@ -144,7 +143,7 @@ payToContract address amount datum tx =
             )
 
 
-payToAddress : Bytes Address -> Int -> Tx -> Tx
+payToAddress : Address -> Int -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
@@ -210,7 +209,7 @@ addRequiredSigner signer body =
     }
 
 
-collateralReturn : Bytes Address -> Int -> Tx -> Tx
+collateralReturn : Address -> Int -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody

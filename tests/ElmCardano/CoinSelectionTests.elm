@@ -1,7 +1,7 @@
 module ElmCardano.CoinSelectionTests exposing (..)
 
-import Bytes.Comparable as Bytes exposing (Bytes)
-import ElmCardano.Address exposing (Address)
+import Bytes.Comparable as Bytes
+import ElmCardano.Address as Address exposing (Address, NetworkId(..))
 import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
 import ElmCardano.Utxo exposing (fromLovelace, totalLovelace)
 import ElmCardano.Value exposing (onlyLovelace)
@@ -114,9 +114,10 @@ singleUtxoSingleOutputEqualValueTest _ =
 -- Fixtures
 
 
-address : String -> Bytes Address
+address : String -> Address
 address suffix =
-    Bytes.fromStringUnchecked <| "addr" ++ suffix
+    Bytes.fromStringUnchecked ("addr" ++ suffix)
+        |> Address.enterprise Testnet
 
 
 
