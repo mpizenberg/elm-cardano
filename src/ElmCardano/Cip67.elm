@@ -22,6 +22,7 @@ easily distinguish between CIP-0068 assets and their reference counterparts.
 import Bytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Crc8 as Crc8
+import Bytes.Decode as BD
 import Bytes.Encode as BE
 import Cbor.Decode as D
 import Cbor.Encode as E
@@ -119,7 +120,7 @@ labelFromHex fullLabelStr =
                 Bytes.fromStringUnchecked <| String.right 2 labelWithChecksum
         in
         if Crc8.digest labelBytes == checksumBytes then
-            Just <| Bytes.toDecimal labelBytes
+            BD.decode (BD.unsignedInt16 Bytes.BE) (Bytes.toBytes labelBytes)
 
         else
             Nothing

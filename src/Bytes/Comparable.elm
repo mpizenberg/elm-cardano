@@ -3,7 +3,7 @@ module Bytes.Comparable exposing
     , Any, toAny
     , chunksOf, width, isEmpty
     , bytes, fromBytes, fromString, fromStringUnchecked
-    , toBytes, toString, toCbor, toDecimal, toWord8s
+    , toBytes, toString, toCbor, toU8
     )
 
 {-| Comparable Bytes
@@ -12,7 +12,7 @@ module Bytes.Comparable exposing
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
 @docs bytes, fromBytes, fromString, fromStringUnchecked
-@docs toBytes, toString, toCbor, toDecimal, toWord8s
+@docs toBytes, toString, toCbor, toU8
 
 -}
 
@@ -20,7 +20,6 @@ import Bytes
 import Bytes.Decode as D
 import Bytes.Encode as E
 import Cbor.Encode as Cbor
-import Hex as HexString
 import Hex.Convert as Hex
 
 
@@ -104,18 +103,6 @@ toBytes (Bytes str) =
     str |> Hex.toBytes |> Maybe.withDefault absurd
 
 
-{-| Convert a [Bytes] into its decimal equivalent.
--}
-toDecimal : Bytes a -> Int
-toDecimal (Bytes str) =
-    case HexString.fromString (String.toLower str) of
-        Ok d ->
-            d
-
-        Err _ ->
-            0
-
-
 {-| Cbor encoder.
 -}
 toCbor : Bytes a -> Cbor.Encoder
@@ -155,8 +142,23 @@ chunksOf n =
         >> List.map fromBytes
 
 
-{-| Convert a given [Bytes] into a list of decimal byte values.
+{-| Convert a given [Bytes] into a list of U8 integers.
 -}
-toWord8s : Bytes a -> List Int
-toWord8s =
-    chunksOf 1 >> List.map toDecimal
+toU8 : Bytes a -> List Int
+toU8 bs =
+    bytesToU8 (width bs) (toBytes bs)
+
+
+bytesToU8 : Int -> Bytes.Bytes -> List Int
+bytesToU8 size bs =
+    D.decode (D.loop ( size, [] ) splitStep) bs
+        |> Maybe.withDefault []
+
+
+splitStep : ( Int, List Int ) -> D.Decoder (D.Step ( Int, List Int ) (List Int))
+splitStep ( size, u8s ) =
+    if size <= 0 then
+        D.succeed (D.Done <| List.reverse u8s)
+
+    else
+        D.map (\u8 -> D.Loop ( size - 1, u8 :: u8s )) D.unsignedInt8

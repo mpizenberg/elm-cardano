@@ -41,8 +41,10 @@ digest bs =
                 Nothing ->
                     previousDigest
     in
-    Bytes.toWord8s bs
+    Bytes.toU8 bs
+        -- compute digest
         |> List.foldl go 0
+        -- encode the u8 digest to Bytes
         |> BE.unsignedInt8
         |> BE.encode
         |> Bytes.fromBytes
