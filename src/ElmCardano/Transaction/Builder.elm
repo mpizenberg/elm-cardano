@@ -19,7 +19,6 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes.Comparable exposing (Bytes)
-import Bytes.Map
 import ElmCardano.Address exposing (Address, CredentialHash)
 import ElmCardano.Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset
@@ -49,7 +48,7 @@ new =
             , fee = Nothing
             , ttl = Nothing
             , certificates = []
-            , withdrawals = Bytes.Map.empty
+            , withdrawals = []
             , update = Nothing
             , auxiliaryDataHash = Nothing
             , validityIntervalStart = Nothing
