@@ -3,7 +3,7 @@ module Bytes.Comparable exposing
     , Any, toAny
     , chunksOf, width, isEmpty
     , bytes, fromBytes, fromString, fromStringUnchecked
-    , toBytes, toString, toCbor
+    , toBytes, toString, toCbor, toU8
     )
 
 {-| Comparable Bytes
@@ -12,7 +12,7 @@ module Bytes.Comparable exposing
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
 @docs bytes, fromBytes, fromString, fromStringUnchecked
-@docs toBytes, toString, toCbor
+@docs toBytes, toString, toCbor, toU8
 
 -}
 
@@ -86,7 +86,7 @@ fromStringUnchecked =
 -}
 fromBytes : Bytes.Bytes -> Bytes a
 fromBytes bs =
-    Bytes (Hex.toString bs)
+    Bytes (String.toLower <| Hex.toString bs)
 
 
 {-| Convert [Bytes] into a hex-encoded String.
@@ -140,3 +140,25 @@ chunksOf n =
                     |> Maybe.withDefault []
            )
         >> List.map fromBytes
+
+
+{-| Convert a given [Bytes] into a list of U8 integers.
+-}
+toU8 : Bytes a -> List Int
+toU8 bs =
+    bytesToU8 (width bs) (toBytes bs)
+
+
+bytesToU8 : Int -> Bytes.Bytes -> List Int
+bytesToU8 size bs =
+    D.decode (D.loop ( size, [] ) splitStep) bs
+        |> Maybe.withDefault []
+
+
+splitStep : ( Int, List Int ) -> D.Decoder (D.Step ( Int, List Int ) (List Int))
+splitStep ( size, u8s ) =
+    if size <= 0 then
+        D.succeed (D.Done <| List.reverse u8s)
+
+    else
+        D.map (\u8 -> D.Loop ( size - 1, u8 :: u8s )) D.unsignedInt8
