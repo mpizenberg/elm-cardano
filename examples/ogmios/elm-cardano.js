@@ -68,6 +68,9 @@ function initElmCardanoJs(app) {
     //
     // An alternative to this regex patching would be to parse the JSON string directly in Elm
     // with something like https://github.com/zwilias/elm-json-in-elm/tree/master
+    //
+    // Another alternative for doing this directly in Elm would be using allenap/elm-json-decode-broken
+    // https://package.elm-lang.org/packages/allenap/elm-json-decode-broken/latest/Json-Decode-Broken#parseWith
     const stringOrNumber = /("(?:[^\\"]|\\.)*")|-?(?:[1-9]\d*|0)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
     const onlySignedDigits = /^-?\d+$/;
     function bigIntToStringPreProcess(jsonString) {
