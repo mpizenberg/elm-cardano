@@ -20,8 +20,9 @@ function initElmCardanoJs(app) {
         // Listen for messages
         client.addEventListener("message", (event) => {
             // console.log("Message from ogmios (", typeof event.data, "):", event.data)
-            // TODO: correctly handle big integers
-            const parsedMessage = JSON.parse(event.data)
+            // Handle potential big integers
+            const preprocessedData = bigIntToStringPreProcess(event.data)
+            const parsedMessage = JSON.parse(preprocessedData)
             app.ports.fromOgmios.send({ responseType: "ogmios-message", connectionId, message: parsedMessage })
         });
         // Listen for possible errors
@@ -42,9 +43,9 @@ function initElmCardanoJs(app) {
     async function waitForOpenSocket(socket) {
         return new Promise((resolve) => {
             if (socket.readyState !== socket.OPEN) {
-            socket.addEventListener("open", (_) => {
-                resolve();
-            })
+                socket.addEventListener("open", (_) => {
+                    resolve();
+                })
             } else {
                 resolve();
             }
@@ -53,6 +54,47 @@ function initElmCardanoJs(app) {
 
     // Send the API remote call from Elm to Ogmios
     async function handleApiRequest({ ws, request }) {
-        ws.send(JSON.stringify(request))
+        // Convert elm big integers back to JSON integers
+        const jsonRequest = JSON.stringify(request, null, "") // must be compact
+        ws.send(replaceBigIntObject(jsonRequest))
+    }
+
+    // Helper function to pre-process JSON strings.
+    // This converts unsafe integers that would have a lossy conversion to JS number,
+    // into a string that can be parsed losslessly as a string.
+    // Kudos to Simon Lydell for this magic regex.
+    // The regex matches every instance of either a string, or a number.
+    // It should support all shapes of numbers like decimals, scientific notation etc.
+    //
+    // An alternative to this regex patching would be to parse the JSON string directly in Elm
+    // with something like https://github.com/zwilias/elm-json-in-elm/tree/master
+    const stringOrNumber = /("(?:[^\\"]|\\.)*")|-?(?:[1-9]\d*|0)(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+    const onlySignedDigits = /^-?\d+$/;
+    function bigIntToStringPreProcess(jsonString) {
+        return jsonString.replace(stringOrNumber, (match, stringLiteral) => {
+            if (stringLiteral != undefined) {
+                // match is a string
+                return stringLiteral;
+            } else if (onlySignedDigits.test(match)) {
+                // match is an integer
+                if (Number.isSafeInteger(Number(match))) {
+                    // if integer is safe, we leave it as-is
+                    return match;
+                } else {
+                    // otherwise convert it to a string of digits
+                    return JSON.stringify(match);
+                }
+            } else {
+                // match is a float or scientific notation, we leave it as-is
+                return match;
+            }
+        });
+    }
+
+    // Helper function to replace all instances of bigint object comming from Elm in the JSON.
+    // {"bigint":"420000000"} -> 420000000
+    const bigIntObject = /{"bigint":"(-?\d+)"}/g
+    function replaceBigIntObject(compactJsonString) {
+        return compactJsonString.replace(bigIntObject, (_match, bigint) => bigint);
     }
 }
