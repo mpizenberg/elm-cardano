@@ -1,8 +1,9 @@
 module ElmCardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), CredentialHash
-    , enterprise, script
+    , enterprise, script, base, pointer
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
+    , decode
     )
 
 {-| Handling Cardano addresses.
@@ -11,13 +12,19 @@ module ElmCardano.Address exposing
 
 @docs Credential, StakeCredential, CredentialHash
 
-@docs enterprise, script
+@docs enterprise, script, base, pointer
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
+@docs decode
+
 -}
 
+import Bitwise
+import Bytes as B
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Decode as BD
+import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 
@@ -27,6 +34,7 @@ import Cbor.Encode.Extra as EE
 type Address
     = Byron (Bytes ByronAddress)
     | Shelley { networkId : NetworkId, paymentCredential : Credential, stakeCredential : Maybe StakeCredential }
+    | Reward StakeAddress
 
 
 {-| An address type only use for things related to staking, such as delegation and reward withdrawals.
@@ -102,6 +110,28 @@ script networkId credentials =
         }
 
 
+{-| Create a base address with a payement credential and a stake credential.
+-}
+base : NetworkId -> Credential -> Credential -> Address
+base networkId paymentCredential inlineStakeCredential =
+    Shelley
+        { networkId = networkId
+        , paymentCredential = paymentCredential
+        , stakeCredential = Just <| InlineCredential inlineStakeCredential
+        }
+
+
+{-| Create a pointer address.
+-}
+pointer : NetworkId -> Credential -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int } -> Address
+pointer networkId paymentCredential p =
+    Shelley
+        { networkId = networkId
+        , paymentCredential = paymentCredential
+        , stakeCredential = Just <| PointerCredential p
+        }
+
+
 {-| Encode an [Address] to CBOR.
 
 Byron addresses are left untouched as we don't plan to have full support of Byron era.
@@ -171,6 +201,9 @@ toCbor address =
                 ( ScriptHash paymentScriptHash, Nothing ) ->
                     encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
 
+        Reward stakeAddress ->
+            stakeAddressToCbor stakeAddress
+
 
 {-| CBOR encoder for a stake address.
 -}
@@ -230,3 +263,134 @@ encodeNetworkId networkId =
 
             Mainnet ->
                 1
+
+
+
+-- Decode
+
+
+{-| CBOR decoder for [Address].
+-}
+decode : D.Decoder Address
+decode =
+    D.bytes
+        |> D.andThen
+            (\bytes ->
+                case BD.decode (decodeBytes bytes) bytes of
+                    Just address ->
+                        D.succeed address
+
+                    Nothing ->
+                        D.fail
+            )
+
+
+{-| Address decoder from raw bytes. Internal use only.
+Cannot be compose with other decoders as it may not consume the correct number of bytes.
+
+This needs a copy of the bytes of the address to compensate
+the absence of backtracking in bytes decoders.
+So if we read the first byte and
+
+-}
+decodeBytes : B.Bytes -> BD.Decoder Address
+decodeBytes bytesCopy =
+    let
+        bytesWidth =
+            B.width bytesCopy
+    in
+    BD.unsignedInt8
+        |> BD.andThen
+            (\header ->
+                case Bitwise.shiftRightBy 4 header of
+                    -- (0) 0000.... PaymentKeyHash StakeKeyHash
+                    0 ->
+                        BD.map2
+                            (\payment stake -> base (networkIdFromHeader header) (VKeyHash payment) (VKeyHash stake))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (1) 0001.... ScriptHash StakeKeyHash
+                    1 ->
+                        BD.map2
+                            (\payment stake -> base (networkIdFromHeader header) (ScriptHash payment) (VKeyHash stake))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (2) 0010.... PaymentKeyHash ScriptHash
+                    2 ->
+                        BD.map2
+                            (\payment stake -> base (networkIdFromHeader header) (VKeyHash payment) (ScriptHash stake))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (3) 0011.... ScriptHash ScriptHash
+                    3 ->
+                        BD.map2
+                            (\payment stake -> base (networkIdFromHeader header) (ScriptHash payment) (ScriptHash stake))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (4) 0100.... PaymentKeyHash Pointer
+                    4 ->
+                        BD.map2
+                            (\payment pointerBytes ->
+                                pointer (networkIdFromHeader header) (VKeyHash payment) (pointerFromBytes pointerBytes)
+                            )
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.bytes (bytesWidth - 1 - 28))
+
+                    -- (5) 0101.... ScriptHash Pointer
+                    5 ->
+                        BD.map2
+                            (\payment pointerBytes ->
+                                pointer (networkIdFromHeader header) (ScriptHash payment) (pointerFromBytes pointerBytes)
+                            )
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            (BD.bytes (bytesWidth - 1 - 28))
+
+                    -- (6) 0110.... PaymentKeyHash ø
+                    6 ->
+                        BD.map (enterprise (networkIdFromHeader header))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (7) 0111.... ScriptHash ø
+                    7 ->
+                        BD.map (script (networkIdFromHeader header))
+                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+
+                    -- (8) 1000.... Byron
+                    8 ->
+                        BD.succeed (Byron <| Bytes.fromBytes bytesCopy)
+
+                    -- (14) 1110.... StakeKeyHash
+                    14 ->
+                        BD.map (\cred -> Reward <| StakeAddress (networkIdFromHeader header) cred)
+                            (BD.map (VKeyHash << Bytes.fromBytes) <| BD.bytes 28)
+
+                    -- (15) 1111.... ScriptHash
+                    15 ->
+                        BD.map (\cred -> Reward <| StakeAddress (networkIdFromHeader header) cred)
+                            (BD.map (ScriptHash << Bytes.fromBytes) <| BD.bytes 28)
+
+                    _ ->
+                        BD.fail
+            )
+
+
+networkIdFromHeader : Int -> NetworkId
+networkIdFromHeader header =
+    case Bitwise.and 0x0F header of
+        0 ->
+            Testnet
+
+        1 ->
+            Mainnet
+
+        n ->
+            Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
+
+
+pointerFromBytes : B.Bytes -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
+pointerFromBytes _ =
+    Debug.todo "pointerFromBytes"

@@ -53,7 +53,7 @@ import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
-import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
+import ElmCardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 
 
 {-| A Cardano transaction.
@@ -61,7 +61,7 @@ import ElmCardano.Utxo exposing (Output, OutputReference, encodeOutput, encodeOu
 type alias Transaction =
     { body : TransactionBody -- 0
     , witnessSet : WitnessSet -- 1
-    , isValid : Bool -- 2
+    , isValid : Bool -- 2 -- after alonzo
     , auxiliaryData : Maybe AuxiliaryData -- 3
     }
 
@@ -787,5 +787,182 @@ encodeRationalNumber =
 {-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
-    -- TODO: decode tx
+    -- D.length
+    --     |> D.andThen
+    --         (\txElemCount ->
+    --             case txElemCount of
+    --                 -- only body, witness, metadata/auxiliary before alonzo
+    --                 3 ->
+    --                     decodePreAlonzoTx
+    --                 -- body, witness, valid, auxiliary data
+    --                 4 ->
+    --                     D.fail
+    --                 _ ->
+    --                     D.fail
+    --         )
+    decodePreAlonzoTx
+
+
+decodePreAlonzoTx : D.Decoder Transaction
+decodePreAlonzoTx =
+    D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
+        D.elems
+            >> D.elem decodePreAlonzoBody
+            >> D.elem decodePreAlonzoWitness
+            >> D.elem (D.maybe decodePreAlonzoAuxiliary)
+
+
+decodePreAlonzoBody : D.Decoder TransactionBody
+decodePreAlonzoBody =
+    let
+        bodyBuilder inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash =
+            { newBody
+                | inputs = inputs
+                , outputs = outputs
+                , fee = Just fee
+                , ttl = Just ttl
+                , certificates = Maybe.withDefault [] certificates
+                , withdrawals = Maybe.withDefault [] withdrawals
+                , update = update
+                , auxiliaryDataHash = auxiliaryDataHash
+            }
+    in
+    D.record D.int bodyBuilder <|
+        D.fields
+            -- inputs
+            >> D.field 0 (D.list Utxo.decodeOutputReference)
+            -- outputs
+            >> D.field 1 (D.list Utxo.decodeShelleyOutput)
+            -- fee
+            >> D.field 2 D.int
+            -- ttl
+            >> D.field 3 D.int
+            -- certificates
+            >> D.optionalField 4 (D.list decodeCertificate)
+            -- withdrawals
+            >> D.optionalField 5 decodeWithdrawals
+            -- update
+            >> D.optionalField 6 decodeUpdate
+            -- metadata hash
+            >> D.optionalField 7 (D.map Bytes.fromBytes D.bytes)
+
+
+decodeCertificate : D.Decoder Certificate
+decodeCertificate =
+    -- Debug.todo "decodeCertificate"
     D.fail
+
+
+decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
+decodeWithdrawals =
+    -- Debug.todo "decodeWithdrawals"
+    D.fail
+
+
+decodeUpdate : D.Decoder Update
+decodeUpdate =
+    -- Debug.todo "decodeUpdate"
+    D.fail
+
+
+decodePreAlonzoWitness : D.Decoder WitnessSet
+decodePreAlonzoWitness =
+    let
+        witnessBuilder vkeywitness multisigScript bootstrapWitness =
+            { newWitnessSet
+                | vkeywitness = vkeywitness
+                , nativeScripts = multisigScript
+                , bootstrapWitness = bootstrapWitness
+            }
+    in
+    D.record D.int witnessBuilder <|
+        D.fields
+            -- vkeywitness
+            >> D.optionalField 0 (D.list decodeVKeyWitness)
+            -- multisig_script
+            >> D.optionalField 1 (D.list decodeNativeScript)
+            -- bootstrap_witness
+            >> D.optionalField 2 (D.list decodeBootstrapWitness)
+
+
+decodeVKeyWitness : D.Decoder VKeyWitness
+decodeVKeyWitness =
+    -- TODO
+    D.fail
+
+
+decodeNativeScript : D.Decoder NativeScript
+decodeNativeScript =
+    -- TODO
+    D.fail
+
+
+decodeBootstrapWitness : D.Decoder BootstrapWitness
+decodeBootstrapWitness =
+    D.tuple
+        (\pubkey sig chainCode attr ->
+            { publicKey = Bytes.fromBytes pubkey
+            , signature = Bytes.fromBytes sig
+            , chainCode = Bytes.fromBytes chainCode
+            , attributes = Bytes.fromBytes attr
+            }
+        )
+    <|
+        D.elems
+            >> D.elem D.bytes
+            >> D.elem D.bytes
+            >> D.elem D.bytes
+            >> D.elem D.bytes
+
+
+decodePreAlonzoAuxiliary : D.Decoder AuxiliaryData
+decodePreAlonzoAuxiliary =
+    D.map Shelley decodeMetadata
+
+
+decodeMetadata : D.Decoder Metadata
+decodeMetadata =
+    D.dict D.int decodeMetadatum
+
+
+decodeMetadatum : D.Decoder Metadatum
+decodeMetadatum =
+    D.fail
+
+
+
+-- Helper definitions
+
+
+newBody : TransactionBody
+newBody =
+    { inputs = []
+    , outputs = []
+    , fee = Nothing
+    , ttl = Nothing
+    , certificates = []
+    , withdrawals = []
+    , update = Nothing
+    , auxiliaryDataHash = Nothing
+    , validityIntervalStart = Nothing
+    , mint = MultiAsset.empty
+    , scriptDataHash = Nothing
+    , collateral = []
+    , requiredSigners = []
+    , networkId = Nothing
+    , collateralReturn = Nothing
+    , totalCollateral = Nothing
+    , referenceInputs = []
+    }
+
+
+newWitnessSet : WitnessSet
+newWitnessSet =
+    { vkeywitness = Nothing
+    , nativeScripts = Nothing
+    , bootstrapWitness = Nothing
+    , plutusV1Script = Nothing
+    , plutusData = Nothing
+    , redeemer = Nothing
+    , plutusV2Script = Nothing
+    }
