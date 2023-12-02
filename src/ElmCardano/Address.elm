@@ -392,5 +392,5 @@ networkIdFromHeader header =
 
 
 pointerFromBytes : B.Bytes -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
-pointerFromBytes bs =
+pointerFromBytes _ =
     Debug.todo "pointerFromBytes"

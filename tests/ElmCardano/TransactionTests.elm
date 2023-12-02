@@ -1,15 +1,14 @@
 module ElmCardano.TransactionTests exposing (suite)
 
-import Bytes.Comparable as Bytes exposing (Bytes)
-import Cbor.Decode
+import Bytes.Comparable as Bytes
 import ElmCardano.Address as Address exposing (NetworkId(..))
 import ElmCardano.Data exposing (Data(..))
 import ElmCardano.Redeemer exposing (RedeemerTag(..))
-import ElmCardano.Transaction as Transaction exposing (TransactionBody)
+import ElmCardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
 import ElmCardano.Transaction.Builder as Tx
 import ElmCardano.Utxo as Utxo
 import ElmCardano.Value as Value
-import Expect exposing (Expectation)
+import Expect
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
 
@@ -188,15 +187,18 @@ txWitnessSet79acf081 =
 -- Helpers
 
 
+newTxBody : TransactionBody
 newTxBody =
     Tx.newBody
 
 
+newTxWitnessSet : WitnessSet
 newTxWitnessSet =
     Tx.newWitnessSet
 
 
-decodeAnyAndFailTest : Bytes a -> Expectation
-decodeAnyAndFailTest bytes =
-    Cbor.Decode.decode Cbor.Decode.any (Bytes.toBytes bytes)
-        |> Expect.equal Nothing
+
+-- decodeAnyAndFailTest : Bytes a -> Expectation
+-- decodeAnyAndFailTest bytes =
+--     Cbor.Decode.decode Cbor.Decode.any (Bytes.toBytes bytes)
+--         |> Expect.equal Nothing

@@ -4,8 +4,7 @@ module ElmCardano.Utxo exposing
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
     , encodeOutputReference, encodeOutput, encodeDatumOption
-    , decodeOutputReference, decodeOutput
-    , decodeShelleyOutput
+    , decodeOutputReference, decodeOutput, decodeShelleyOutput
     )
 
 {-| Handling outputs.
@@ -35,7 +34,7 @@ module ElmCardano.Utxo exposing
 
 @docs encodeOutputReference, encodeOutput, encodeDatumOption
 
-@docs decodeOutputReference, decodeOutput, decodeLegacyOutput
+@docs decodeOutputReference, decodeOutput, decodeShelleyOutput
 
 -}
 
