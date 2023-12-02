@@ -4,6 +4,8 @@ module ElmCardano.Utxo exposing
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
     , encodeOutputReference, encodeOutput, encodeDatumOption
+    , decodeOutputReference, decodeOutput
+    , decodeShelleyOutput
     )
 
 {-| Handling outputs.
@@ -33,14 +35,18 @@ module ElmCardano.Utxo exposing
 
 @docs encodeOutputReference, encodeOutput, encodeDatumOption
 
+@docs decodeOutputReference, decodeOutput, decodeLegacyOutput
+
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import ElmCardano.Address as Address exposing (Address)
 import ElmCardano.Data as Data exposing (Data)
+import ElmCardano.MultiAsset as MultiAsset
 import ElmCardano.Script as Script exposing (Script)
 import ElmCardano.Value as Value exposing (Value)
 
@@ -68,6 +74,16 @@ encodeOutputReference =
         E.elems
             >> E.elem Bytes.toCbor .transactionId
             >> E.elem E.int .outputIndex
+
+
+{-| Decode an [OutputReference], such as for transaction inputs.
+-}
+decodeOutputReference : D.Decoder OutputReference
+decodeOutputReference =
+    D.tuple OutputReference <|
+        D.elems
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem D.int
 
 
 {-| The content of a eUTxO.
@@ -192,3 +208,31 @@ encodeDatumOption datumOption =
                     |> E.encode
                     |> E.tagged Tag.Cbor E.bytes
                 ]
+
+
+{-| CBOR decoder for an [Output].
+-}
+decodeOutput : D.Decoder Output
+decodeOutput =
+    -- Debug.todo "decodeOutput"
+    D.fail
+
+
+{-| CBOR decoder for a legacy [Output] (before Alonzo hard fork).
+-}
+decodeShelleyOutput : D.Decoder Output
+decodeShelleyOutput =
+    let
+        legacyOutputBuilder address amount =
+            Legacy
+                { address = address
+                , amount = { lovelace = amount, assets = MultiAsset.empty }
+                , datumHash = Nothing
+                }
+    in
+    D.tuple legacyOutputBuilder <|
+        D.elems
+            -- Address
+            >> D.elem Address.decode
+            -- Coin value (lovelace)
+            >> D.elem D.int

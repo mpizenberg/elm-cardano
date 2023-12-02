@@ -6,6 +6,7 @@ module ElmCardano.Value exposing (Value, onlyLovelace, encode)
 
 -}
 
+import Cbor.Decode as D
 import Cbor.Encode as E
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 
@@ -43,3 +44,8 @@ encode { lovelace, assets } =
             , MultiAsset.toCbor assets
             , E.break
             ]
+
+
+decode : D.Decoder Value
+decode =
+    D.fail
