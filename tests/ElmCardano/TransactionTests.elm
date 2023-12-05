@@ -66,6 +66,15 @@ suite =
 -- Shelley transactions
 
 
+{-| First Shelley transaction!
+
+Tx id: 79acf08126546b68d0464417af9530473b8c56c63b2a937bf6451e96e55cb96a
+Previous block intersection:
+
+  - slot: 4492880
+  - id: 23fd3b638e8f286978681567d52597b73f7567e18719cef2cbd66bba31303d98
+
+-}
 decode79acf081 : Test
 decode79acf081 =
     test "Tx id 79acf08126546b68d0464417af9530473b8c56c63b2a937bf6451e96e55cb96a" <|
