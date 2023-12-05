@@ -787,33 +787,15 @@ encodeRationalNumber =
 {-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
-    -- D.length
-    --     |> D.andThen
-    --         (\txElemCount ->
-    --             case txElemCount of
-    --                 -- only body, witness, metadata/auxiliary before alonzo
-    --                 3 ->
-    --                     decodePreAlonzoTx
-    --                 -- body, witness, valid, auxiliary data
-    --                 4 ->
-    --                     D.fail
-    --                 _ ->
-    --                     D.fail
-    --         )
-    decodePreAlonzoTx
-
-
-decodePreAlonzoTx : D.Decoder Transaction
-decodePreAlonzoTx =
     D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
         D.elems
-            >> D.elem decodePreAlonzoBody
-            >> D.elem decodePreAlonzoWitness
-            >> D.elem (D.maybe decodePreAlonzoAuxiliary)
+            >> D.elem decodeBody
+            >> D.elem decodeWitness
+            >> D.elem (D.maybe decodeAuxiliary)
 
 
-decodePreAlonzoBody : D.Decoder TransactionBody
-decodePreAlonzoBody =
+decodeBody : D.Decoder TransactionBody
+decodeBody =
     let
         bodyBuilder inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash =
             { newBody
@@ -865,8 +847,8 @@ decodeUpdate =
     D.fail
 
 
-decodePreAlonzoWitness : D.Decoder WitnessSet
-decodePreAlonzoWitness =
+decodeWitness : D.Decoder WitnessSet
+decodeWitness =
     let
         witnessBuilder vkeywitness multisigScript bootstrapWitness =
             { newWitnessSet
@@ -915,8 +897,8 @@ decodeBootstrapWitness =
             >> D.elem D.bytes
 
 
-decodePreAlonzoAuxiliary : D.Decoder AuxiliaryData
-decodePreAlonzoAuxiliary =
+decodeAuxiliary : D.Decoder AuxiliaryData
+decodeAuxiliary =
     D.map Shelley decodeMetadata
 
 
