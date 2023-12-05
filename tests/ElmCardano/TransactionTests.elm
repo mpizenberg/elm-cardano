@@ -59,6 +59,7 @@ suite =
         , describe "deserialize"
             [ decode79acf081
             , decode871b14fb
+            , decodef3a0835d
             ]
         ]
 
@@ -264,6 +265,25 @@ txWitnessSet871b14fb =
                   }
                 ]
     }
+
+
+{-| Next Shelley failure.
+
+Tx id: f3a0835d9359ed79f8301ba61ff263188c180ffd6dfddaba60a7e31b8366c38e
+Block height: 4490544
+Previous block intersection:
+
+  - slot: 4493460
+  - id: afc9552e4a47d6d1a900516749686457b8c864bc4d61c87345db4a3f7ebeb70c
+
+-}
+decodef3a0835d : Test
+decodef3a0835d =
+    test "Tx id f3a0835d9359ed79f8301ba61ff263188c180ffd6dfddaba60a7e31b8366c38e" <|
+        \_ ->
+            Bytes.fromStringUnchecked "83a50081825820c0810285e7cffd0ea65851008392d41dd4cdf223d9263ca7a33e28a7e7b410b80001818258390149d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e54650e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f45988441b00000068eaea4873021a0002ba0d031a0044b790048182008200581c0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844a10082825820473f36674fcde1ff195076774decda62f4b0ba860f9fcc0c51d63abee8b1e1285840e52151c3a0e54701b9917c1bd21e0e0b1724a474229809308af9b69f83ee3cd1f1377d88166edfcfc159e2441dc272c60700b1f60452910686b88e020af1ba048258209b718dfb7f2b75ac0a9ab4c9fccaa2befdeecdfde9a0970cbc3f41776ca1939558409d386af0ae47af0521316af8cd7d25984dec0d85d00cd2c9c3571ef48fc26a5db7c9056126a8cc6769e72ecd39a0808f33de8680e5997b5ba4169f7007b5c101f6"
+                |> Transaction.deserialize
+                |> Expect.notEqual Nothing
 
 
 
