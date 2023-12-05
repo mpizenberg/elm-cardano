@@ -4,7 +4,7 @@ module ElmCardano.Utxo exposing
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
     , encodeOutputReference, encodeOutput, encodeDatumOption
-    , decodeOutputReference, decodeOutput, decodeShelleyOutput
+    , decodeOutputReference, decodeOutput
     )
 
 {-| Handling outputs.
@@ -34,7 +34,7 @@ module ElmCardano.Utxo exposing
 
 @docs encodeOutputReference, encodeOutput, encodeDatumOption
 
-@docs decodeOutputReference, decodeOutput, decodeShelleyOutput
+@docs decodeOutputReference, decodeOutput
 
 -}
 
@@ -213,14 +213,6 @@ encodeDatumOption datumOption =
 -}
 decodeOutput : D.Decoder Output
 decodeOutput =
-    -- Debug.todo "decodeOutput"
-    D.fail
-
-
-{-| CBOR decoder for a legacy [Output] (before Alonzo hard fork).
--}
-decodeShelleyOutput : D.Decoder Output
-decodeShelleyOutput =
     let
         legacyOutputBuilder address amount =
             Legacy

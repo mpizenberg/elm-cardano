@@ -814,7 +814,7 @@ decodeBody =
             -- inputs
             >> D.field 0 (D.list Utxo.decodeOutputReference)
             -- outputs
-            >> D.field 1 (D.list Utxo.decodeShelleyOutput)
+            >> D.field 1 (D.list Utxo.decodeOutput)
             -- fee
             >> D.field 2 D.int
             -- ttl
