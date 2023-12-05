@@ -58,6 +58,7 @@ suite =
             ]
         , describe "deserialize"
             [ decode79acf081
+            , decode871b14fb
             ]
         ]
 
@@ -187,6 +188,79 @@ txWitnessSet79acf081 =
                   , signature = Bytes.fromStringUnchecked "d26bb37ef4efc404c59865b4f76d51d76c2c3d659430e74f7566884d1cffe5061da326be3aaf54dfddb9e89d69e31289dbee63dabbc5a71ea279bf7b10f83007"
                   , chainCode = Bytes.fromStringUnchecked "3ab2c5f5262ff16de9fe44821853b266d599906090662c40785355931d965f0c"
                   , attributes = Bytes.fromStringUnchecked "a101581e581c8d9b2a782a9b392ef1c4a1683cff72b7b6a02cd5dca8afb5c1a15973"
+                  }
+                ]
+    }
+
+
+{-| Next Shelley failure.
+
+Tx id: 871b14fbe5abb6cacc63f922187c4f10ea9499055a972eb5d3d4e8771af643df
+Block height: 4490537
+Previous block intersection:
+
+  - slot: 4493320
+  - id: c7da3ab6cc9cac8044d391552acbf72ad0b8d70b1db90ea3c2264418acdac436
+
+-}
+decode871b14fb : Test
+decode871b14fb =
+    test "Tx id 871b14fbe5abb6cacc63f922187c4f10ea9499055a972eb5d3d4e8771af643df" <|
+        \_ ->
+            Bytes.fromStringUnchecked "83a400818258209a822a5601a29f7a880948cf3b6491c24d861df18dbbe6ea2ba293f9878f965f0001828258390184f8618344721d55a4dd743a08e9628aa098c0c056bcc0ae794a992444adc04f00e3f9af407f93763dec952c12b7e9249a5e98ecd7baa9f11b00000068eb1078688258390149d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e54650e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f45988441a000f4240021a00029201031a0044ac28a100818258200607a454923b9bd5fec2897ce7f2b9ca2874ee545d750624084ba0fc9ef06dd558408c5a9d2ab5343b70afdb9a6b6580c1aea3dc4132968620ef21fdf14f6fd2a97601d8c2e9cc0d7596560c91ae56e9ddc03bbb5efebb6163c59781fafd28d4580af6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = txBody871b14fb
+                        , witnessSet = txWitnessSet871b14fb
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody871b14fb : TransactionBody
+txBody871b14fb =
+    { newTxBody
+        | inputs =
+            [ { transactionId = Bytes.fromStringUnchecked "9a822a5601a29f7a880948cf3b6491c24d861df18dbbe6ea2ba293f9878f965f"
+              , outputIndex = 0
+              }
+            ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "84f8618344721d55a4dd743a08e9628aa098c0c056bcc0ae794a9924")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "44adc04f00e3f9af407f93763dec952c12b7e9249a5e98ecd7baa9f1")))
+                        }
+                , amount = Value.onlyLovelace 450620323944
+                , datumHash = Nothing
+                }
+            , Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "49d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e5465")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")))
+                        }
+                , amount = Value.onlyLovelace 1000000
+                , datumHash = Nothing
+                }
+            ]
+        , fee = Just 168449
+        , ttl = Just 4500520
+    }
+
+
+txWitnessSet871b14fb : Transaction.WitnessSet
+txWitnessSet871b14fb =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { vkey = Bytes.fromStringUnchecked "0607a454923b9bd5fec2897ce7f2b9ca2874ee545d750624084ba0fc9ef06dd5"
+                  , signature = Bytes.fromStringUnchecked "8c5a9d2ab5343b70afdb9a6b6580c1aea3dc4132968620ef21fdf14f6fd2a97601d8c2e9cc0d7596560c91ae56e9ddc03bbb5efebb6163c59781fafd28d4580a"
                   }
                 ]
     }
