@@ -831,20 +831,17 @@ decodeBody =
 
 decodeCertificate : D.Decoder Certificate
 decodeCertificate =
-    -- Debug.todo "decodeCertificate"
-    D.fail
+    failWithMessage "decodeCertificate failed to decode"
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
 decodeWithdrawals =
-    -- Debug.todo "decodeWithdrawals"
-    D.fail
+    failWithMessage "decodeWithdrawals failed to decode"
 
 
 decodeUpdate : D.Decoder Update
 decodeUpdate =
-    -- Debug.todo "decodeUpdate"
-    D.fail
+    failWithMessage "decodeUpdate failed to decode"
 
 
 decodeWitness : D.Decoder WitnessSet
@@ -883,8 +880,7 @@ decodeVKeyWitness =
 
 decodeNativeScript : D.Decoder NativeScript
 decodeNativeScript =
-    -- TODO
-    D.fail
+    failWithMessage "decodeNativeScript failed to decode"
 
 
 decodeBootstrapWitness : D.Decoder BootstrapWitness
@@ -917,11 +913,24 @@ decodeMetadata =
 
 decodeMetadatum : D.Decoder Metadatum
 decodeMetadatum =
-    D.fail
+    failWithMessage "decodeMetadatum failed to decode"
 
 
 
 -- Helper definitions
+
+
+failWithMessage : String -> D.Decoder a
+failWithMessage msg =
+    D.raw
+        |> D.andThen
+            (\rawBytes ->
+                let
+                    _ =
+                        Debug.log msg (Bytes.toString <| Bytes.fromBytes rawBytes)
+                in
+                D.fail
+            )
 
 
 newBody : TransactionBody

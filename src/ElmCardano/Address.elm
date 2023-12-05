@@ -281,6 +281,10 @@ decode =
                         D.succeed address
 
                     Nothing ->
+                        let
+                            _ =
+                                Debug.log "Failed to decode address" (Bytes.toString <| Bytes.fromBytes bytes)
+                        in
                         D.fail
             )
 
