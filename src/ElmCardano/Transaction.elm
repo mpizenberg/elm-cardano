@@ -789,9 +789,9 @@ decodeTransaction : D.Decoder Transaction
 decodeTransaction =
     D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
         D.elems
-            >> D.elem decodeBody
-            >> D.elem decodeWitness
-            >> D.elem (D.maybe decodeAuxiliary)
+            >> D.elem (D.oneOf [ decodeBody, failWithMessage "Failed to decode body" ])
+            >> D.elem (D.oneOf [ decodeWitness, failWithMessage "Failed to decode witness" ])
+            >> D.elem (D.oneOf [ D.maybe decodeAuxiliary, failWithMessage "Failed to decode auxiliary" ])
 
 
 decodeBody : D.Decoder TransactionBody
@@ -831,17 +831,17 @@ decodeBody =
 
 decodeCertificate : D.Decoder Certificate
 decodeCertificate =
-    failWithMessage "decodeCertificate failed to decode"
+    failWithMessage "decodeCertificate (not implemented) failed to decode"
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
 decodeWithdrawals =
-    failWithMessage "decodeWithdrawals failed to decode"
+    failWithMessage "decodeWithdrawals (not implemented) failed to decode"
 
 
 decodeUpdate : D.Decoder Update
 decodeUpdate =
-    failWithMessage "decodeUpdate failed to decode"
+    failWithMessage "decodeUpdate (not implemented) failed to decode"
 
 
 decodeWitness : D.Decoder WitnessSet
@@ -880,7 +880,7 @@ decodeVKeyWitness =
 
 decodeNativeScript : D.Decoder NativeScript
 decodeNativeScript =
-    failWithMessage "decodeNativeScript failed to decode"
+    failWithMessage "decodeNativeScript (not implemented) failed to decode"
 
 
 decodeBootstrapWitness : D.Decoder BootstrapWitness
@@ -913,7 +913,7 @@ decodeMetadata =
 
 decodeMetadatum : D.Decoder Metadatum
 decodeMetadatum =
-    failWithMessage "decodeMetadatum failed to decode"
+    failWithMessage "decodeMetadatum (not implemented) failed to decode"
 
 
 
