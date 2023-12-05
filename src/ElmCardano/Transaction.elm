@@ -869,8 +869,16 @@ decodeWitness =
 
 decodeVKeyWitness : D.Decoder VKeyWitness
 decodeVKeyWitness =
-    -- TODO
-    D.fail
+    D.tuple
+        (\vkey sig ->
+            { vkey = Bytes.fromBytes vkey
+            , signature = Bytes.fromBytes sig
+            }
+        )
+    <|
+        D.elems
+            >> D.elem D.bytes
+            >> D.elem D.bytes
 
 
 decodeNativeScript : D.Decoder NativeScript
