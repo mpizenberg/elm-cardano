@@ -831,29 +831,81 @@ decodeBody =
 
 decodeCertificate : D.Decoder Certificate
 decodeCertificate =
-    D.oneOf
-        [ D.map StakeRegistration <|
-            decodeIndexed 0 (D.map (\cred -> { delegator = cred }) decodeStakeCredential)
-        , D.map StakeDeregistration <|
-            decodeIndexed 1 (D.map (\cred -> { delegator = cred }) decodeStakeCredential)
-        , D.map StakeDelegation <|
-            decodeIndexed2 2
-                (\cred poolId -> { delegator = cred, poolId = poolId })
+    D.length
+        |> D.andThen
+            (\length ->
+                D.int |> D.andThen (\id -> decodeCertificateHelper length id)
+            )
+
+
+decodeCertificateHelper : Int -> Int -> D.Decoder Certificate
+decodeCertificateHelper length id =
+    case ( length, id ) of
+        -- stake_registration = (0, stake_credential)
+        ( 2, 0 ) ->
+            D.map (\cred -> StakeRegistration { delegator = cred }) decodeStakeCredential
+
+        -- stake_deregistration = (1, stake_credential)
+        ( 2, 1 ) ->
+            D.map (\cred -> StakeDeregistration { delegator = cred }) decodeStakeCredential
+
+        -- stake_delegation = (2, stake_credential, pool_keyhash)
+        ( 3, 2 ) ->
+            D.map2
+                (\cred poolId -> StakeDelegation { delegator = cred, poolId = poolId })
                 decodeStakeCredential
                 (D.map Bytes.fromBytes D.bytes)
-        , D.map PoolRegistration <| decodeIndexed 3 decodePoolParams
-        , D.map PoolRetirement <| failWithMessage "decodePoolRetirement not implemented"
-        , D.map GenesisKeyDelegation <| failWithMessage "decodeGenesisKeyDelegation not implemented"
-        , D.map MoveInstantaneousRewardsCert <| failWithMessage "decodeMoveInstantaneousRewardsCert not implemented"
-        ]
+
+        -- pool_registration = (3, pool_params)
+        ( 2, 3 ) ->
+            D.map PoolRegistration decodePoolParams
+
+        -- pool_retirement = (4, pool_keyhash, epoch)
+        ( 3, 4 ) ->
+            D.map PoolRetirement <| failWithMessage "decodePoolRetirement not implemented"
+
+        -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
+        ( 4, 5 ) ->
+            D.map GenesisKeyDelegation <| failWithMessage "decodeGenesisKeyDelegation not implemented"
+
+        -- move_instantaneous_rewards_cert = (6, move_instantaneous_reward)
+        ( 2, 6 ) ->
+            D.map MoveInstantaneousRewardsCert <| failWithMessage "decodeMoveInstantaneousRewardsCert not implemented"
+
+        _ ->
+            failWithMessage <|
+                "Unknown length and id for certificate ("
+                    ++ String.fromInt length
+                    ++ ", "
+                    ++ String.fromInt id
+                    ++ ")"
 
 
 decodeStakeCredential : D.Decoder Credential
 decodeStakeCredential =
-    D.oneOf
-        [ decodeIndexed 0 (D.map (Address.VKeyHash << Bytes.fromBytes) D.bytes)
-        , decodeIndexed 1 (D.map (Address.ScriptHash << Bytes.fromBytes) D.bytes)
-        ]
+    D.length
+        |> D.andThen
+            (\length ->
+                -- A stake credential contains 2 elements
+                if length == 2 then
+                    D.int
+                        |> D.andThen
+                            (\id ->
+                                if id == 0 then
+                                    -- If the id is 0, it's a vkey hash
+                                    D.map (Address.VKeyHash << Bytes.fromBytes) D.bytes
+
+                                else if id == 1 then
+                                    -- If the id is 1, it's a script hash
+                                    D.map (Address.ScriptHash << Bytes.fromBytes) D.bytes
+
+                                else
+                                    D.fail
+                            )
+
+                else
+                    D.fail
+            )
 
 
 decodePoolParams : D.Decoder PoolParams
@@ -899,45 +951,6 @@ decodePoolMetadata =
         D.elems
             >> D.elem D.string
             >> D.elem (D.map Bytes.fromBytes D.bytes)
-
-
-{-| Helper decoder for data of the shape (n, a) where n == id.
--}
-decodeIndexed : Int -> D.Decoder a -> D.Decoder a
-decodeIndexed id decoder =
-    (D.tuple Tuple.pair <|
-        D.elems
-            >> D.elem D.int
-            >> D.elem decoder
-    )
-        |> D.andThen
-            (\( n, a ) ->
-                if n == id then
-                    D.succeed a
-
-                else
-                    D.fail
-            )
-
-
-{-| Helper decoder for data of the shape (n, a, b) where n == id.
--}
-decodeIndexed2 : Int -> (a -> b -> c) -> D.Decoder a -> D.Decoder b -> D.Decoder c
-decodeIndexed2 id f decoderA decoderB =
-    (D.tuple (\n a b -> ( n, a, b )) <|
-        D.elems
-            >> D.elem D.int
-            >> D.elem decoderA
-            >> D.elem decoderB
-    )
-        |> D.andThen
-            (\( n, a, b ) ->
-                if n == id then
-                    D.succeed (f a b)
-
-                else
-                    D.fail
-            )
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
