@@ -831,7 +831,113 @@ decodeBody =
 
 decodeCertificate : D.Decoder Certificate
 decodeCertificate =
-    failWithMessage "decodeCertificate (not implemented) failed to decode"
+    D.oneOf
+        [ D.map StakeRegistration <|
+            decodeIndexed 0 (D.map (\cred -> { delegator = cred }) decodeStakeCredential)
+        , D.map StakeDeregistration <|
+            decodeIndexed 1 (D.map (\cred -> { delegator = cred }) decodeStakeCredential)
+        , D.map StakeDelegation <|
+            decodeIndexed2 2
+                (\cred poolId -> { delegator = cred, poolId = poolId })
+                decodeStakeCredential
+                (D.map Bytes.fromBytes D.bytes)
+        , D.map PoolRegistration <| decodeIndexed 3 decodePoolParams
+        , D.map PoolRetirement <| failWithMessage "decodePoolRetirement not implemented"
+        , D.map GenesisKeyDelegation <| failWithMessage "decodeGenesisKeyDelegation not implemented"
+        , D.map MoveInstantaneousRewardsCert <| failWithMessage "decodeMoveInstantaneousRewardsCert not implemented"
+        ]
+
+
+decodeStakeCredential : D.Decoder Credential
+decodeStakeCredential =
+    D.oneOf
+        [ decodeIndexed 0 (D.map (Address.VKeyHash << Bytes.fromBytes) D.bytes)
+        , decodeIndexed 1 (D.map (Address.ScriptHash << Bytes.fromBytes) D.bytes)
+        ]
+
+
+decodePoolParams : D.Decoder PoolParams
+decodePoolParams =
+    D.tuple PoolParams <|
+        D.elems
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem D.int
+            >> D.elem D.int
+            >> D.elem decodeRational
+            >> D.elem Address.decodeReward
+            >> D.elem (D.list (D.map Bytes.fromBytes D.bytes))
+            >> D.elem (D.list decodeRelay)
+            >> D.elem (D.maybe decodePoolMetadata)
+
+
+decodeRational : D.Decoder RationalNumber
+decodeRational =
+    D.tag
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    Tag.Unknown 30 ->
+                        D.tuple RationalNumber <|
+                            D.elems
+                                >> D.elem D.int
+                                >> D.elem D.int
+
+                    _ ->
+                        D.fail
+            )
+
+
+decodeRelay : D.Decoder Relay
+decodeRelay =
+    failWithMessage "decodeRelay (unimplemented) failed to decode"
+
+
+decodePoolMetadata : D.Decoder PoolMetadata
+decodePoolMetadata =
+    D.tuple PoolMetadata <|
+        D.elems
+            >> D.elem D.string
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+
+
+{-| Helper decoder for data of the shape (n, a) where n == id.
+-}
+decodeIndexed : Int -> D.Decoder a -> D.Decoder a
+decodeIndexed id decoder =
+    (D.tuple Tuple.pair <|
+        D.elems
+            >> D.elem D.int
+            >> D.elem decoder
+    )
+        |> D.andThen
+            (\( n, a ) ->
+                if n == id then
+                    D.succeed a
+
+                else
+                    D.fail
+            )
+
+
+{-| Helper decoder for data of the shape (n, a, b) where n == id.
+-}
+decodeIndexed2 : Int -> (a -> b -> c) -> D.Decoder a -> D.Decoder b -> D.Decoder c
+decodeIndexed2 id f decoderA decoderB =
+    (D.tuple (\n a b -> ( n, a, b )) <|
+        D.elems
+            >> D.elem D.int
+            >> D.elem decoderA
+            >> D.elem decoderB
+    )
+        |> D.andThen
+            (\( n, a, b ) ->
+                if n == id then
+                    D.succeed (f a b)
+
+                else
+                    D.fail
+            )
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))

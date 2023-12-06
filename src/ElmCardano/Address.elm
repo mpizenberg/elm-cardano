@@ -3,7 +3,7 @@ module ElmCardano.Address exposing
     , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script, base, pointer
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
-    , decode
+    , decode, decodeReward
     )
 
 {-| Handling Cardano addresses.
@@ -16,7 +16,7 @@ module ElmCardano.Address exposing
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
-@docs decode
+@docs decode, decodeReward
 
 -}
 
@@ -285,6 +285,23 @@ decode =
                             _ =
                                 Debug.log "Failed to decode address" (Bytes.toString <| Bytes.fromBytes bytes)
                         in
+                        D.fail
+            )
+
+
+{-| CBOR decoder for [StakeAddress].
+This only succeeds for a valid [Address] of the [Reward] variant.
+-}
+decodeReward : D.Decoder StakeAddress
+decodeReward =
+    decode
+        |> D.andThen
+            (\addr ->
+                case addr of
+                    Reward stakeAddress ->
+                        D.succeed stakeAddress
+
+                    _ ->
                         D.fail
             )
 
