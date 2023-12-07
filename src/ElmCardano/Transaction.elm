@@ -794,6 +794,10 @@ decodeTransaction =
             >> D.elem (D.oneOf [ D.maybe decodeAuxiliary, failWithMessage "Failed to decode auxiliary" ])
 
 
+
+-- Decode body
+
+
 decodeBody : D.Decoder TransactionBody
 decodeBody =
     let
@@ -859,22 +863,31 @@ decodeCertificateHelper length id =
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
         ( 10, 3 ) ->
-            D.oneOf
-                [ D.map PoolRegistration decodePoolParams
-                , failWithMessage "Failed to decode pool_registration"
-                ]
+            D.map PoolRegistration decodePoolParams
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
-            D.map PoolRetirement <| failWithMessage "decodePoolRetirement not implemented"
+            D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
+                (D.map Bytes.fromBytes D.bytes)
+                D.int
 
         -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
         ( 4, 5 ) ->
-            D.map GenesisKeyDelegation <| failWithMessage "decodeGenesisKeyDelegation not implemented"
+            D.map3
+                (\genHash genDelHash vrfKeyHash ->
+                    GenesisKeyDelegation
+                        { genesisHash = genHash
+                        , genesisDelegateHash = genDelHash
+                        , vrfKeyHash = vrfKeyHash
+                        }
+                )
+                (D.map Bytes.fromBytes D.bytes)
+                (D.map Bytes.fromBytes D.bytes)
+                (D.map Bytes.fromBytes D.bytes)
 
         -- move_instantaneous_rewards_cert = (6, move_instantaneous_reward)
         ( 2, 6 ) ->
-            D.map MoveInstantaneousRewardsCert <| failWithMessage "decodeMoveInstantaneousRewardsCert not implemented"
+            D.map MoveInstantaneousRewardsCert decodeMoveInstantaneousRewards
 
         _ ->
             failWithMessage <|
@@ -992,6 +1005,38 @@ decodePoolMetadata =
             >> D.elem (D.map Bytes.fromBytes D.bytes)
 
 
+decodeMoveInstantaneousRewards : D.Decoder MoveInstantaneousReward
+decodeMoveInstantaneousRewards =
+    D.tuple (\source targets -> { source = source, target = StakeCredentials targets }) <|
+        D.elems
+            >> D.elem decodeRewardSource
+            >> D.elem (D.list decodeSingleRewardTarget)
+
+
+decodeRewardSource : D.Decoder RewardSource
+decodeRewardSource =
+    D.int
+        |> D.andThen
+            (\source ->
+                case source of
+                    0 ->
+                        D.succeed Reserves
+
+                    1 ->
+                        D.succeed Treasury
+
+                    _ ->
+                        failWithMessage "Unknown reward source"
+            )
+
+
+decodeSingleRewardTarget : D.Decoder ( Credential, Int )
+decodeSingleRewardTarget =
+    D.map2 Tuple.pair
+        decodeStakeCredential
+        D.int
+
+
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
 decodeWithdrawals =
     failWithMessage "decodeWithdrawals (not implemented) failed to decode"
@@ -1000,6 +1045,10 @@ decodeWithdrawals =
 decodeUpdate : D.Decoder Update
 decodeUpdate =
     failWithMessage "decodeUpdate (not implemented) failed to decode"
+
+
+
+-- Decode witness
 
 
 decodeWitness : D.Decoder WitnessSet
