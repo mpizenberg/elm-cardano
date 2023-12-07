@@ -60,6 +60,7 @@ suite =
             [ decode79acf081
             , decode871b14fb
             , decodef3a0835d
+            , decode841cca81
             ]
         ]
 
@@ -331,6 +332,105 @@ txWitnessSetf3a0835d =
                   }
                 , { vkey = Bytes.fromStringUnchecked "9b718dfb7f2b75ac0a9ab4c9fccaa2befdeecdfde9a0970cbc3f41776ca19395"
                   , signature = Bytes.fromStringUnchecked "9d386af0ae47af0521316af8cd7d25984dec0d85d00cd2c9c3571ef48fc26a5db7c9056126a8cc6769e72ecd39a0808f33de8680e5997b5ba4169f7007b5c101"
+                  }
+                ]
+    }
+
+
+{-| Next Shelley failure.
+
+Tx id: 841cca81da918feb9fa7257a34630eac95794be712ed3faae6df64f215ce25f2
+Block height: 4490550
+Previous block intersection:
+
+  - slot: 4493580
+  - id: af4fbe98c50ed01fb0b3f0ed2833fd2a3809f4ca2e367fe71665846e599e96fe
+
+-}
+decode841cca81 : Test
+decode841cca81 =
+    test "Tx id 841cca81da918feb9fa7257a34630eac95794be712ed3faae6df64f215ce25f2" <|
+        \_ ->
+            Bytes.fromStringUnchecked "83a50081825820f3a0835d9359ed79f8301ba61ff263188c180ffd6dfddaba60a7e31b8366c38e0001818258390149d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e54650e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f45988441b00000068cd19f78e021a0002ebe5031a0044b81c04828a03581c153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf58200220a5d08adbfe9554b52d7b2993be5892ac3ff340e674a377dea3e22ad1778b1b00000068c61714001a1443fd00d81e820318c8581de10e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f459884481581c0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844818400190bba4436dc1428f682783f68747470733a2f2f7261772e67697468756275736572636f6e74656e742e636f6d2f4f6374616c75732f63617264616e6f2f6d61737465722f702e6a736f6e5820ca7d12decf886e31f5226b5946c62edc81a7e40af95ce7cd6465122e309d562683028200581c0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844581c153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edfa10083825820473f36674fcde1ff195076774decda62f4b0ba860f9fcc0c51d63abee8b1e1285840fabb3bdeb0c845517bfb6af55299f08cb4e41e648a032e193274315a0fe027728162b63c4b78729281cd2d9340c4df2b01bb06b4a4eff5bbe0942852fbd5c10b825820e2e08f93a46e151637138038990d37f6891d4620b668891bb89de56f46ffd48758407d487a26ebfc66501b43b64f386ae31c82ee9b9c3108fe52ed5ddf9473f4f719a367522ee048136c68a7ffdd90ded3cad316f0aa4a0bc49eacab11ea9ef4af028258209b718dfb7f2b75ac0a9ab4c9fccaa2befdeecdfde9a0970cbc3f41776ca1939558400b1bcde4d965a7a756121e2335b3a31c83fc4ef800c2f576764539f384e007ec6af1ae7bfe108c68f813d884e066a43f42be2bd2eb8dba802d100d8335f7db09f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = txBody841cca81
+                        , witnessSet = txWitnessSet841cca81
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody841cca81 : TransactionBody
+txBody841cca81 =
+    { newTxBody
+        | inputs =
+            [ { transactionId = Bytes.fromStringUnchecked "f3a0835d9359ed79f8301ba61ff263188c180ffd6dfddaba60a7e31b8366c38e"
+              , outputIndex = 0
+              }
+            ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "49d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e5465")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")))
+                        }
+                , amount = Value.onlyLovelace 450117629838
+                , datumHash = Nothing
+                }
+            ]
+        , fee = Just 191461
+        , ttl = Just 4503580
+        , certificates =
+            [ Transaction.PoolRegistration
+                { operator = Bytes.fromStringUnchecked "153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf"
+                , vrfKeyHash = Bytes.fromStringUnchecked "0220a5d08adbfe9554b52d7b2993be5892ac3ff340e674a377dea3e22ad1778b"
+                , pledge = 450000000000
+                , cost = 340000000
+                , margin = { denominator = 200, numerator = 3 }
+                , rewardAccount =
+                    { networkId = Mainnet
+                    , stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")
+                    }
+                , poolOwners = [ Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844" ]
+                , relays =
+                    [ Transaction.SingleHostAddr
+                        { ipv4 = Just (Bytes.fromStringUnchecked "36dc1428")
+                        , ipv6 = Nothing
+                        , port_ = Just 3002
+                        }
+                    ]
+                , poolMetadata =
+                    Just
+                        { poolMetadataHash = Bytes.fromStringUnchecked "ca7d12decf886e31f5226b5946c62edc81a7e40af95ce7cd6465122e309d5626"
+                        , url = "https://raw.githubusercontent.com/Octalus/cardano/master/p.json"
+                        }
+                }
+            , Transaction.StakeDelegation
+                { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")
+                , poolId = Bytes.fromStringUnchecked "153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf"
+                }
+            ]
+    }
+
+
+txWitnessSet841cca81 : WitnessSet
+txWitnessSet841cca81 =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { vkey = Bytes.fromStringUnchecked "473f36674fcde1ff195076774decda62f4b0ba860f9fcc0c51d63abee8b1e128"
+                  , signature = Bytes.fromStringUnchecked "fabb3bdeb0c845517bfb6af55299f08cb4e41e648a032e193274315a0fe027728162b63c4b78729281cd2d9340c4df2b01bb06b4a4eff5bbe0942852fbd5c10b"
+                  }
+                , { vkey = Bytes.fromStringUnchecked "e2e08f93a46e151637138038990d37f6891d4620b668891bb89de56f46ffd487"
+                  , signature = Bytes.fromStringUnchecked "7d487a26ebfc66501b43b64f386ae31c82ee9b9c3108fe52ed5ddf9473f4f719a367522ee048136c68a7ffdd90ded3cad316f0aa4a0bc49eacab11ea9ef4af02"
+                  }
+                , { vkey = Bytes.fromStringUnchecked "9b718dfb7f2b75ac0a9ab4c9fccaa2befdeecdfde9a0970cbc3f41776ca19395"
+                  , signature = Bytes.fromStringUnchecked "0b1bcde4d965a7a756121e2335b3a31c83fc4ef800c2f576764539f384e007ec6af1ae7bfe108c68f813d884e066a43f42be2bd2eb8dba802d100d8335f7db09"
                   }
                 ]
     }
