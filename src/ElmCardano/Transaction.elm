@@ -857,8 +857,12 @@ decodeCertificateHelper length id =
                 (D.map Bytes.fromBytes D.bytes)
 
         -- pool_registration = (3, pool_params)
-        ( 2, 3 ) ->
-            D.map PoolRegistration decodePoolParams
+        -- pool_params is of size 9
+        ( 10, 3 ) ->
+            D.oneOf
+                [ D.map PoolRegistration decodePoolParams
+                , failWithMessage "Failed to decode pool_registration"
+                ]
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
@@ -910,17 +914,21 @@ decodeStakeCredential =
 
 decodePoolParams : D.Decoder PoolParams
 decodePoolParams =
-    D.tuple PoolParams <|
-        D.elems
-            >> D.elem (D.map Bytes.fromBytes D.bytes)
-            >> D.elem (D.map Bytes.fromBytes D.bytes)
-            >> D.elem D.int
-            >> D.elem D.int
-            >> D.elem decodeRational
-            >> D.elem Address.decodeReward
-            >> D.elem (D.list (D.map Bytes.fromBytes D.bytes))
-            >> D.elem (D.list decodeRelay)
-            >> D.elem (D.maybe decodePoolMetadata)
+    D.succeed PoolParams
+        |> keep (D.map Bytes.fromBytes D.bytes)
+        |> keep (D.map Bytes.fromBytes D.bytes)
+        |> keep D.int
+        |> keep D.int
+        |> keep decodeRational
+        |> keep Address.decodeReward
+        |> keep (D.list (D.map Bytes.fromBytes D.bytes))
+        |> keep (D.list decodeRelay)
+        |> keep (D.maybe decodePoolMetadata)
+
+
+keep : D.Decoder a -> D.Decoder (a -> b) -> D.Decoder b
+keep val fun =
+    D.map2 (<|) fun val
 
 
 decodeRational : D.Decoder RationalNumber
@@ -942,7 +950,38 @@ decodeRational =
 
 decodeRelay : D.Decoder Relay
 decodeRelay =
-    failWithMessage "decodeRelay (unimplemented) failed to decode"
+    D.length
+        |> D.andThen (\length -> D.int |> D.andThen (decodeRelayHelper length))
+
+
+decodeRelayHelper : Int -> Int -> D.Decoder Relay
+decodeRelayHelper length id =
+    case ( length, id ) of
+        -- single_host_addr = ( 0, port / null, ipv4 / null, ipv6 / null )
+        ( 4, 0 ) ->
+            D.map3 (\port_ ipv4 ipv6 -> SingleHostAddr { port_ = port_, ipv4 = ipv4, ipv6 = ipv6 })
+                (D.maybe D.int)
+                (D.maybe <| D.map Bytes.fromBytes D.bytes)
+                (D.maybe <| D.map Bytes.fromBytes D.bytes)
+
+        -- single_host_name = ( 1, port / null, dns_name )  -- An A or AAAA DNS record
+        ( 3, 1 ) ->
+            D.map2 (\port_ dns -> SingleHostName { port_ = port_, dnsName = dns })
+                (D.maybe D.int)
+                D.string
+
+        -- multi_host_name = ( 2, dns_name )  -- A SRV DNS record
+        ( 2, 2 ) ->
+            D.map (\dns -> MultiHostName { dnsName = dns })
+                D.string
+
+        _ ->
+            failWithMessage <|
+                "Unknown length and id for relay ("
+                    ++ String.fromInt length
+                    ++ ", "
+                    ++ String.fromInt id
+                    ++ ")"
 
 
 decodePoolMetadata : D.Decoder PoolMetadata
