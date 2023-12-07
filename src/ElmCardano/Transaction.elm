@@ -824,7 +824,7 @@ decodeBody =
             -- ttl
             >> D.field 3 D.int
             -- certificates
-            >> D.optionalField 4 (D.list decodeCertificate)
+            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "certificate" ])
             -- withdrawals
             >> D.optionalField 5 decodeWithdrawals
             -- update
