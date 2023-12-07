@@ -57,10 +57,12 @@ suite =
                         |> expectBytes "84A900828258209D7F457DD62D2062565F794E42F9ECA458D9CFBCA73A7893899D16F02C2B36B6008258209D7F457DD62D2062565F794E42F9ECA458D9CFBCA73A7893899D16F02C2B36B6010182A300581D70589144CC521615315237F12698F063220EFA4BC2F315B6C6E718A6D5011A02FAF080028201D8185822D8799F581CDD4EDD90A2299DA2525053C5E18E7C72625F7CF926F5731139D93BAEFF82581D60DD4EDD90A2299DA2525053C5E18E7C72625F7CF926F5731139D93BAE1A7415FABE021A0002C81E0B5820F90CF11D0959B9AF8E6FCE107ACD7A196C21FA3A0D9F1470A8CDEC905DCC6D850D818258209D7F457DD62D2062565F794E42F9ECA458D9CFBCA73A7893899D16F02C2B36B6010E81581CDD4EDD90A2299DA2525053C5E18E7C72625F7CF926F5731139D93BAE1082581D60DD4EDD90A2299DA2525053C5E18E7C72625F7CF926F5731139D93BAE1A7119A62F111A00042C2D1281825820517B059959FC8EE584689F71CF1D9BB94FC36802AEC0FAA7FD96182C0AB090C400A2049FD87980FF0581840000D879808219C11B1A011750D5F5F6"
             ]
         , describe "deserialize"
+            -- Shelley transactions
             [ decode79acf081
             , decode871b14fb
             , decodef3a0835d
             , decode841cca81
+            , decode896cf8fe
             ]
         ]
 
@@ -431,6 +433,78 @@ txWitnessSet841cca81 =
                   }
                 , { vkey = Bytes.fromStringUnchecked "9b718dfb7f2b75ac0a9ab4c9fccaa2befdeecdfde9a0970cbc3f41776ca19395"
                   , signature = Bytes.fromStringUnchecked "0b1bcde4d965a7a756121e2335b3a31c83fc4ef800c2f576764539f384e007ec6af1ae7bfe108c68f813d884e066a43f42be2bd2eb8dba802d100d8335f7db09"
+                  }
+                ]
+    }
+
+
+{-| Next Shelley failure.
+
+Tx id: 896cf8fefad1eaf0fa056ba3adf28bfb26b06d1beed64cf790deb595dcb2687a
+Block height: 4491210
+Previous block intersection:
+
+  - slot: 4506780
+  - id: 13bacb73a31ce721831bd82810ed0bc43b7d2190fcad72d0c53b6cc618763dbd
+
+-}
+decode896cf8fe : Test
+decode896cf8fe =
+    test "Tx id 896cf8fefad1eaf0fa056ba3adf28bfb26b06d1beed64cf790deb595dcb2687a" <|
+        \_ ->
+            Bytes.fromStringUnchecked "83a50081825820e1d1d61ecd706790ee31a1c07fc87827f7b9738d374ef705d1c8cff8295c8cf0000181825839016a8aba085ef5781bf8ea58c5e92408c0bfba7bcc7ca84da90dffcf90d33cabe9bc7a7646243c03f062881d06744b3d53983823178973b9b01b0000000be2a11012021a0002bb6d031a0044c88404818304581c469fbad36a8a68c5f62f3505ecbe6a461ea262ae20b4de8d39ff08ab18d1a100828258206f0d127f3f5122171fec5f91e85df66bac1314680f703abf5caefddffd55a2855840dbf9707786dc151be98e0c189a879d397d9b0aa5bdaad2ff4831fcf53e04651eb1028e78da8f315680056e5435e8bf48917c5cb545eeb0039e5b57a205609f0b82582085640c4b0cb50c31b797c26a8745fc9c9fea7d90dbc3ae241971c141c43ef59758402d0423835dbd83f2118916ce403b2492027f8a4b10752ab5b59a787081af0a547d5c0d72efc521022fd1371a53f00de87ab3816206ba59009530a6bd4cc40f05f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = txBody896cf8fe
+                        , witnessSet = txWitnessSet896cf8fe
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody896cf8fe : TransactionBody
+txBody896cf8fe =
+    { newTxBody
+        | inputs =
+            [ { transactionId = Bytes.fromStringUnchecked "e1d1d61ecd706790ee31a1c07fc87827f7b9738d374ef705d1c8cff8295c8cf0"
+              , outputIndex = 0
+              }
+            ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "6a8aba085ef5781bf8ea58c5e92408c0bfba7bcc7ca84da90dffcf90")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "d33cabe9bc7a7646243c03f062881d06744b3d53983823178973b9b0")))
+                        }
+                , amount = Value.onlyLovelace 51046846482
+                , datumHash = Nothing
+                }
+            ]
+        , fee = Just 179053
+        , ttl = Just 4507780
+        , certificates =
+            [ Transaction.PoolRetirement
+                { poolId = Bytes.fromStringUnchecked "469fbad36a8a68c5f62f3505ecbe6a461ea262ae20b4de8d39ff08ab"
+                , epoch = 209
+                }
+            ]
+    }
+
+
+txWitnessSet896cf8fe : WitnessSet
+txWitnessSet896cf8fe =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { vkey = Bytes.fromStringUnchecked "6f0d127f3f5122171fec5f91e85df66bac1314680f703abf5caefddffd55a285"
+                  , signature = Bytes.fromStringUnchecked "dbf9707786dc151be98e0c189a879d397d9b0aa5bdaad2ff4831fcf53e04651eb1028e78da8f315680056e5435e8bf48917c5cb545eeb0039e5b57a205609f0b"
+                  }
+                , { vkey = Bytes.fromStringUnchecked "85640c4b0cb50c31b797c26a8745fc9c9fea7d90dbc3ae241971c141c43ef597"
+                  , signature = Bytes.fromStringUnchecked "2d0423835dbd83f2118916ce403b2492027f8a4b10752ab5b59a787081af0a547d5c0d72efc521022fd1371a53f00de87ab3816206ba59009530a6bd4cc40f05"
                   }
                 ]
     }
