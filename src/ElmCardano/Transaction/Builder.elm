@@ -7,6 +7,8 @@ module ElmCardano.Transaction.Builder exposing
     , input
     , inputData
     , new
+    , newBody
+    , newWitnessSet
     , output
     , payToAddress
     , payToContract
@@ -39,37 +41,45 @@ type Tx
     = Tx Transaction
 
 
+newBody : TransactionBody
+newBody =
+    { inputs = []
+    , outputs = []
+    , fee = Nothing
+    , ttl = Nothing
+    , certificates = []
+    , withdrawals = []
+    , update = Nothing
+    , auxiliaryDataHash = Nothing
+    , validityIntervalStart = Nothing
+    , mint = MultiAsset.empty
+    , scriptDataHash = Nothing
+    , collateral = []
+    , requiredSigners = []
+    , networkId = Nothing
+    , collateralReturn = Nothing
+    , totalCollateral = Nothing
+    , referenceInputs = []
+    }
+
+
+newWitnessSet : WitnessSet
+newWitnessSet =
+    { vkeywitness = Nothing
+    , nativeScripts = Nothing
+    , bootstrapWitness = Nothing
+    , plutusV1Script = Nothing
+    , plutusData = Nothing
+    , redeemer = Nothing
+    , plutusV2Script = Nothing
+    }
+
+
 new : Tx
 new =
     Tx
-        { body =
-            { inputs = []
-            , outputs = []
-            , fee = Nothing
-            , ttl = Nothing
-            , certificates = []
-            , withdrawals = []
-            , update = Nothing
-            , auxiliaryDataHash = Nothing
-            , validityIntervalStart = Nothing
-            , mint = MultiAsset.empty
-            , scriptDataHash = Nothing
-            , collateral = []
-            , requiredSigners = []
-            , networkId = Nothing
-            , collateralReturn = Nothing
-            , totalCollateral = Nothing
-            , referenceInputs = []
-            }
-        , witnessSet =
-            { vkeywitness = Nothing
-            , nativeScripts = Nothing
-            , bootstrapWitness = Nothing
-            , plutusV1Script = Nothing
-            , plutusData = Nothing
-            , redeemer = Nothing
-            , plutusV2Script = Nothing
-            }
+        { body = newBody
+        , witnessSet = newWitnessSet
         , isValid = True
         , auxiliaryData = Nothing
         }
