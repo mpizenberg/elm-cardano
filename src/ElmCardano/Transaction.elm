@@ -445,8 +445,9 @@ serialize =
 -}
 deserialize : Bytes a -> Maybe Transaction
 deserialize bytes =
-    Bytes.toBytes bytes
-        |> D.decode decodeTransaction
+    bytes
+        |> Bytes.toBytes
+        |> D.decode (D.oneOf [ decodeTransaction, failWithMessage "Transaction decoder failed" ])
 
 
 {-| -}
@@ -824,7 +825,7 @@ decodeBody =
             -- ttl
             >> D.field 3 D.int
             -- certificates
-            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "certificate" ])
+            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "Failed to decode certificate" ])
             -- withdrawals
             >> D.optionalField 5 decodeWithdrawals
             -- update
@@ -863,7 +864,7 @@ decodeCertificateHelper length id =
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
         ( 10, 3 ) ->
-            D.map PoolRegistration decodePoolParams
+            D.map PoolRegistration <| D.oneOf [ decodePoolParams, failWithMessage "Failed to decode pool params" ]
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
@@ -928,15 +929,15 @@ decodeStakeCredential =
 decodePoolParams : D.Decoder PoolParams
 decodePoolParams =
     D.succeed PoolParams
-        |> keep (D.map Bytes.fromBytes D.bytes)
-        |> keep (D.map Bytes.fromBytes D.bytes)
+        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
+        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
+        |> keep (D.oneOf [ D.int, failWithMessage "Failed to decode pledge" ])
         |> keep D.int
-        |> keep D.int
-        |> keep decodeRational
-        |> keep Address.decodeReward
+        |> keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
+        |> keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
         |> keep (D.list (D.map Bytes.fromBytes D.bytes))
-        |> keep (D.list decodeRelay)
-        |> keep (D.maybe decodePoolMetadata)
+        |> keep (D.list <| D.oneOf [ decodeRelay, failWithMessage "Failed to decode Relay" ])
+        |> keep (D.maybe <| D.oneOf [ decodePoolMetadata, failWithMessage "Failed to decode pool metadata" ])
 
 
 keep : D.Decoder a -> D.Decoder (a -> b) -> D.Decoder b
@@ -1129,12 +1130,12 @@ decodeMetadatum =
 
 failWithMessage : String -> D.Decoder a
 failWithMessage msg =
-    D.raw
+    D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
         |> D.andThen
             (\rawBytes ->
                 let
                     _ =
-                        Debug.log msg (Bytes.toString <| Bytes.fromBytes rawBytes)
+                        Debug.log msg (Bytes.toString rawBytes)
                 in
                 D.fail
             )
