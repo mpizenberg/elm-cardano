@@ -445,8 +445,9 @@ serialize =
 -}
 deserialize : Bytes a -> Maybe Transaction
 deserialize bytes =
-    Bytes.toBytes bytes
-        |> D.decode decodeTransaction
+    bytes
+        |> Bytes.toBytes
+        |> D.decode (D.oneOf [ decodeTransaction, failWithMessage "Transaction decoder failed" ])
 
 
 {-| -}
@@ -787,33 +788,19 @@ encodeRationalNumber =
 {-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
-    -- D.length
-    --     |> D.andThen
-    --         (\txElemCount ->
-    --             case txElemCount of
-    --                 -- only body, witness, metadata/auxiliary before alonzo
-    --                 3 ->
-    --                     decodePreAlonzoTx
-    --                 -- body, witness, valid, auxiliary data
-    --                 4 ->
-    --                     D.fail
-    --                 _ ->
-    --                     D.fail
-    --         )
-    decodePreAlonzoTx
-
-
-decodePreAlonzoTx : D.Decoder Transaction
-decodePreAlonzoTx =
     D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
         D.elems
-            >> D.elem decodePreAlonzoBody
-            >> D.elem decodePreAlonzoWitness
-            >> D.elem (D.maybe decodePreAlonzoAuxiliary)
+            >> D.elem (D.oneOf [ decodeBody, failWithMessage "Failed to decode body" ])
+            >> D.elem (D.oneOf [ decodeWitness, failWithMessage "Failed to decode witness" ])
+            >> D.elem (D.oneOf [ D.maybe decodeAuxiliary, failWithMessage "Failed to decode auxiliary" ])
 
 
-decodePreAlonzoBody : D.Decoder TransactionBody
-decodePreAlonzoBody =
+
+-- Decode body
+
+
+decodeBody : D.Decoder TransactionBody
+decodeBody =
     let
         bodyBuilder inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash =
             { newBody
@@ -832,13 +819,13 @@ decodePreAlonzoBody =
             -- inputs
             >> D.field 0 (D.list Utxo.decodeOutputReference)
             -- outputs
-            >> D.field 1 (D.list Utxo.decodeShelleyOutput)
+            >> D.field 1 (D.list Utxo.decodeOutput)
             -- fee
             >> D.field 2 D.int
             -- ttl
             >> D.field 3 D.int
             -- certificates
-            >> D.optionalField 4 (D.list decodeCertificate)
+            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "Failed to decode certificate" ])
             -- withdrawals
             >> D.optionalField 5 decodeWithdrawals
             -- update
@@ -849,24 +836,224 @@ decodePreAlonzoBody =
 
 decodeCertificate : D.Decoder Certificate
 decodeCertificate =
-    -- Debug.todo "decodeCertificate"
-    D.fail
+    D.length
+        |> D.andThen
+            (\length ->
+                D.int |> D.andThen (\id -> decodeCertificateHelper length id)
+            )
+
+
+decodeCertificateHelper : Int -> Int -> D.Decoder Certificate
+decodeCertificateHelper length id =
+    case ( length, id ) of
+        -- stake_registration = (0, stake_credential)
+        ( 2, 0 ) ->
+            D.map (\cred -> StakeRegistration { delegator = cred }) decodeStakeCredential
+
+        -- stake_deregistration = (1, stake_credential)
+        ( 2, 1 ) ->
+            D.map (\cred -> StakeDeregistration { delegator = cred }) decodeStakeCredential
+
+        -- stake_delegation = (2, stake_credential, pool_keyhash)
+        ( 3, 2 ) ->
+            D.map2
+                (\cred poolId -> StakeDelegation { delegator = cred, poolId = poolId })
+                decodeStakeCredential
+                (D.map Bytes.fromBytes D.bytes)
+
+        -- pool_registration = (3, pool_params)
+        -- pool_params is of size 9
+        ( 10, 3 ) ->
+            D.map PoolRegistration <| D.oneOf [ decodePoolParams, failWithMessage "Failed to decode pool params" ]
+
+        -- pool_retirement = (4, pool_keyhash, epoch)
+        ( 3, 4 ) ->
+            D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
+                (D.map Bytes.fromBytes D.bytes)
+                D.int
+
+        -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
+        ( 4, 5 ) ->
+            D.map3
+                (\genHash genDelHash vrfKeyHash ->
+                    GenesisKeyDelegation
+                        { genesisHash = genHash
+                        , genesisDelegateHash = genDelHash
+                        , vrfKeyHash = vrfKeyHash
+                        }
+                )
+                (D.map Bytes.fromBytes D.bytes)
+                (D.map Bytes.fromBytes D.bytes)
+                (D.map Bytes.fromBytes D.bytes)
+
+        -- move_instantaneous_rewards_cert = (6, move_instantaneous_reward)
+        ( 2, 6 ) ->
+            D.map MoveInstantaneousRewardsCert decodeMoveInstantaneousRewards
+
+        _ ->
+            failWithMessage <|
+                "Unknown length and id for certificate ("
+                    ++ String.fromInt length
+                    ++ ", "
+                    ++ String.fromInt id
+                    ++ ")"
+
+
+decodeStakeCredential : D.Decoder Credential
+decodeStakeCredential =
+    D.length
+        |> D.andThen
+            (\length ->
+                -- A stake credential contains 2 elements
+                if length == 2 then
+                    D.int
+                        |> D.andThen
+                            (\id ->
+                                if id == 0 then
+                                    -- If the id is 0, it's a vkey hash
+                                    D.map (Address.VKeyHash << Bytes.fromBytes) D.bytes
+
+                                else if id == 1 then
+                                    -- If the id is 1, it's a script hash
+                                    D.map (Address.ScriptHash << Bytes.fromBytes) D.bytes
+
+                                else
+                                    D.fail
+                            )
+
+                else
+                    D.fail
+            )
+
+
+decodePoolParams : D.Decoder PoolParams
+decodePoolParams =
+    D.succeed PoolParams
+        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
+        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
+        |> keep (D.oneOf [ D.int, failWithMessage "Failed to decode pledge" ])
+        |> keep D.int
+        |> keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
+        |> keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
+        |> keep (D.list (D.map Bytes.fromBytes D.bytes))
+        |> keep (D.list <| D.oneOf [ decodeRelay, failWithMessage "Failed to decode Relay" ])
+        |> keep (D.maybe <| D.oneOf [ decodePoolMetadata, failWithMessage "Failed to decode pool metadata" ])
+
+
+keep : D.Decoder a -> D.Decoder (a -> b) -> D.Decoder b
+keep val fun =
+    D.map2 (<|) fun val
+
+
+decodeRational : D.Decoder RationalNumber
+decodeRational =
+    D.tag
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    Tag.Unknown 30 ->
+                        D.tuple RationalNumber <|
+                            D.elems
+                                >> D.elem D.int
+                                >> D.elem D.int
+
+                    _ ->
+                        D.fail
+            )
+
+
+decodeRelay : D.Decoder Relay
+decodeRelay =
+    D.length
+        |> D.andThen (\length -> D.int |> D.andThen (decodeRelayHelper length))
+
+
+decodeRelayHelper : Int -> Int -> D.Decoder Relay
+decodeRelayHelper length id =
+    case ( length, id ) of
+        -- single_host_addr = ( 0, port / null, ipv4 / null, ipv6 / null )
+        ( 4, 0 ) ->
+            D.map3 (\port_ ipv4 ipv6 -> SingleHostAddr { port_ = port_, ipv4 = ipv4, ipv6 = ipv6 })
+                (D.maybe D.int)
+                (D.maybe <| D.map Bytes.fromBytes D.bytes)
+                (D.maybe <| D.map Bytes.fromBytes D.bytes)
+
+        -- single_host_name = ( 1, port / null, dns_name )  -- An A or AAAA DNS record
+        ( 3, 1 ) ->
+            D.map2 (\port_ dns -> SingleHostName { port_ = port_, dnsName = dns })
+                (D.maybe D.int)
+                D.string
+
+        -- multi_host_name = ( 2, dns_name )  -- A SRV DNS record
+        ( 2, 2 ) ->
+            D.map (\dns -> MultiHostName { dnsName = dns })
+                D.string
+
+        _ ->
+            failWithMessage <|
+                "Unknown length and id for relay ("
+                    ++ String.fromInt length
+                    ++ ", "
+                    ++ String.fromInt id
+                    ++ ")"
+
+
+decodePoolMetadata : D.Decoder PoolMetadata
+decodePoolMetadata =
+    D.tuple PoolMetadata <|
+        D.elems
+            >> D.elem D.string
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+
+
+decodeMoveInstantaneousRewards : D.Decoder MoveInstantaneousReward
+decodeMoveInstantaneousRewards =
+    D.tuple (\source targets -> { source = source, target = StakeCredentials targets }) <|
+        D.elems
+            >> D.elem decodeRewardSource
+            >> D.elem (D.list decodeSingleRewardTarget)
+
+
+decodeRewardSource : D.Decoder RewardSource
+decodeRewardSource =
+    D.int
+        |> D.andThen
+            (\source ->
+                case source of
+                    0 ->
+                        D.succeed Reserves
+
+                    1 ->
+                        D.succeed Treasury
+
+                    _ ->
+                        failWithMessage "Unknown reward source"
+            )
+
+
+decodeSingleRewardTarget : D.Decoder ( Credential, Int )
+decodeSingleRewardTarget =
+    D.map2 Tuple.pair
+        decodeStakeCredential
+        D.int
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
 decodeWithdrawals =
-    -- Debug.todo "decodeWithdrawals"
-    D.fail
+    failWithMessage "decodeWithdrawals (not implemented) failed to decode"
 
 
 decodeUpdate : D.Decoder Update
 decodeUpdate =
-    -- Debug.todo "decodeUpdate"
-    D.fail
+    failWithMessage "decodeUpdate (not implemented) failed to decode"
 
 
-decodePreAlonzoWitness : D.Decoder WitnessSet
-decodePreAlonzoWitness =
+
+-- Decode witness
+
+
+decodeWitness : D.Decoder WitnessSet
+decodeWitness =
     let
         witnessBuilder vkeywitness multisigScript bootstrapWitness =
             { newWitnessSet
@@ -887,14 +1074,21 @@ decodePreAlonzoWitness =
 
 decodeVKeyWitness : D.Decoder VKeyWitness
 decodeVKeyWitness =
-    -- TODO
-    D.fail
+    D.tuple
+        (\vkey sig ->
+            { vkey = Bytes.fromBytes vkey
+            , signature = Bytes.fromBytes sig
+            }
+        )
+    <|
+        D.elems
+            >> D.elem D.bytes
+            >> D.elem D.bytes
 
 
 decodeNativeScript : D.Decoder NativeScript
 decodeNativeScript =
-    -- TODO
-    D.fail
+    failWithMessage "decodeNativeScript (not implemented) failed to decode"
 
 
 decodeBootstrapWitness : D.Decoder BootstrapWitness
@@ -915,8 +1109,8 @@ decodeBootstrapWitness =
             >> D.elem D.bytes
 
 
-decodePreAlonzoAuxiliary : D.Decoder AuxiliaryData
-decodePreAlonzoAuxiliary =
+decodeAuxiliary : D.Decoder AuxiliaryData
+decodeAuxiliary =
     D.map Shelley decodeMetadata
 
 
@@ -927,11 +1121,24 @@ decodeMetadata =
 
 decodeMetadatum : D.Decoder Metadatum
 decodeMetadatum =
-    D.fail
+    failWithMessage "decodeMetadatum (not implemented) failed to decode"
 
 
 
 -- Helper definitions
+
+
+failWithMessage : String -> D.Decoder a
+failWithMessage msg =
+    D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
+        |> D.andThen
+            (\rawBytes ->
+                let
+                    _ =
+                        Debug.log msg (Bytes.toString rawBytes)
+                in
+                D.fail
+            )
 
 
 newBody : TransactionBody
