@@ -7,7 +7,9 @@ module ElmCardano.Value exposing (Value, onlyLovelace, encode)
 -}
 
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Natural exposing (Natural)
 
 
 {-| A multi-asset output Value. Contains tokens indexed by policy id and asset name.
@@ -19,12 +21,12 @@ TODO: make sure the previous statement stays true?
 
 -}
 type alias Value =
-    { lovelace : Int, assets : MultiAsset }
+    { lovelace : Natural, assets : MultiAsset }
 
 
 {-| Create a [Value] just containing Ada lovelaces.
 -}
-onlyLovelace : Int -> Value
+onlyLovelace : Natural -> Value
 onlyLovelace lovelace =
     { lovelace = lovelace, assets = MultiAsset.empty }
 
@@ -34,12 +36,12 @@ onlyLovelace lovelace =
 encode : Value -> E.Encoder
 encode { lovelace, assets } =
     if MultiAsset.isEmpty assets then
-        E.int lovelace
+        EE.natural lovelace
 
     else
         E.sequence
             [ E.beginList
-            , E.int lovelace
+            , EE.natural lovelace
             , MultiAsset.toCbor assets
             , E.break
             ]

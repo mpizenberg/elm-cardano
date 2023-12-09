@@ -141,7 +141,7 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Address -> Int -> Data -> Tx -> Tx
+payToContract : Address -> Natural -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
@@ -154,7 +154,7 @@ payToContract address amount datum tx =
             )
 
 
-payToAddress : Address -> Int -> Tx -> Tx
+payToAddress : Address -> Natural -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
@@ -220,7 +220,7 @@ addRequiredSigner signer body =
     }
 
 
-collateralReturn : Address -> Int -> Tx -> Tx
+collateralReturn : Address -> Natural -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody
