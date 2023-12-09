@@ -27,6 +27,7 @@ natural n =
         E.int (N.toInt n)
 
     else
+        -- TODO: if < 2^64 we should encode as u64 instead!
         let
             -- simple implementation with hex encoding
             -- TODO: improve this with a better performing approach if needed
