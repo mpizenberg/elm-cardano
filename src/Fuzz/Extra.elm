@@ -1,4 +1,4 @@
-module Fuzz.Extra exposing (..)
+module Fuzz.Extra exposing (natural, strictPositiveNatural)
 
 import Fuzz exposing (Fuzzer)
 import Natural as N exposing (Natural)

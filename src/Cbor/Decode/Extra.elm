@@ -1,4 +1,4 @@
-module Cbor.Decode.Extra exposing (..)
+module Cbor.Decode.Extra exposing (natural)
 
 import Bytes.Comparable as Bytes
 import Cbor
