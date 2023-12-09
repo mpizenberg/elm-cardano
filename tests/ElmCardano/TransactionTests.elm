@@ -393,7 +393,7 @@ txBody841cca81 =
             [ Transaction.PoolRegistration
                 { operator = Bytes.fromStringUnchecked "153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf"
                 , vrfKeyHash = Bytes.fromStringUnchecked "0220a5d08adbfe9554b52d7b2993be5892ac3ff340e674a377dea3e22ad1778b"
-                , pledge = 450000000000
+                , pledge = N.fromSafeString "450000000000"
                 , cost = 340000000
                 , margin = { denominator = 200, numerator = 3 }
                 , rewardAccount =
