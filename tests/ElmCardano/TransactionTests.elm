@@ -491,7 +491,7 @@ txBody896cf8fe =
         , certificates =
             [ Transaction.PoolRetirement
                 { poolId = Bytes.fromStringUnchecked "469fbad36a8a68c5f62f3505ecbe6a461ea262ae20b4de8d39ff08ab"
-                , epoch = 209
+                , epoch = N.fromSafeInt 209
                 }
             ]
     }

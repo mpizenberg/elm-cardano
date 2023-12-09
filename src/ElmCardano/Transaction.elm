@@ -149,7 +149,7 @@ type AuxiliaryData
 -}
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate
-    , epoch : Int
+    , epoch : Natural
     }
 
 
@@ -323,7 +323,7 @@ type Certificate
     | StakeDeregistration { delegator : Credential }
     | StakeDelegation { delegator : Credential, poolId : Bytes PoolId }
     | PoolRegistration PoolParams
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Int }
+    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural }
     | GenesisKeyDelegation
         { genesisHash : Bytes GenesisHash
         , genesisDelegateHash : Bytes GenesisDelegateHash
@@ -641,7 +641,7 @@ encodeCertificate certificate =
             PoolRetirement { poolId, epoch } ->
                 [ E.int 4
                 , Bytes.toCbor poolId
-                , E.int epoch
+                , E.natural epoch
                 ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
@@ -729,7 +729,7 @@ encodeUpdate =
     E.tuple <|
         E.elems
             >> E.elem encodeProposedProtocolParameterUpdates .proposedProtocolParameterUpdates
-            >> E.elem E.int .epoch
+            >> E.elem E.natural .epoch
 
 
 {-| -}
@@ -876,7 +876,7 @@ decodeCertificateHelper length id =
         ( 3, 4 ) ->
             D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
                 (D.map Bytes.fromBytes D.bytes)
-                D.int
+                DE.natural
 
         -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
         ( 4, 5 ) ->
