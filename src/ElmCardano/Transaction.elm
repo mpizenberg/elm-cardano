@@ -80,6 +80,9 @@ type alias TransactionBody =
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
+
+    -- TODO: Use a type that can have negative numbers instead
+    -- and make MultiAsset only positive numbers?
     , mint : MultiAsset -- 9
     , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
