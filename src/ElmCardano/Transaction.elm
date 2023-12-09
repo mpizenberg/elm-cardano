@@ -153,8 +153,8 @@ type alias Update =
 {-| Adjustable parameters that power key aspects of the network.
 -}
 type alias ProtocolParamUpdate =
-    { minFeeA : Maybe Int -- 0
-    , minFeeB : Maybe Int -- 1
+    { minFeeA : Maybe Natural -- 0
+    , minFeeB : Maybe Natural -- 1
     , maxBlockBodySize : Maybe Int -- 2
     , maxTransactionSize : Maybe Int -- 3
     , maxBlockHeaderSize : Maybe Int -- 4
@@ -738,8 +738,8 @@ encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
 encodeProtocolParamUpdate =
     E.record E.int <|
         E.fields
-            >> E.optionalField 0 E.int .minFeeA
-            >> E.optionalField 1 E.int .minFeeB
+            >> E.optionalField 0 E.natural .minFeeA
+            >> E.optionalField 1 E.natural .minFeeB
             >> E.optionalField 2 E.int .maxBlockBodySize
             >> E.optionalField 3 E.int .maxTransactionSize
             >> E.optionalField 4 E.int .maxBlockHeaderSize
