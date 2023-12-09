@@ -129,7 +129,7 @@ type alias WitnessSet =
 {-| metadata used in [AuxiliaryData].
 -}
 type alias Metadata =
-    Dict Int Metadatum
+    List ( Natural, Metadatum )
 
 
 {-| [Transaction] auxiliary data.
@@ -138,7 +138,7 @@ type AuxiliaryData
     = Shelley Metadata
     | ShelleyMa { transactionMetadata : Metadata, auxiliaryScripts : List NativeScript }
     | PostAlonzo
-        { metadata : Maybe (Dict Int Metadatum) -- 0
+        { metadata : Maybe (List ( Natural, Metadatum )) -- 0
         , nativeScripts : Maybe (List NativeScript) -- 1
         , plutusV1Scripts : Maybe (List PlutusScript) -- 2
         , plutusV2Scripts : Maybe (List PlutusScript) -- 2
@@ -540,7 +540,7 @@ encodeAuxiliaryData : AuxiliaryData -> E.Encoder
 encodeAuxiliaryData auxiliaryData =
     let
         encodeMetadata =
-            E.ledgerDict E.int encodeMetadatum
+            E.ledgerAssociativeList E.natural encodeMetadatum
     in
     case auxiliaryData of
         Shelley metadata ->
@@ -1122,7 +1122,7 @@ decodeAuxiliary =
 
 decodeMetadata : D.Decoder Metadata
 decodeMetadata =
-    D.dict D.int decodeMetadatum
+    D.list (D.map2 Tuple.pair DE.natural decodeMetadatum)
 
 
 decodeMetadatum : D.Decoder Metadatum
