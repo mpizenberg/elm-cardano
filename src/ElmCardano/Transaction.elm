@@ -366,7 +366,7 @@ type alias PoolParams =
     { operator : Bytes PoolId
     , vrfKeyHash : Bytes VrfKeyHash
     , pledge : Natural
-    , cost : Int
+    , cost : Natural
     , margin : UnitInterval
     , rewardAccount : StakeAddress
     , poolOwners : List (Bytes CredentialHash)
@@ -630,7 +630,7 @@ encodeCertificate certificate =
                 , Bytes.toCbor poolParams.operator
                 , Bytes.toCbor poolParams.vrfKeyHash
                 , E.natural poolParams.pledge
-                , E.int poolParams.cost
+                , E.natural poolParams.cost
                 , encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
                 , E.ledgerList Bytes.toCbor poolParams.poolOwners
@@ -938,7 +938,7 @@ decodePoolParams =
         |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
         |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
         |> keep (D.oneOf [ DE.natural, failWithMessage "Failed to decode pledge" ])
-        |> keep D.int
+        |> keep DE.natural
         |> keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
         |> keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
         |> keep (D.list (D.map Bytes.fromBytes D.bytes))
