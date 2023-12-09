@@ -12,12 +12,14 @@ module ElmCardano.MultiAsset exposing
 
 import Bytes.Map exposing (BytesMap)
 import Cbor.Encode as E
+import Cbor.Encode.Extra as EE
+import Natural exposing (Natural)
 
 
 {-| Type alias for handling multi-asset values.
 -}
 type alias MultiAsset =
-    BytesMap PolicyId (BytesMap AssetName Int)
+    BytesMap PolicyId (BytesMap AssetName Natural)
 
 
 {-| Phantom type for 28-bytes policy id.
@@ -52,4 +54,4 @@ isEmpty =
 -}
 toCbor : MultiAsset -> E.Encoder
 toCbor multiAsset =
-    Bytes.Map.toCbor (Bytes.Map.toCbor E.int) multiAsset
+    Bytes.Map.toCbor (Bytes.Map.toCbor EE.natural) multiAsset
