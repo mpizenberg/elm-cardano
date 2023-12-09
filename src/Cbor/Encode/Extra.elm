@@ -1,17 +1,56 @@
 module Cbor.Encode.Extra exposing
-    ( nonEmptyField
+    ( natural
+    , nonEmptyField
     , ledgerList, ledgerDict, ledgerAssociativeList
     )
 
 {-| Extra CBOR encoding utility functions.
 
+@docs natural
 @docs nonEmptyField
 @docs ledgerList, ledgerDict, ledgerAssociativeList
 
 -}
 
+import Bytes.Comparable as Bytes
 import Cbor.Encode as E
+import Cbor.Tag as Tag
 import Dict exposing (Dict)
+import Natural as N exposing (Natural)
+
+
+{-| Encode a natural number.
+-}
+natural : Natural -> E.Encoder
+natural n =
+    if isSafeInt n then
+        E.int (N.toInt n)
+
+    else
+        let
+            -- simple implementation with hex encoding
+            -- TODO: improve this with a better performing approach if needed
+            nAsBytes =
+                N.toHexString n
+                    |> prependWith0IfOddLength
+                    |> Bytes.fromStringUnchecked
+                    |> Bytes.toBytes
+        in
+        E.tagged Tag.PositiveBigNum E.bytes nAsBytes
+
+
+isSafeInt : Natural -> Bool
+isSafeInt n =
+    n |> N.isLessThanOrEqual (N.fromSafeInt N.maxSafeInt)
+
+
+prependWith0IfOddLength : String -> String
+prependWith0IfOddLength str =
+    if modBy 2 (String.length str) == 0 then
+        str
+
+    else
+        "0" ++ str
 
 
 {-| Encode a foldable only if non empty.
