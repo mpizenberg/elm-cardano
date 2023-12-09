@@ -221,6 +221,7 @@ type alias RationalNumber =
 {-| -}
 type Metadatum
     = Int Int
+      -- TODO: replace Int with big integer
     | Bytes (Bytes MetadatumBytes)
     | String String
     | List (List Metadatum)
