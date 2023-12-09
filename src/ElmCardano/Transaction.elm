@@ -161,9 +161,9 @@ type alias ProtocolParamUpdate =
     , maxBlockBodySize : Maybe Int -- 2
     , maxTransactionSize : Maybe Int -- 3
     , maxBlockHeaderSize : Maybe Int -- 4
-    , keyDeposit : Maybe Int -- 5
-    , poolDeposit : Maybe Int -- 6
-    , maximumEpoch : Maybe Int -- 7
+    , keyDeposit : Maybe Natural -- 5
+    , poolDeposit : Maybe Natural -- 6
+    , maximumEpoch : Maybe Natural -- 7
     , desiredNumberOfStakePools : Maybe Int -- 8
     , poolPledgeInfluence : Maybe RationalNumber -- 9
     , expansionRate : Maybe UnitInterval -- 10
@@ -747,9 +747,9 @@ encodeProtocolParamUpdate =
             >> E.optionalField 2 E.int .maxBlockBodySize
             >> E.optionalField 3 E.int .maxTransactionSize
             >> E.optionalField 4 E.int .maxBlockHeaderSize
-            >> E.optionalField 5 E.int .keyDeposit
-            >> E.optionalField 6 E.int .poolDeposit
-            >> E.optionalField 7 E.int .maximumEpoch
+            >> E.optionalField 5 E.natural .keyDeposit
+            >> E.optionalField 6 E.natural .poolDeposit
+            >> E.optionalField 7 E.natural .maximumEpoch
             >> E.optionalField 8 E.int .desiredNumberOfStakePools
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
