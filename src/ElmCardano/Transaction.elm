@@ -48,7 +48,6 @@ import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Dict exposing (Dict)
 import ElmCardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
