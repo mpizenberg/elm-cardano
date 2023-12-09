@@ -76,7 +76,7 @@ type alias TransactionBody =
     , fee : Maybe Natural -- 2
     , ttl : Maybe Natural -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : List ( StakeAddress, Int ) -- 5
+    , withdrawals : List ( StakeAddress, Natural ) -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
@@ -432,8 +432,8 @@ otherwise the funds are given to the other accounting pot.
 
 -}
 type RewardTarget
-    = StakeCredentials (List ( Credential, Int ))
-    | OtherAccountingPot Int
+    = StakeCredentials (List ( Credential, Natural ))
+    | OtherAccountingPot Natural
 
 
 
@@ -477,7 +477,7 @@ encodeTransactionBody =
             >> E.optionalField 2 E.natural .fee
             >> E.optionalField 3 E.natural .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.int) .withdrawals
+            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.natural) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
@@ -711,10 +711,10 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerAssociativeList Address.credentialToCbor E.int distribution
+            E.ledgerAssociativeList Address.credentialToCbor E.natural distribution
 
         OtherAccountingPot n ->
-            E.int n
+            E.natural n
 
 
 {-| -}
@@ -1037,14 +1037,14 @@ decodeRewardSource =
             )
 
 
-decodeSingleRewardTarget : D.Decoder ( Credential, Int )
+decodeSingleRewardTarget : D.Decoder ( Credential, Natural )
 decodeSingleRewardTarget =
     D.map2 Tuple.pair
         decodeStakeCredential
-        D.int
+        DE.natural
 
 
-decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
+decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))
 decodeWithdrawals =
     failWithMessage "decodeWithdrawals (not implemented) failed to decode"
 
