@@ -35,6 +35,7 @@ import ElmCardano.Transaction
         )
 import ElmCardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
 import ElmCardano.Value as Value
+import Natural exposing (Natural)
 
 
 type Tx
@@ -175,12 +176,12 @@ addOutput newOutput body =
     { body | outputs = body.outputs ++ [ newOutput ] }
 
 
-fee : Int -> Tx -> Tx
+fee : Natural -> Tx -> Tx
 fee amount (Tx inner) =
     inner |> updateBody (addFee amount)
 
 
-addFee : Int -> TransactionBody -> TransactionBody
+addFee : Natural -> TransactionBody -> TransactionBody
 addFee amount body =
     { body | fee = Just amount }
 

@@ -44,6 +44,7 @@ module ElmCardano.Transaction exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
@@ -54,6 +55,7 @@ import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
 import ElmCardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
+import Natural exposing (Natural)
 
 
 {-| A Cardano transaction.
@@ -71,7 +73,7 @@ type alias Transaction =
 type alias TransactionBody =
     { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
-    , fee : Maybe Int -- 2
+    , fee : Maybe Natural -- 2
     , ttl : Maybe Int -- 3
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Int ) -- 5
@@ -468,7 +470,7 @@ encodeTransactionBody =
         E.fields
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
-            >> E.optionalField 2 E.int .fee
+            >> E.optionalField 2 E.natural .fee
             >> E.optionalField 3 E.int .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.int) .withdrawals
@@ -821,7 +823,7 @@ decodeBody =
             -- outputs
             >> D.field 1 (D.list Utxo.decodeOutput)
             -- fee
-            >> D.field 2 D.int
+            >> D.field 2 DE.natural
             -- ttl
             >> D.field 3 D.int
             -- certificates

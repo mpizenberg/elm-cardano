@@ -9,6 +9,7 @@ import ElmCardano.Transaction.Builder as Tx
 import ElmCardano.Utxo as Utxo
 import ElmCardano.Value as Value
 import Expect
+import Natural as N
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
 
@@ -46,7 +47,7 @@ suite =
                             }
                         |> Tx.payToContract contractAddress 50000000 (Constr 0 [ Bytes paymentCredential ])
                         |> Tx.payToAddress userAddress 1947597502
-                        |> Tx.fee 182302
+                        |> Tx.fee (N.fromSafeInt 182302)
                         |> Tx.scriptDataHash (Bytes.fromStringUnchecked "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
                         |> Tx.requiredSigner paymentCredential
@@ -169,7 +170,7 @@ txBody79acf081 =
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 218873
+        , fee = Just (N.fromSafeInt 218873)
         , ttl = Just 4500080
     }
 
@@ -254,7 +255,7 @@ txBody871b14fb =
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 168449
+        , fee = Just (N.fromSafeInt 168449)
         , ttl = Just 4500520
     }
 
@@ -317,7 +318,7 @@ txBodyf3a0835d =
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 178701
+        , fee = Just (N.fromSafeInt 178701)
         , ttl = Just 4503440
         , certificates =
             [ Transaction.StakeRegistration { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844") }
@@ -386,7 +387,7 @@ txBody841cca81 =
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 191461
+        , fee = Just (N.fromSafeInt 191461)
         , ttl = Just 4503580
         , certificates =
             [ Transaction.PoolRegistration
@@ -485,7 +486,7 @@ txBody896cf8fe =
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 179053
+        , fee = Just (N.fromSafeInt 179053)
         , ttl = Just 4507780
         , certificates =
             [ Transaction.PoolRetirement
