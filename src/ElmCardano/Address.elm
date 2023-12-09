@@ -27,6 +27,7 @@ import Bytes.Decode as BD
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
+import Natural exposing (Natural)
 
 
 {-| Full address, including the network ID.
@@ -78,7 +79,7 @@ Read more about pointers in CIP-0019 :: Pointers.
 -}
 type StakeCredential
     = InlineCredential Credential
-    | PointerCredential { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
+    | PointerCredential { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int }
 
 
 {-| Phantom type for 28-bytes credential hashes.
@@ -123,7 +124,7 @@ base networkId paymentCredential inlineStakeCredential =
 
 {-| Create a pointer address.
 -}
-pointer : NetworkId -> Credential -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int } -> Address
+pointer : NetworkId -> Credential -> { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int } -> Address
 pointer networkId paymentCredential p =
     Shelley
         { networkId = networkId
@@ -412,6 +413,6 @@ networkIdFromHeader header =
             Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
 
 
-pointerFromBytes : B.Bytes -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
+pointerFromBytes : B.Bytes -> { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int }
 pointerFromBytes _ =
     Debug.todo "pointerFromBytes"
