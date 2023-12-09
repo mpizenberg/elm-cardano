@@ -171,7 +171,7 @@ txBody79acf081 =
                 }
             ]
         , fee = Just (N.fromSafeInt 218873)
-        , ttl = Just 4500080
+        , ttl = Just (N.fromSafeInt 4500080)
     }
 
 
@@ -256,7 +256,7 @@ txBody871b14fb =
                 }
             ]
         , fee = Just (N.fromSafeInt 168449)
-        , ttl = Just 4500520
+        , ttl = Just (N.fromSafeInt 4500520)
     }
 
 
@@ -319,7 +319,7 @@ txBodyf3a0835d =
                 }
             ]
         , fee = Just (N.fromSafeInt 178701)
-        , ttl = Just 4503440
+        , ttl = Just (N.fromSafeInt 4503440)
         , certificates =
             [ Transaction.StakeRegistration { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844") }
             ]
@@ -388,7 +388,7 @@ txBody841cca81 =
                 }
             ]
         , fee = Just (N.fromSafeInt 191461)
-        , ttl = Just 4503580
+        , ttl = Just (N.fromSafeInt 4503580)
         , certificates =
             [ Transaction.PoolRegistration
                 { operator = Bytes.fromStringUnchecked "153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf"
@@ -487,7 +487,7 @@ txBody896cf8fe =
                 }
             ]
         , fee = Just (N.fromSafeInt 179053)
-        , ttl = Just 4507780
+        , ttl = Just (N.fromSafeInt 4507780)
         , certificates =
             [ Transaction.PoolRetirement
                 { poolId = Bytes.fromStringUnchecked "469fbad36a8a68c5f62f3505ecbe6a461ea262ae20b4de8d39ff08ab"

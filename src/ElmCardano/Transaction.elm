@@ -74,7 +74,7 @@ type alias TransactionBody =
     { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
     , fee : Maybe Natural -- 2
-    , ttl : Maybe Int -- 3
+    , ttl : Maybe Natural -- 3
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Int ) -- 5
     , update : Maybe Update -- 6
@@ -471,7 +471,7 @@ encodeTransactionBody =
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
             >> E.optionalField 2 E.natural .fee
-            >> E.optionalField 3 E.int .ttl
+            >> E.optionalField 3 E.natural .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.int) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
@@ -825,7 +825,7 @@ decodeBody =
             -- fee
             >> D.field 2 DE.natural
             -- ttl
-            >> D.field 3 D.int
+            >> D.field 3 DE.natural
             -- certificates
             >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "Failed to decode certificate" ])
             -- withdrawals
