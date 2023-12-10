@@ -1,10 +1,10 @@
-module ElmCardano.CoinSelectionTests exposing (..)
+module Cardano.CoinSelectionTests exposing (..)
 
 import Bytes.Comparable as Bytes
-import ElmCardano.Address as Address exposing (Address, NetworkId(..))
-import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import ElmCardano.Utxo exposing (Output, fromLovelace, totalLovelace)
-import ElmCardano.Value exposing (onlyLovelace)
+import Cardano.Address as Address exposing (Address, NetworkId(..))
+import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
+import Cardano.Utxo exposing (Output, fromLovelace, totalLovelace)
+import Cardano.Value exposing (onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Fuzz.Extra

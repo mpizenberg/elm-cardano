@@ -2,15 +2,13 @@ port module Main exposing (main)
 
 import Browser
 import Bytes.Comparable as Bytes
-import ElmCardano.Transaction as Transaction exposing (Transaction)
+import Cardano.Transaction as Transaction exposing (Transaction)
 import Html exposing (Html, div, text)
 import Html.Attributes as HA
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as JDecode exposing (Value, value)
 import Ogmios6
 import Platform.Cmd as Cmd
-import Process
-import Task
 
 
 main =

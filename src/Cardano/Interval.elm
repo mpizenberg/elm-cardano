@@ -1,4 +1,4 @@
-module ElmCardano.Interval exposing (Interval, Bound, BoundType(..))
+module Cardano.Interval exposing (Interval, Bound, BoundType(..))
 
 {-| In a eUTxO-based blockchain like Cardano, the management of time can be finicky.
 Indeed, in order to maintain a complete determinism in the execution of scripts, it is impossible to introduce a notion of "current time".

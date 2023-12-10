@@ -1,9 +1,9 @@
-module ElmCardano.CoinSelection exposing
+module Cardano.CoinSelection exposing
     ( Context, Error(..), Selection
     , largestFirst
     )
 
-{-| Module `ElmCardano.CoinSelection` provides functionality for performing
+{-| Module `Cardano.CoinSelection` provides functionality for performing
 coin selection based on a set of available UTXOs and a set of requested outputs.
 It exports functions for sorting UTXOs and performing the Largest-First coin
 selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>).
@@ -20,8 +20,8 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 
 -}
 
-import ElmCardano.Utxo exposing (Output, lovelace, sortByDescendingLovelace, totalLovelace)
-import ElmCardano.Value exposing (Value, onlyLovelace)
+import Cardano.Utxo exposing (Output, lovelace, sortByDescendingLovelace, totalLovelace)
+import Cardano.Value exposing (Value, onlyLovelace)
 import Natural as N exposing (Natural)
 
 

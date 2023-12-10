@@ -1,4 +1,4 @@
-module ElmCardano.Redeemer exposing
+module Cardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
     , encode, encodeTag, encodeExUnits
     )
@@ -10,8 +10,8 @@ module ElmCardano.Redeemer exposing
 
 -}
 
+import Cardano.Data as Data exposing (Data)
 import Cbor.Encode as E
-import ElmCardano.Data as Data exposing (Data)
 
 
 {-| Redeemer of a script, containing the data passed as argument to the validator.

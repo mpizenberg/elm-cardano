@@ -1,10 +1,10 @@
-module ElmCardano.DataTests exposing (..)
+module Cardano.DataTests exposing (..)
 
 import Bytes.Comparable as Bytes exposing (bytes)
+import Cardano.Data as Data exposing (Data(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Test as Cbor
-import ElmCardano.Data as Data exposing (Data(..))
 import Expect
 import Fuzz exposing (Fuzzer)
 import Hex.Convert.Extra as Hex

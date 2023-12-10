@@ -1,4 +1,4 @@
-module ElmCardano.Transaction.Builder exposing
+module Cardano.Transaction.Builder exposing
     ( Tx
     , collateral
     , collateralReturn
@@ -21,11 +21,11 @@ module ElmCardano.Transaction.Builder exposing
     )
 
 import Bytes.Comparable exposing (Bytes)
-import ElmCardano.Address exposing (Address, CredentialHash)
-import ElmCardano.Data exposing (Data)
-import ElmCardano.MultiAsset as MultiAsset
-import ElmCardano.Redeemer exposing (Redeemer)
-import ElmCardano.Transaction
+import Cardano.Address exposing (Address, CredentialHash)
+import Cardano.Data exposing (Data)
+import Cardano.MultiAsset as MultiAsset
+import Cardano.Redeemer exposing (Redeemer)
+import Cardano.Transaction
     exposing
         ( ScriptDataHash
         , Transaction
@@ -33,8 +33,8 @@ import ElmCardano.Transaction
         , WitnessSet
         , serialize
         )
-import ElmCardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
-import ElmCardano.Value as Value
+import Cardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
+import Cardano.Value as Value
 import Natural exposing (Natural)
 
 

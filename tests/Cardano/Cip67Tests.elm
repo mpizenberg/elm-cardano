@@ -1,6 +1,6 @@
-module ElmCardano.Cip67Tests exposing (suite)
+module Cardano.Cip67Tests exposing (suite)
 
-import ElmCardano.Cip67 as Cip67
+import Cardano.Cip67 as Cip67
 import Expect
 import Fuzz
 import Test exposing (Test, describe, fuzz, test)

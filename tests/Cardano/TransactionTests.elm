@@ -1,13 +1,13 @@
-module ElmCardano.TransactionTests exposing (suite)
+module Cardano.TransactionTests exposing (suite)
 
 import Bytes.Comparable as Bytes
-import ElmCardano.Address as Address exposing (NetworkId(..))
-import ElmCardano.Data exposing (Data(..))
-import ElmCardano.Redeemer exposing (RedeemerTag(..))
-import ElmCardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
-import ElmCardano.Transaction.Builder as Tx
-import ElmCardano.Utxo as Utxo
-import ElmCardano.Value as Value
+import Cardano.Address as Address exposing (NetworkId(..))
+import Cardano.Data exposing (Data(..))
+import Cardano.Redeemer exposing (RedeemerTag(..))
+import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
+import Cardano.Transaction.Builder as Tx
+import Cardano.Utxo as Utxo
+import Cardano.Value as Value
 import Expect
 import Natural as N
 import Test exposing (Test, describe, test)
@@ -16,7 +16,7 @@ import Tests exposing (expectBytes)
 
 suite : Test
 suite =
-    describe "ElmCardano.Transaction"
+    describe "Cardano.Transaction"
         [ describe "Transaction.toCbor"
             [ test "basic encode" <|
                 \_ ->

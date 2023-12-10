@@ -1,4 +1,4 @@
-module ElmCardano.Transaction exposing
+module Cardano.Transaction exposing
     ( Transaction
     , TransactionBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet
@@ -43,17 +43,17 @@ module ElmCardano.Transaction exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
+import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
+import Cardano.Data as Data exposing (Data)
+import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
+import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
+import Cardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
+import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import ElmCardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
-import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
-import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
-import ElmCardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Natural exposing (Natural)
 
 

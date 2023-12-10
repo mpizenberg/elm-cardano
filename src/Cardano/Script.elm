@@ -1,4 +1,4 @@
-module ElmCardano.Script exposing
+module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
     , encodeScript, encodeNativeScript, encodePlutusScript
     )

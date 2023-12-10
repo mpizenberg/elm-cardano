@@ -1,4 +1,4 @@
-module ElmCardano.Utxo exposing
+module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output(..), DatumHash, DatumOption(..)
     , fromLovelace
     , lovelace, totalLovelace
@@ -39,16 +39,16 @@ module ElmCardano.Utxo exposing
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Address as Address exposing (Address)
+import Cardano.Data as Data exposing (Data)
+import Cardano.MultiAsset as MultiAsset
+import Cardano.Script as Script exposing (Script)
+import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
-import ElmCardano.Address as Address exposing (Address)
-import ElmCardano.Data as Data exposing (Data)
-import ElmCardano.MultiAsset as MultiAsset
-import ElmCardano.Script as Script exposing (Script)
-import ElmCardano.Value as Value exposing (Value)
 import Natural as N exposing (Natural)
 
 

@@ -1,4 +1,4 @@
-module ElmCardano.Cip67 exposing
+module Cardano.Cip67 exposing
     ( Cip67, AssetName
     , fromBytes, labelFromHex, fromCbor
     , toBytes, labelToHex, toCbor
@@ -24,9 +24,9 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Crc8 as Crc8
 import Bytes.Decode as BD
 import Bytes.Encode as BE
+import Cardano.MultiAsset as MultiAsset
 import Cbor.Decode as D
 import Cbor.Encode as E
-import ElmCardano.MultiAsset as MultiAsset
 
 
 {-| Datatype for modeling CIP-0067.

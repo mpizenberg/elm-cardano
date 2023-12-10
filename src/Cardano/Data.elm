@@ -1,4 +1,4 @@
-module ElmCardano.Data exposing (Data(..), fromCbor, toCbor)
+module Cardano.Data exposing (Data(..), fromCbor, toCbor)
 
 {-| Handling Cardano Data objects.
 

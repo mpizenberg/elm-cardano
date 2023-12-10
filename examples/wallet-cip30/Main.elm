@@ -3,9 +3,9 @@ port module Main exposing (..)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
+import Cardano.Cip30 as Cip30
+import Cardano.Value as ECValue
 import Dict exposing (Dict)
-import ElmCardano.Cip30 as Cip30
-import ElmCardano.Value as ECValue
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)

@@ -1,4 +1,4 @@
-module ElmCardano.Value exposing (Value, onlyLovelace, encode)
+module Cardano.Value exposing (Value, onlyLovelace, encode)
 
 {-| Handling Cardano values.
 
@@ -6,9 +6,9 @@ module ElmCardano.Value exposing (Value, onlyLovelace, encode)
 
 -}
 
+import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Natural exposing (Natural)
 
 

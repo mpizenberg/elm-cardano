@@ -1,4 +1,4 @@
-module ElmCardano.Cip30 exposing
+module Cardano.Cip30 exposing
     ( WalletDescriptor, Wallet, walletDescriptor
     , Request, encodeRequest, Paginate
     , discoverWallets, enableWallet
@@ -27,10 +27,10 @@ module ElmCardano.Cip30 exposing
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Value as ECValue
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Cbor.Encode
-import ElmCardano.Value as ECValue
 import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value)
 import Json.Encode as JEncode

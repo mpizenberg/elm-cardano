@@ -1,4 +1,4 @@
-module ElmCardano.Address exposing
+module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), CredentialHash
     , enterprise, script, base, pointer

@@ -1,4 +1,4 @@
-module ElmCardano.MultiAsset exposing
+module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
     , empty, isEmpty, toCbor
     )
