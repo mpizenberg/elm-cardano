@@ -40,7 +40,7 @@ module Cardano.Transaction exposing
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
 import Cardano.Data as Data exposing (Data)
@@ -148,7 +148,10 @@ type alias ProtocolParamUpdate =
     , poolPledgeInfluence : Maybe RationalNumber -- 9
     , expansionRate : Maybe UnitInterval -- 10
     , treasuryGrowthRate : Maybe UnitInterval -- 11
+    , decentralizationConstant : Maybe UnitInterval -- 12 (deprecated)
+    , extraEntropy : Maybe ( Int, Bytes Any ) -- 13 (deprecated)
     , protocolVersion : Maybe ProtocolVersion -- 14
+    , minUtxoValue : Maybe Natural -- 15 (deprecated)
     , minPoolCost : Maybe Int -- 16
     , adaPerUtxoByte : Maybe Int -- 17
     , costModelsForScriptLanguages : Maybe CostModels -- 18
@@ -206,10 +209,6 @@ type alias VKeyWitness =
     { vkey : Bytes Ed25519PublicKey -- 0
     , signature : Bytes Ed25519Signature -- 1
     }
-
-
-
--- TODO: what kinds of hashes are these?
 
 
 {-| -}
@@ -961,7 +960,73 @@ decodeWithdrawals =
 
 decodeUpdate : D.Decoder Update
 decodeUpdate =
-    D.failWith "decodeUpdate (not implemented) failed to decode"
+    D.tuple (\updates epoch -> { proposedProtocolParameterUpdates = Bytes.Map.fromList updates, epoch = epoch }) <|
+        D.elems
+            >> D.elem (D.list <| D.map2 Tuple.pair (D.map Bytes.fromBytes D.bytes) decodeProtocolParamUpdate)
+            >> D.elem D.natural
+
+
+decodeProtocolParamUpdate : D.Decoder ProtocolParamUpdate
+decodeProtocolParamUpdate =
+    D.record D.int ProtocolParamUpdate <|
+        D.fields
+            -- ? 0:  uint               ; minfee A
+            >> D.optionalField 0 D.natural
+            -- ? 1:  uint               ; minfee B
+            >> D.optionalField 1 D.natural
+            -- ? 2:  uint               ; max block body size
+            >> D.optionalField 2 D.int
+            -- ? 3:  uint               ; max transaction size
+            >> D.optionalField 3 D.int
+            -- ? 4:  uint               ; max block header size
+            >> D.optionalField 4 D.int
+            -- ? 5:  coin               ; key deposit
+            >> D.optionalField 5 D.natural
+            -- ? 6:  coin               ; pool deposit
+            >> D.optionalField 6 D.natural
+            -- ? 7: epoch               ; maximum epoch
+            >> D.optionalField 7 D.natural
+            -- ? 8: uint                ; n_opt: desired number of stake pools
+            >> D.optionalField 8 D.int
+            -- ? 9: rational            ; pool pledge influence
+            >> D.optionalField 9 decodeRational
+            -- ? 10: unit_interval      ; expansion rate
+            >> D.optionalField 10 decodeRational
+            -- ? 11: unit_interval      ; treasury growth rate
+            >> D.optionalField 11 decodeRational
+            -- ? 12: unit_interval      ; d. decentralization constant
+            >> D.optionalField 12 decodeRational
+            -- ? 13: $nonce             ; extra entropy
+            >> D.optionalField 13 decodeExtraEntropy
+            -- ? 14: [protocol_version] ; protocol version
+            >> D.optionalField 14 decodeProtocolVersion
+            -- ? 15: coin               ; min utxo value
+            >> D.optionalField 15 D.natural
+            >> D.optionalField 16 (D.failWith "minPoolCost")
+            >> D.optionalField 17 (D.failWith "adaPerUtxoByte")
+            >> D.optionalField 18 (D.failWith "costModelsForScriptLanguages")
+            >> D.optionalField 19 (D.failWith "executionCosts")
+            >> D.optionalField 20 (D.failWith "maxTxExUnits")
+            >> D.optionalField 21 (D.failWith "maxBlockExUnits")
+            >> D.optionalField 22 (D.failWith "maxValueSize")
+            >> D.optionalField 23 (D.failWith "collateralPercentage")
+            >> D.optionalField 24 (D.failWith "maxCollateralInputs")
+
+
+decodeExtraEntropy : D.Decoder ( Int, Bytes Any )
+decodeExtraEntropy =
+    D.tuple Tuple.pair <|
+        D.elems
+            >> D.elem D.int
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+
+
+decodeProtocolVersion : D.Decoder ProtocolVersion
+decodeProtocolVersion =
+    D.tuple Tuple.pair <|
+        D.elems
+            >> D.elem D.int
+            >> D.elem D.int
 
 
 
