@@ -855,7 +855,7 @@ decodePoolParams =
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
         |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])
-        |> D.keep (D.maybe <| D.oneOf [ decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
+        |> D.keep (D.oneOf [ D.maybe decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
 
 
 decodeRational : D.Decoder RationalNumber
