@@ -934,20 +934,15 @@ decodeStakeCredential =
 decodePoolParams : D.Decoder PoolParams
 decodePoolParams =
     D.succeed PoolParams
-        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
-        |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
-        |> keep (D.oneOf [ DE.natural, failWithMessage "Failed to decode pledge" ])
-        |> keep DE.natural
-        |> keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
-        |> keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
-        |> keep (D.list (D.map Bytes.fromBytes D.bytes))
-        |> keep (D.list <| D.oneOf [ decodeRelay, failWithMessage "Failed to decode Relay" ])
-        |> keep (D.maybe <| D.oneOf [ decodePoolMetadata, failWithMessage "Failed to decode pool metadata" ])
-
-
-keep : D.Decoder a -> D.Decoder (a -> b) -> D.Decoder b
-keep val fun =
-    D.map2 (<|) fun val
+        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
+        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
+        |> D.keep (D.oneOf [ DE.natural, failWithMessage "Failed to decode pledge" ])
+        |> D.keep DE.natural
+        |> D.keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
+        |> D.keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
+        |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
+        |> D.keep (D.list <| D.oneOf [ decodeRelay, failWithMessage "Failed to decode Relay" ])
+        |> D.keep (D.maybe <| D.oneOf [ decodePoolMetadata, failWithMessage "Failed to decode pool metadata" ])
 
 
 decodeRational : D.Decoder RationalNumber
