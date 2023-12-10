@@ -953,7 +953,10 @@ decodeSingleRewardTarget =
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))
 decodeWithdrawals =
-    D.failWith "decodeWithdrawals (not implemented) failed to decode"
+    D.list <|
+        D.map2 Tuple.pair
+            Address.decodeReward
+            D.natural
 
 
 decodeUpdate : D.Decoder Update
