@@ -35,6 +35,7 @@ import ElmCardano.Transaction
         )
 import ElmCardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
 import ElmCardano.Value as Value
+import Natural exposing (Natural)
 
 
 type Tx
@@ -140,7 +141,7 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
-payToContract : Address -> Int -> Data -> Tx -> Tx
+payToContract : Address -> Natural -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
@@ -153,7 +154,7 @@ payToContract address amount datum tx =
             )
 
 
-payToAddress : Address -> Int -> Tx -> Tx
+payToAddress : Address -> Natural -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
@@ -175,12 +176,12 @@ addOutput newOutput body =
     { body | outputs = body.outputs ++ [ newOutput ] }
 
 
-fee : Int -> Tx -> Tx
+fee : Natural -> Tx -> Tx
 fee amount (Tx inner) =
     inner |> updateBody (addFee amount)
 
 
-addFee : Int -> TransactionBody -> TransactionBody
+addFee : Natural -> TransactionBody -> TransactionBody
 addFee amount body =
     { body | fee = Just amount }
 
@@ -219,7 +220,7 @@ addRequiredSigner signer body =
     }
 
 
-collateralReturn : Address -> Int -> Tx -> Tx
+collateralReturn : Address -> Natural -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
         |> updateBody

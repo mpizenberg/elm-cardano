@@ -40,6 +40,7 @@ module ElmCardano.Utxo exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
@@ -48,6 +49,7 @@ import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset
 import ElmCardano.Script as Script exposing (Script)
 import ElmCardano.Value as Value exposing (Value)
+import Natural as N exposing (Natural)
 
 
 {-| The reference for a eUTxO.
@@ -112,19 +114,19 @@ type DatumHash
 -}
 sortByDescendingLovelace : List Output -> List Output
 sortByDescendingLovelace =
-    List.sortWith (\a b -> compare (lovelace b) (lovelace a))
+    List.sortWith (\a b -> N.compare (lovelace b) (lovelace a))
 
 
 {-| Sorts a list of UTXOs in ascending order by lovelace value.
 -}
 sortByAscendingLovelace : List Output -> List Output
 sortByAscendingLovelace =
-    List.sortWith (\a b -> compare (lovelace a) (lovelace b))
+    List.sortWith (\a b -> N.compare (lovelace a) (lovelace b))
 
 
 {-| Construct an `Output` from an `Address` and a lovelace amount
 -}
-fromLovelace : Address -> Int -> Output
+fromLovelace : Address -> Natural -> Output
 fromLovelace address amount =
     Legacy
         { address = address
@@ -135,7 +137,7 @@ fromLovelace address amount =
 
 {-| Extract the amount of lovelace in an `Output`
 -}
-lovelace : Output -> Int
+lovelace : Output -> Natural
 lovelace output =
     case output of
         Legacy legacyOutput ->
@@ -147,9 +149,9 @@ lovelace output =
 
 {-| Calculate the total number of lovelace in a collection of `Output`
 -}
-totalLovelace : List Output -> Int
+totalLovelace : List Output -> Natural
 totalLovelace =
-    List.foldr (\output total -> lovelace output + total) 0
+    List.foldr (\output total -> N.add (lovelace output) total) N.zero
 
 
 {-| CBOR encoder for [Output].
@@ -226,4 +228,4 @@ decodeOutput =
             -- Address
             >> D.elem Address.decode
             -- Coin value (lovelace)
-            >> D.elem D.int
+            >> D.elem DE.natural

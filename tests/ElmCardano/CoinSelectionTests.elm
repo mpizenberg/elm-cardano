@@ -3,10 +3,12 @@ module ElmCardano.CoinSelectionTests exposing (..)
 import Bytes.Comparable as Bytes
 import ElmCardano.Address as Address exposing (Address, NetworkId(..))
 import ElmCardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import ElmCardano.Utxo exposing (fromLovelace, totalLovelace)
+import ElmCardano.Utxo exposing (Output, fromLovelace, totalLovelace)
 import ElmCardano.Value exposing (onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import Fuzz.Extra
+import Natural as N
 import Result.Extra as Result
 import Test exposing (Test, describe, expectDistribution, fuzzWith, test)
 import Test.Distribution as Distribution
@@ -20,6 +22,7 @@ suite =
             , test "no utxos" <| noOutputsTest
             , test "insufficient funds" <| insufficientFundsTest
             , test "single utxo, single output, equal value" <| singleUtxoSingleOutputEqualValueTest
+            , test "target zero, already selected output" <| targetZeroAlreadySelectedOutputTest
             , fuzzCoinSelection "coverage of payments" propCoverageOfPayment
             , fuzzCoinSelection "correctness of change" propCorrectnessOfChange
             ]
@@ -31,12 +34,12 @@ basicScenarioTest _ =
     let
         context =
             { availableOutputs =
-                [ fromLovelace (address "1") 50
-                , fromLovelace (address "2") 30
-                , fromLovelace (address "3") 20
+                [ output "1" 50
+                , output "2" 30
+                , output "3" 20
                 ]
             , alreadySelectedOutputs = []
-            , targetAmount = 30
+            , targetAmount = N.fromSafeInt 30
             }
 
         maxInputCount =
@@ -44,8 +47,8 @@ basicScenarioTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = [ fromLovelace (address "1") 50 ]
-                , change = Just <| onlyLovelace 20
+                { selectedOutputs = [ output "1" 50 ]
+                , change = Just <| onlyLovelace (N.fromSafeInt 20)
                 }
     in
     largestFirst maxInputCount context
@@ -58,7 +61,7 @@ noOutputsTest _ =
         context =
             { availableOutputs = []
             , alreadySelectedOutputs = []
-            , targetAmount = 30
+            , targetAmount = N.fromSafeInt 30
             }
 
         maxInputCount =
@@ -72,14 +75,14 @@ insufficientFundsTest : a -> Expectation
 insufficientFundsTest _ =
     let
         availableOutputs =
-            [ fromLovelace (address "1") 5
-            , fromLovelace (address "2") 10
+            [ output "1" 5
+            , output "2" 10
             ]
 
         context =
             { availableOutputs = availableOutputs
             , alreadySelectedOutputs = []
-            , targetAmount = 30
+            , targetAmount = N.fromSafeInt 30
             }
 
         result =
@@ -92,9 +95,9 @@ singleUtxoSingleOutputEqualValueTest : a -> Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
         context =
-            { availableOutputs = [ fromLovelace (address "1") 10 ]
+            { availableOutputs = [ output "1" 10 ]
             , alreadySelectedOutputs = []
-            , targetAmount = 10
+            , targetAmount = N.fromSafeInt 10
             }
 
         maxInputCount =
@@ -110,8 +113,35 @@ singleUtxoSingleOutputEqualValueTest _ =
         |> Expect.equal expectedResult
 
 
+targetZeroAlreadySelectedOutputTest : a -> Expectation
+targetZeroAlreadySelectedOutputTest _ =
+    let
+        context =
+            { availableOutputs = []
+            , alreadySelectedOutputs = [ output "1" 1 ]
+            , targetAmount = N.zero
+            }
+
+        maxInputCount =
+            5
+
+        expectedResult =
+            Ok
+                { selectedOutputs = [ output "1" 1 ]
+                , change = Just <| onlyLovelace (N.fromSafeInt 1)
+                }
+    in
+    largestFirst maxInputCount context
+        |> Expect.equal expectedResult
+
+
 
 -- Fixtures
+
+
+output : String -> Int -> Output
+output addrSuffix amount =
+    fromLovelace (address addrSuffix) (N.fromSafeInt amount)
 
 
 address : String -> Address
@@ -142,13 +172,10 @@ fuzzCoinSelection title prop =
 contextFuzzer : Int -> Fuzzer CoinSelection.Context
 contextFuzzer maxInputCount =
     let
-        maxInt =
-            100
-
         outputFuzzer =
             Fuzz.map2 fromLovelace
                 (Fuzz.int |> Fuzz.map (\i -> address <| "_" ++ String.fromInt i))
-                (Fuzz.intRange 1 maxInt)
+                Fuzz.Extra.strictPositiveNatural
     in
     Fuzz.map3 CoinSelection.Context
         (Fuzz.frequency
@@ -161,7 +188,7 @@ contextFuzzer maxInputCount =
             , ( 9, Fuzz.constant [] )
             ]
         )
-        (Fuzz.intRange 0 maxInt)
+        Fuzz.Extra.natural
 
 
 contextDistribution : Int -> Test.Distribution CoinSelection.Context
@@ -193,7 +220,10 @@ propCoverageOfPayment maxInputCount context =
             Expect.pass
 
         Ok { selectedOutputs } ->
-            totalLovelace selectedOutputs |> Expect.atLeast context.targetAmount
+            totalLovelace selectedOutputs
+                -- |> Expect.atLeast context.targetAmount
+                |> N.isGreaterThanOrEqual context.targetAmount
+                |> Expect.equal True
 
 
 propCorrectnessOfChange : Int -> CoinSelection.Context -> Expectation
@@ -206,7 +236,7 @@ propCorrectnessOfChange maxInputCount context =
             let
                 changeAmount =
                     Maybe.map .lovelace change
-                        |> Maybe.withDefault 0
+                        |> Maybe.withDefault N.zero
             in
             totalLovelace selectedOutputs
-                |> Expect.equal (changeAmount + context.targetAmount)
+                |> Expect.equal (N.add changeAmount context.targetAmount)

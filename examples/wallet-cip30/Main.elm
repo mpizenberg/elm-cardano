@@ -10,6 +10,7 @@ import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
 import Json.Decode as JDecode exposing (Value, value)
+import Natural as N
 
 
 main =
@@ -215,12 +216,12 @@ update msg model =
             -- Lace picks at random (fun!)
             -- Gero does not handle the amount parameter
             -- NuFi does not handle the amount parameter
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace 14000000), paginate = Nothing } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
             -- Typhon crashes with the amounts
             -- Nami crashes as the method does not exist
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace 3000000 } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace <| N.fromSafeInt 3000000 } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response

@@ -20,14 +20,9 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 
 -}
 
-import ElmCardano.Utxo
-    exposing
-        ( Output
-        , lovelace
-        , sortByDescendingLovelace
-        , totalLovelace
-        )
+import ElmCardano.Utxo exposing (Output, lovelace, sortByDescendingLovelace, totalLovelace)
 import ElmCardano.Value exposing (Value, onlyLovelace)
+import Natural as N exposing (Natural)
 
 
 {-| Enumerates the possible errors that can occur during coin selection.
@@ -50,7 +45,7 @@ type alias Selection =
 type alias Context =
     { availableOutputs : List Output
     , alreadySelectedOutputs : List Output
-    , targetAmount : Int
+    , targetAmount : Natural
     }
 
 
@@ -67,14 +62,12 @@ largestFirst maxInputCount context =
     let
         sortedAvailableUtxo =
             sortByDescendingLovelace context.availableOutputs
-
-        remainingAmount =
-            context.targetAmount - totalLovelace context.alreadySelectedOutputs
     in
     doLargestFirst
         { maxInputCount = maxInputCount
         , selectedInputCount = List.length context.alreadySelectedOutputs
-        , remainingAmount = remainingAmount
+        , accumulatedAmount = totalLovelace context.alreadySelectedOutputs
+        , targetAmount = context.targetAmount
         , availableOutputs = sortedAvailableUtxo
         , selectedOutputs = context.alreadySelectedOutputs
         }
@@ -87,16 +80,17 @@ largestFirst maxInputCount context =
 doLargestFirst :
     { maxInputCount : Int
     , selectedInputCount : Int
-    , remainingAmount : Int
+    , accumulatedAmount : Natural
+    , targetAmount : Natural
     , availableOutputs : List Output
     , selectedOutputs : List Output
     }
     -> Result Error Selection
-doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOutputs, selectedOutputs } =
+doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmount, availableOutputs, selectedOutputs } =
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
 
-    else if remainingAmount > 0 then
+    else if accumulatedAmount |> N.isLessThan targetAmount then
         case availableOutputs of
             [] ->
                 Err UTxOBalanceInsufficient
@@ -105,7 +99,8 @@ doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOu
                 doLargestFirst
                     { maxInputCount = maxInputCount
                     , selectedInputCount = selectedInputCount + 1
-                    , remainingAmount = remainingAmount - lovelace utxo
+                    , accumulatedAmount = N.add (lovelace utxo) accumulatedAmount
+                    , targetAmount = targetAmount
                     , availableOutputs = utxos
                     , selectedOutputs = utxo :: selectedOutputs
                     }
@@ -114,9 +109,9 @@ doLargestFirst { maxInputCount, selectedInputCount, remainingAmount, availableOu
         Ok
             { selectedOutputs = selectedOutputs
             , change =
-                if remainingAmount == 0 then
+                if accumulatedAmount == targetAmount then
                     Nothing
 
                 else
-                    Just (onlyLovelace -remainingAmount)
+                    Just (onlyLovelace <| N.sub accumulatedAmount targetAmount)
             }

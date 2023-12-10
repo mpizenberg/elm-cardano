@@ -44,16 +44,17 @@ module ElmCardano.Transaction exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Dict exposing (Dict)
 import ElmCardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
 import ElmCardano.Data as Data exposing (Data)
 import ElmCardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import ElmCardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import ElmCardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
 import ElmCardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
+import Natural exposing (Natural)
 
 
 {-| A Cardano transaction.
@@ -71,13 +72,16 @@ type alias Transaction =
 type alias TransactionBody =
     { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
-    , fee : Maybe Int -- 2
-    , ttl : Maybe Int -- 3
+    , fee : Maybe Natural -- 2
+    , ttl : Maybe Natural -- 3
     , certificates : List Certificate -- 4
-    , withdrawals : List ( StakeAddress, Int ) -- 5
+    , withdrawals : List ( StakeAddress, Natural ) -- 5
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
+
+    -- TODO: Use a type that can have negative numbers instead
+    -- and make MultiAsset only positive numbers?
     , mint : MultiAsset -- 9
     , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
@@ -124,7 +128,7 @@ type alias WitnessSet =
 {-| metadata used in [AuxiliaryData].
 -}
 type alias Metadata =
-    Dict Int Metadatum
+    List ( Natural, Metadatum )
 
 
 {-| [Transaction] auxiliary data.
@@ -133,7 +137,7 @@ type AuxiliaryData
     = Shelley Metadata
     | ShelleyMa { transactionMetadata : Metadata, auxiliaryScripts : List NativeScript }
     | PostAlonzo
-        { metadata : Maybe (Dict Int Metadatum) -- 0
+        { metadata : Maybe (List ( Natural, Metadatum )) -- 0
         , nativeScripts : Maybe (List NativeScript) -- 1
         , plutusV1Scripts : Maybe (List PlutusScript) -- 2
         , plutusV2Scripts : Maybe (List PlutusScript) -- 2
@@ -144,21 +148,21 @@ type AuxiliaryData
 -}
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate
-    , epoch : Int
+    , epoch : Natural
     }
 
 
 {-| Adjustable parameters that power key aspects of the network.
 -}
 type alias ProtocolParamUpdate =
-    { minFeeA : Maybe Int -- 0
-    , minFeeB : Maybe Int -- 1
+    { minFeeA : Maybe Natural -- 0
+    , minFeeB : Maybe Natural -- 1
     , maxBlockBodySize : Maybe Int -- 2
     , maxTransactionSize : Maybe Int -- 3
     , maxBlockHeaderSize : Maybe Int -- 4
-    , keyDeposit : Maybe Int -- 5
-    , poolDeposit : Maybe Int -- 6
-    , maximumEpoch : Maybe Int -- 7
+    , keyDeposit : Maybe Natural -- 5
+    , poolDeposit : Maybe Natural -- 6
+    , maximumEpoch : Maybe Natural -- 7
     , desiredNumberOfStakePools : Maybe Int -- 8
     , poolPledgeInfluence : Maybe RationalNumber -- 9
     , expansionRate : Maybe UnitInterval -- 10
@@ -219,6 +223,7 @@ type alias RationalNumber =
 {-| -}
 type Metadatum
     = Int Int
+      -- TODO: replace Int with big integer
     | Bytes (Bytes MetadatumBytes)
     | String String
     | List (List Metadatum)
@@ -317,7 +322,7 @@ type Certificate
     | StakeDeregistration { delegator : Credential }
     | StakeDelegation { delegator : Credential, poolId : Bytes PoolId }
     | PoolRegistration PoolParams
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Int }
+    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural }
     | GenesisKeyDelegation
         { genesisHash : Bytes GenesisHash
         , genesisDelegateHash : Bytes GenesisDelegateHash
@@ -359,8 +364,8 @@ type VrfKeyHash
 type alias PoolParams =
     { operator : Bytes PoolId
     , vrfKeyHash : Bytes VrfKeyHash
-    , pledge : Int
-    , cost : Int
+    , pledge : Natural
+    , cost : Natural
     , margin : UnitInterval
     , rewardAccount : StakeAddress
     , poolOwners : List (Bytes CredentialHash)
@@ -426,8 +431,8 @@ otherwise the funds are given to the other accounting pot.
 
 -}
 type RewardTarget
-    = StakeCredentials (List ( Credential, Int ))
-    | OtherAccountingPot Int
+    = StakeCredentials (List ( Credential, Natural ))
+    | OtherAccountingPot Natural
 
 
 
@@ -468,10 +473,10 @@ encodeTransactionBody =
         E.fields
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
-            >> E.optionalField 2 E.int .fee
-            >> E.optionalField 3 E.int .ttl
+            >> E.optionalField 2 E.natural .fee
+            >> E.optionalField 3 E.natural .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.int) .withdrawals
+            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.natural) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
@@ -534,7 +539,7 @@ encodeAuxiliaryData : AuxiliaryData -> E.Encoder
 encodeAuxiliaryData auxiliaryData =
     let
         encodeMetadata =
-            E.ledgerDict E.int encodeMetadatum
+            E.ledgerAssociativeList E.natural encodeMetadatum
     in
     case auxiliaryData of
         Shelley metadata ->
@@ -623,8 +628,8 @@ encodeCertificate certificate =
                 [ E.int 3
                 , Bytes.toCbor poolParams.operator
                 , Bytes.toCbor poolParams.vrfKeyHash
-                , E.int poolParams.pledge
-                , E.int poolParams.cost
+                , E.natural poolParams.pledge
+                , E.natural poolParams.cost
                 , encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
                 , E.ledgerList Bytes.toCbor poolParams.poolOwners
@@ -635,7 +640,7 @@ encodeCertificate certificate =
             PoolRetirement { poolId, epoch } ->
                 [ E.int 4
                 , Bytes.toCbor poolId
-                , E.int epoch
+                , E.natural epoch
                 ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
@@ -705,10 +710,10 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerAssociativeList Address.credentialToCbor E.int distribution
+            E.ledgerAssociativeList Address.credentialToCbor E.natural distribution
 
         OtherAccountingPot n ->
-            E.int n
+            E.natural n
 
 
 {-| -}
@@ -723,7 +728,7 @@ encodeUpdate =
     E.tuple <|
         E.elems
             >> E.elem encodeProposedProtocolParameterUpdates .proposedProtocolParameterUpdates
-            >> E.elem E.int .epoch
+            >> E.elem E.natural .epoch
 
 
 {-| -}
@@ -736,14 +741,14 @@ encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
 encodeProtocolParamUpdate =
     E.record E.int <|
         E.fields
-            >> E.optionalField 0 E.int .minFeeA
-            >> E.optionalField 1 E.int .minFeeB
+            >> E.optionalField 0 E.natural .minFeeA
+            >> E.optionalField 1 E.natural .minFeeB
             >> E.optionalField 2 E.int .maxBlockBodySize
             >> E.optionalField 3 E.int .maxTransactionSize
             >> E.optionalField 4 E.int .maxBlockHeaderSize
-            >> E.optionalField 5 E.int .keyDeposit
-            >> E.optionalField 6 E.int .poolDeposit
-            >> E.optionalField 7 E.int .maximumEpoch
+            >> E.optionalField 5 E.natural .keyDeposit
+            >> E.optionalField 6 E.natural .poolDeposit
+            >> E.optionalField 7 E.natural .maximumEpoch
             >> E.optionalField 8 E.int .desiredNumberOfStakePools
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
@@ -821,9 +826,9 @@ decodeBody =
             -- outputs
             >> D.field 1 (D.list Utxo.decodeOutput)
             -- fee
-            >> D.field 2 D.int
+            >> D.field 2 DE.natural
             -- ttl
-            >> D.field 3 D.int
+            >> D.field 3 DE.natural
             -- certificates
             >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "Failed to decode certificate" ])
             -- withdrawals
@@ -870,7 +875,7 @@ decodeCertificateHelper length id =
         ( 3, 4 ) ->
             D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
                 (D.map Bytes.fromBytes D.bytes)
-                D.int
+                DE.natural
 
         -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
         ( 4, 5 ) ->
@@ -931,8 +936,8 @@ decodePoolParams =
     D.succeed PoolParams
         |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
         |> keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
-        |> keep (D.oneOf [ D.int, failWithMessage "Failed to decode pledge" ])
-        |> keep D.int
+        |> keep (D.oneOf [ DE.natural, failWithMessage "Failed to decode pledge" ])
+        |> keep DE.natural
         |> keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
         |> keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
         |> keep (D.list (D.map Bytes.fromBytes D.bytes))
@@ -1031,14 +1036,14 @@ decodeRewardSource =
             )
 
 
-decodeSingleRewardTarget : D.Decoder ( Credential, Int )
+decodeSingleRewardTarget : D.Decoder ( Credential, Natural )
 decodeSingleRewardTarget =
     D.map2 Tuple.pair
         decodeStakeCredential
-        D.int
+        DE.natural
 
 
-decodeWithdrawals : D.Decoder (List ( StakeAddress, Int ))
+decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))
 decodeWithdrawals =
     failWithMessage "decodeWithdrawals (not implemented) failed to decode"
 
@@ -1116,7 +1121,7 @@ decodeAuxiliary =
 
 decodeMetadata : D.Decoder Metadata
 decodeMetadata =
-    D.dict D.int decodeMetadatum
+    D.list (D.map2 Tuple.pair DE.natural decodeMetadatum)
 
 
 decodeMetadatum : D.Decoder Metadatum

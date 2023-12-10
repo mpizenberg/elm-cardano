@@ -9,6 +9,7 @@ import ElmCardano.Transaction.Builder as Tx
 import ElmCardano.Utxo as Utxo
 import ElmCardano.Value as Value
 import Expect
+import Natural as N
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
 
@@ -44,13 +45,13 @@ suite =
                             , data = Constr 0 []
                             , exUnits = { mem = 49435, steps = 18305237 }
                             }
-                        |> Tx.payToContract contractAddress 50000000 (Constr 0 [ Bytes paymentCredential ])
-                        |> Tx.payToAddress userAddress 1947597502
-                        |> Tx.fee 182302
+                        |> Tx.payToContract contractAddress (N.fromSafeInt 50000000) (Constr 0 [ Bytes paymentCredential ])
+                        |> Tx.payToAddress userAddress (N.fromSafeInt 1947597502)
+                        |> Tx.fee (N.fromSafeInt 182302)
                         |> Tx.scriptDataHash (Bytes.fromStringUnchecked "f90cf11d0959b9af8e6fce107acd7a196c21fa3a0d9f1470a8cdec905dcc6d85")
                         |> Tx.collateral { transactionId = transactionId, outputIndex = 1 }
                         |> Tx.requiredSigner paymentCredential
-                        |> Tx.collateralReturn userAddress 1897506351
+                        |> Tx.collateralReturn userAddress (N.fromSafeInt 1897506351)
                         |> Tx.totalCollateral 273453
                         |> Tx.referenceInput { transactionId = Bytes.fromStringUnchecked "517b059959fc8ee584689f71cf1d9bb94fc36802aec0faa7fd96182c0ab090c4", outputIndex = 0 }
                         |> Tx.complete
@@ -125,7 +126,7 @@ txBody79acf081 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "9566a8f301fb8a046e44557bb38dfb9080a1213f17f200dcd3808169")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "49f14106ef746c2d3597381d1d5d1c65c91e933acd1baef3fc915f0b")))
                         }
-                , amount = Value.onlyLovelace 402999781127
+                , amount = Value.onlyLovelace (N.fromSafeInt 402999781127)
                 , datumHash = Nothing
                 }
             , Utxo.Legacy
@@ -135,7 +136,7 @@ txBody79acf081 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "e54a5d5488b0cfc55a85a806ad5338bd945c500e5f9b1913c0fc5d41")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "49f14106ef746c2d3597381d1d5d1c65c91e933acd1baef3fc915f0b")))
                         }
-                , amount = Value.onlyLovelace 39825492736
+                , amount = Value.onlyLovelace (N.fromSafeInt 39825492736)
                 , datumHash = Nothing
                 }
             , Utxo.Legacy
@@ -145,7 +146,7 @@ txBody79acf081 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "0ae8c86b7d82139749fc39cbe0ed8756de9285970899d0019db0990f")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "49f14106ef746c2d3597381d1d5d1c65c91e933acd1baef3fc915f0b")))
                         }
-                , amount = Value.onlyLovelace 1999822602
+                , amount = Value.onlyLovelace (N.fromSafeInt 1999822602)
                 , datumHash = Nothing
                 }
             , Utxo.Legacy
@@ -155,7 +156,7 @@ txBody79acf081 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "211c082781577c6b8a4832d29011baab323947e59fbd6ec8995b6c5a")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "49f14106ef746c2d3597381d1d5d1c65c91e933acd1baef3fc915f0b")))
                         }
-                , amount = Value.onlyLovelace 1000000
+                , amount = Value.onlyLovelace (N.fromSafeInt 1000000)
                 , datumHash = Nothing
                 }
             , Utxo.Legacy
@@ -165,12 +166,12 @@ txBody79acf081 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "6a39fc5175611d03cea47f580f465275bf4fc322b61987e83b0b9778")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "49f14106ef746c2d3597381d1d5d1c65c91e933acd1baef3fc915f0b")))
                         }
-                , amount = Value.onlyLovelace 100000000000
+                , amount = Value.onlyLovelace (N.fromSafeInt 100000000000)
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 218873
-        , ttl = Just 4500080
+        , fee = Just (N.fromSafeInt 218873)
+        , ttl = Just (N.fromSafeInt 4500080)
     }
 
 
@@ -240,7 +241,7 @@ txBody871b14fb =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "84f8618344721d55a4dd743a08e9628aa098c0c056bcc0ae794a9924")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "44adc04f00e3f9af407f93763dec952c12b7e9249a5e98ecd7baa9f1")))
                         }
-                , amount = Value.onlyLovelace 450620323944
+                , amount = Value.onlyLovelace (N.fromSafeInt 450620323944)
                 , datumHash = Nothing
                 }
             , Utxo.Legacy
@@ -250,12 +251,12 @@ txBody871b14fb =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "49d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e5465")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")))
                         }
-                , amount = Value.onlyLovelace 1000000
+                , amount = Value.onlyLovelace (N.fromSafeInt 1000000)
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 168449
-        , ttl = Just 4500520
+        , fee = Just (N.fromSafeInt 168449)
+        , ttl = Just (N.fromSafeInt 4500520)
     }
 
 
@@ -313,12 +314,12 @@ txBodyf3a0835d =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "49d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e5465")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")))
                         }
-                , amount = Value.onlyLovelace 450617821299
+                , amount = Value.onlyLovelace (N.fromSafeInt 450617821299)
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 178701
-        , ttl = Just 4503440
+        , fee = Just (N.fromSafeInt 178701)
+        , ttl = Just (N.fromSafeInt 4503440)
         , certificates =
             [ Transaction.StakeRegistration { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844") }
             ]
@@ -382,18 +383,18 @@ txBody841cca81 =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "49d3b2a1cc633fd909591be7cef70d5fe0b2729620d6dd3aac2e5465")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844")))
                         }
-                , amount = Value.onlyLovelace 450117629838
+                , amount = Value.onlyLovelace (N.fromSafeInt 450117629838)
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 191461
-        , ttl = Just 4503580
+        , fee = Just (N.fromSafeInt 191461)
+        , ttl = Just (N.fromSafeInt 4503580)
         , certificates =
             [ Transaction.PoolRegistration
                 { operator = Bytes.fromStringUnchecked "153806dbcd134ddee69a8c5204e38ac80448f62342f8c23cfe4b7edf"
                 , vrfKeyHash = Bytes.fromStringUnchecked "0220a5d08adbfe9554b52d7b2993be5892ac3ff340e674a377dea3e22ad1778b"
-                , pledge = 450000000000
-                , cost = 340000000
+                , pledge = N.fromSafeString "450000000000"
+                , cost = N.fromSafeInt 340000000
                 , margin = { denominator = 200, numerator = 3 }
                 , rewardAccount =
                     { networkId = Mainnet
@@ -481,16 +482,16 @@ txBody896cf8fe =
                         , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "6a8aba085ef5781bf8ea58c5e92408c0bfba7bcc7ca84da90dffcf90")
                         , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "d33cabe9bc7a7646243c03f062881d06744b3d53983823178973b9b0")))
                         }
-                , amount = Value.onlyLovelace 51046846482
+                , amount = Value.onlyLovelace (N.fromSafeInt 51046846482)
                 , datumHash = Nothing
                 }
             ]
-        , fee = Just 179053
-        , ttl = Just 4507780
+        , fee = Just (N.fromSafeInt 179053)
+        , ttl = Just (N.fromSafeInt 4507780)
         , certificates =
             [ Transaction.PoolRetirement
                 { poolId = Bytes.fromStringUnchecked "469fbad36a8a68c5f62f3505ecbe6a461ea262ae20b4de8d39ff08ab"
-                , epoch = 209
+                , epoch = N.fromSafeInt 209
                 }
             ]
     }
