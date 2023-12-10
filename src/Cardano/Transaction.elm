@@ -2,7 +2,6 @@ module Cardano.Transaction exposing
     ( Transaction
     , TransactionBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet
-    , AuxiliaryData(..), Metadata, Metadatum(..), MetadatumBytes
     , Update, ProtocolParamUpdate, ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
@@ -47,10 +46,11 @@ import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkI
 import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import Cardano.Script as Script exposing (NativeScript, PlutusScript, ScriptCbor)
+import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
+import Cardano.Transaction.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
-import Cbor.Decode.Extra as DE
+import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
@@ -123,25 +123,6 @@ type alias WitnessSet =
     , redeemer : Maybe (List Redeemer) -- 5
     , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
     }
-
-
-{-| metadata used in [AuxiliaryData].
--}
-type alias Metadata =
-    List ( Natural, Metadatum )
-
-
-{-| [Transaction] auxiliary data.
--}
-type AuxiliaryData
-    = Shelley Metadata
-    | ShelleyMa { transactionMetadata : Metadata, auxiliaryScripts : List NativeScript }
-    | PostAlonzo
-        { metadata : Maybe (List ( Natural, Metadatum )) -- 0
-        , nativeScripts : Maybe (List NativeScript) -- 1
-        , plutusV1Scripts : Maybe (List PlutusScript) -- 2
-        , plutusV2Scripts : Maybe (List PlutusScript) -- 2
-        }
 
 
 {-| Payload to update the protocol parameters at a specific epoch
@@ -218,23 +199,6 @@ type alias RationalNumber =
     { numerator : Int
     , denominator : Int
     }
-
-
-{-| -}
-type Metadatum
-    = Int Int
-      -- TODO: replace Int with big integer
-    | Bytes (Bytes MetadatumBytes)
-    | String String
-    | List (List Metadatum)
-    | Map (List ( Metadatum, Metadatum ))
-
-
-{-| Phantom type for the Bytes variant of Metadatum.
-It is supposed to have a length <= 64 bytes according to the CDDL.
--}
-type MetadatumBytes
-    = MetadatumBytes Never
 
 
 {-| -}
@@ -452,7 +416,7 @@ deserialize : Bytes a -> Maybe Transaction
 deserialize bytes =
     bytes
         |> Bytes.toBytes
-        |> D.decode (D.oneOf [ decodeTransaction, failWithMessage "Transaction decoder failed" ])
+        |> D.decode (D.oneOf [ decodeTransaction, D.failWith "Transaction decoder failed" ])
 
 
 {-| -}
@@ -463,7 +427,7 @@ encodeTransaction =
             >> E.elem encodeTransactionBody .body
             >> E.elem encodeWitnessSet .witnessSet
             >> E.elem E.bool .isValid
-            >> E.elem (E.maybe encodeAuxiliaryData) .auxiliaryData
+            >> E.elem (E.maybe AuxiliaryData.toCbor) .auxiliaryData
 
 
 {-| -}
@@ -532,57 +496,6 @@ encodeBootstrapWitness =
         E.elems
             >> E.elem Bytes.toCbor .publicKey
             >> E.elem Bytes.toCbor .signature
-
-
-{-| -}
-encodeAuxiliaryData : AuxiliaryData -> E.Encoder
-encodeAuxiliaryData auxiliaryData =
-    let
-        encodeMetadata =
-            E.ledgerAssociativeList E.natural encodeMetadatum
-    in
-    case auxiliaryData of
-        Shelley metadata ->
-            encodeMetadata metadata
-
-        ShelleyMa data ->
-            data
-                |> E.tuple
-                    (E.elems
-                        >> E.elem encodeMetadata .transactionMetadata
-                        >> E.elem (E.ledgerList Script.encodeNativeScript) .auxiliaryScripts
-                    )
-
-        PostAlonzo data ->
-            data
-                |> E.tagged (Tag.Unknown 259)
-                    (E.record E.int
-                        (E.fields
-                            >> E.optionalField 0 encodeMetadata .metadata
-                            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
-                            >> E.optionalField 2 (E.ledgerList Script.encodePlutusScript) .plutusV1Scripts
-                            >> E.optionalField 3 (E.ledgerList Script.encodePlutusScript) .plutusV2Scripts
-                        )
-                    )
-
-
-encodeMetadatum : Metadatum -> E.Encoder
-encodeMetadatum metadatum =
-    case metadatum of
-        Int n ->
-            E.int n
-
-        Bytes bytes ->
-            Bytes.toCbor bytes
-
-        String str ->
-            E.string str
-
-        List metadatums ->
-            E.ledgerList encodeMetadatum metadatums
-
-        Map metadatums ->
-            E.ledgerAssociativeList encodeMetadatum encodeMetadatum metadatums
 
 
 {-| -}
@@ -795,9 +708,9 @@ decodeTransaction : D.Decoder Transaction
 decodeTransaction =
     D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
         D.elems
-            >> D.elem (D.oneOf [ decodeBody, failWithMessage "Failed to decode body" ])
-            >> D.elem (D.oneOf [ decodeWitness, failWithMessage "Failed to decode witness" ])
-            >> D.elem (D.oneOf [ D.maybe decodeAuxiliary, failWithMessage "Failed to decode auxiliary" ])
+            >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
+            >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
+            >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
 
 
 
@@ -826,11 +739,11 @@ decodeBody =
             -- outputs
             >> D.field 1 (D.list Utxo.decodeOutput)
             -- fee
-            >> D.field 2 DE.natural
+            >> D.field 2 D.natural
             -- ttl
-            >> D.field 3 DE.natural
+            >> D.field 3 D.natural
             -- certificates
-            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, failWithMessage "Failed to decode certificate" ])
+            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, D.failWith "Failed to decode certificate" ])
             -- withdrawals
             >> D.optionalField 5 decodeWithdrawals
             -- update
@@ -869,13 +782,13 @@ decodeCertificateHelper length id =
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
         ( 10, 3 ) ->
-            D.map PoolRegistration <| D.oneOf [ decodePoolParams, failWithMessage "Failed to decode pool params" ]
+            D.map PoolRegistration <| D.oneOf [ decodePoolParams, D.failWith "Failed to decode pool params" ]
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
             D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
                 (D.map Bytes.fromBytes D.bytes)
-                DE.natural
+                D.natural
 
         -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
         ( 4, 5 ) ->
@@ -896,7 +809,7 @@ decodeCertificateHelper length id =
             D.map MoveInstantaneousRewardsCert decodeMoveInstantaneousRewards
 
         _ ->
-            failWithMessage <|
+            D.failWith <|
                 "Unknown length and id for certificate ("
                     ++ String.fromInt length
                     ++ ", "
@@ -934,15 +847,15 @@ decodeStakeCredential =
 decodePoolParams : D.Decoder PoolParams
 decodePoolParams =
     D.succeed PoolParams
-        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode operator" ])
-        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, failWithMessage "Failed to decode vrfkeyhash" ])
-        |> D.keep (D.oneOf [ DE.natural, failWithMessage "Failed to decode pledge" ])
-        |> D.keep DE.natural
-        |> D.keep (D.oneOf [ decodeRational, failWithMessage "Failed to decode rational" ])
-        |> D.keep (D.oneOf [ Address.decodeReward, failWithMessage "Failed to decode reward" ])
+        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode operator" ])
+        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode vrfkeyhash" ])
+        |> D.keep (D.oneOf [ D.natural, D.failWith "Failed to decode pledge" ])
+        |> D.keep D.natural
+        |> D.keep (D.oneOf [ decodeRational, D.failWith "Failed to decode rational" ])
+        |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
         |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
-        |> D.keep (D.list <| D.oneOf [ decodeRelay, failWithMessage "Failed to decode Relay" ])
-        |> D.keep (D.maybe <| D.oneOf [ decodePoolMetadata, failWithMessage "Failed to decode pool metadata" ])
+        |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])
+        |> D.keep (D.maybe <| D.oneOf [ decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
 
 
 decodeRational : D.Decoder RationalNumber
@@ -990,7 +903,7 @@ decodeRelayHelper length id =
                 D.string
 
         _ ->
-            failWithMessage <|
+            D.failWith <|
                 "Unknown length and id for relay ("
                     ++ String.fromInt length
                     ++ ", "
@@ -1027,7 +940,7 @@ decodeRewardSource =
                         D.succeed Treasury
 
                     _ ->
-                        failWithMessage "Unknown reward source"
+                        D.failWith "Unknown reward source"
             )
 
 
@@ -1035,17 +948,17 @@ decodeSingleRewardTarget : D.Decoder ( Credential, Natural )
 decodeSingleRewardTarget =
     D.map2 Tuple.pair
         decodeStakeCredential
-        DE.natural
+        D.natural
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))
 decodeWithdrawals =
-    failWithMessage "decodeWithdrawals (not implemented) failed to decode"
+    D.failWith "decodeWithdrawals (not implemented) failed to decode"
 
 
 decodeUpdate : D.Decoder Update
 decodeUpdate =
-    failWithMessage "decodeUpdate (not implemented) failed to decode"
+    D.failWith "decodeUpdate (not implemented) failed to decode"
 
 
 
@@ -1088,7 +1001,7 @@ decodeVKeyWitness =
 
 decodeNativeScript : D.Decoder NativeScript
 decodeNativeScript =
-    failWithMessage "decodeNativeScript (not implemented) failed to decode"
+    D.failWith "decodeNativeScript (not implemented) failed to decode"
 
 
 decodeBootstrapWitness : D.Decoder BootstrapWitness
@@ -1109,36 +1022,8 @@ decodeBootstrapWitness =
             >> D.elem D.bytes
 
 
-decodeAuxiliary : D.Decoder AuxiliaryData
-decodeAuxiliary =
-    D.map Shelley decodeMetadata
-
-
-decodeMetadata : D.Decoder Metadata
-decodeMetadata =
-    D.list (D.map2 Tuple.pair DE.natural decodeMetadatum)
-
-
-decodeMetadatum : D.Decoder Metadatum
-decodeMetadatum =
-    failWithMessage "decodeMetadatum (not implemented) failed to decode"
-
-
 
 -- Helper definitions
-
-
-failWithMessage : String -> D.Decoder a
-failWithMessage msg =
-    D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
-        |> D.andThen
-            (\rawBytes ->
-                let
-                    _ =
-                        Debug.log msg (Bytes.toString rawBytes)
-                in
-                D.fail
-            )
 
 
 newBody : TransactionBody
