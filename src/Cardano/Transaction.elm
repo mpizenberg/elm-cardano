@@ -734,21 +734,21 @@ decodeBody =
     D.record D.int bodyBuilder <|
         D.fields
             -- inputs
-            >> D.field 0 (D.list Utxo.decodeOutputReference)
+            >> D.field 0 (D.oneOf [ D.list Utxo.decodeOutputReference, D.failWith "Failed to decode inputs" ])
             -- outputs
-            >> D.field 1 (D.list Utxo.decodeOutput)
+            >> D.field 1 (D.oneOf [ D.list Utxo.decodeOutput, D.failWith "Failed to decode outputs" ])
             -- fee
-            >> D.field 2 D.natural
+            >> D.field 2 (D.oneOf [ D.natural, D.failWith "Failed to decode fee" ])
             -- ttl
-            >> D.field 3 D.natural
+            >> D.field 3 (D.oneOf [ D.natural, D.failWith "Failed to decode TTL" ])
             -- certificates
             >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, D.failWith "Failed to decode certificate" ])
             -- withdrawals
             >> D.optionalField 5 (D.oneOf [ decodeWithdrawals, D.failWith "Failed to decode withdrawals" ])
             -- update
-            >> D.optionalField 6 decodeUpdate
+            >> D.optionalField 6 (D.oneOf [ decodeUpdate, D.failWith "Failed to decode protocol update" ])
             -- metadata hash
-            >> D.optionalField 7 (D.map Bytes.fromBytes D.bytes)
+            >> D.optionalField 7 (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode metadata hash" ])
 
 
 decodeCertificate : D.Decoder Certificate

@@ -383,7 +383,8 @@ decodeBytes bytesCopy =
 
                     -- (8) 1000.... Byron
                     8 ->
-                        BD.succeed (Byron <| Bytes.fromBytes bytesCopy)
+                        BD.map (always <| Byron (Bytes.fromBytes bytesCopy)) <|
+                            BD.bytes (B.width bytesCopy - 1)
 
                     -- (14) 1110.... StakeKeyHash
                     14 ->
