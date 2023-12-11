@@ -27,7 +27,7 @@ import Bytes.Decode as BD
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import Natural exposing (Natural)
+import Word7
 
 
 {-| Full address, including the network ID.
@@ -79,7 +79,11 @@ Read more about pointers in CIP-0019 :: Pointers.
 -}
 type StakeCredential
     = InlineCredential Credential
-    | PointerCredential { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int }
+    | PointerCredential StakeCredentialPointer
+
+
+type alias StakeCredentialPointer =
+    { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
 
 
 {-| Phantom type for 28-bytes credential hashes.
@@ -124,7 +128,7 @@ base networkId paymentCredential inlineStakeCredential =
 
 {-| Create a pointer address.
 -}
-pointer : NetworkId -> Credential -> { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int } -> Address
+pointer : NetworkId -> Credential -> { slotNumber : Int, transactionIndex : Int, certificateIndex : Int } -> Address
 pointer networkId paymentCredential p =
     Shelley
         { networkId = networkId
@@ -317,10 +321,6 @@ So if we read the first byte and
 -}
 decodeBytes : B.Bytes -> BD.Decoder Address
 decodeBytes bytesCopy =
-    let
-        bytesWidth =
-            B.width bytesCopy
-    in
     BD.unsignedInt8
         |> BD.andThen
             (\header ->
@@ -356,20 +356,20 @@ decodeBytes bytesCopy =
                     -- (4) 0100.... PaymentKeyHash Pointer
                     4 ->
                         BD.map2
-                            (\payment pointerBytes ->
-                                pointer (networkIdFromHeader header) (VKeyHash payment) (pointerFromBytes pointerBytes)
+                            (\payment ->
+                                pointer (networkIdFromHeader header) (VKeyHash payment)
                             )
                             (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.bytes (bytesWidth - 1 - 28))
+                            (BD.map3 StakeCredentialPointer Word7.fromBytes Word7.fromBytes Word7.fromBytes)
 
                     -- (5) 0101.... ScriptHash Pointer
                     5 ->
                         BD.map2
-                            (\payment pointerBytes ->
-                                pointer (networkIdFromHeader header) (ScriptHash payment) (pointerFromBytes pointerBytes)
+                            (\payment ->
+                                pointer (networkIdFromHeader header) (ScriptHash payment)
                             )
                             (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.bytes (bytesWidth - 1 - 28))
+                            (BD.map3 StakeCredentialPointer Word7.fromBytes Word7.fromBytes Word7.fromBytes)
 
                     -- (6) 0110.... PaymentKeyHash ø
                     6 ->
@@ -411,8 +411,3 @@ networkIdFromHeader header =
 
         n ->
             Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
-
-
-pointerFromBytes : B.Bytes -> { slotNumber : Natural, transactionIndex : Int, certificateIndex : Int }
-pointerFromBytes _ =
-    Debug.todo "pointerFromBytes"

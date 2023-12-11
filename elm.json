@@ -19,7 +19,8 @@
         "Cardano.Transaction",
         "Cardano.Transaction.Builder",
         "Cardano.Utxo",
-        "Cardano.Value"
+        "Cardano.Value",
+        "Word7"
     ],
     "elm-version": "0.19.1 <= v < 0.20.0",
     "dependencies": {
