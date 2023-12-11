@@ -744,7 +744,7 @@ decodeBody =
             -- certificates
             >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, D.failWith "Failed to decode certificate" ])
             -- withdrawals
-            >> D.optionalField 5 decodeWithdrawals
+            >> D.optionalField 5 (D.oneOf [ decodeWithdrawals, D.failWith "Failed to decode withdrawals" ])
             -- update
             >> D.optionalField 6 decodeUpdate
             -- metadata hash
@@ -945,10 +945,7 @@ decodeRewardSource =
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))
 decodeWithdrawals =
-    D.list <|
-        D.map2 Tuple.pair
-            Address.decodeReward
-            D.natural
+    D.associativeList Address.decodeReward D.natural
 
 
 decodeUpdate : D.Decoder Update
