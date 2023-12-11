@@ -923,7 +923,7 @@ decodeMoveInstantaneousRewards =
     D.tuple (\source targets -> { source = source, target = StakeCredentials targets }) <|
         D.elems
             >> D.elem decodeRewardSource
-            >> D.elem (D.list decodeSingleRewardTarget)
+            >> D.elem (D.associativeList decodeStakeCredential D.natural)
 
 
 decodeRewardSource : D.Decoder RewardSource
@@ -941,13 +941,6 @@ decodeRewardSource =
                     _ ->
                         D.failWith "Unknown reward source"
             )
-
-
-decodeSingleRewardTarget : D.Decoder ( Credential, Natural )
-decodeSingleRewardTarget =
-    D.map2 Tuple.pair
-        decodeStakeCredential
-        D.natural
 
 
 decodeWithdrawals : D.Decoder (List ( StakeAddress, Natural ))

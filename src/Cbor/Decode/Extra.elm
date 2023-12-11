@@ -26,11 +26,6 @@ natural =
             )
 
 
-associativeList : D.Decoder k -> D.Decoder v -> D.Decoder (List ( k, v ))
-associativeList k v =
-    D.list (D.map2 Tuple.pair k v)
-
-
 failWith : String -> D.Decoder a
 failWith msg =
     D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
