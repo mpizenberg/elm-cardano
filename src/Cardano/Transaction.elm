@@ -952,7 +952,7 @@ decodeUpdate : D.Decoder Update
 decodeUpdate =
     D.tuple (\updates epoch -> { proposedProtocolParameterUpdates = Bytes.Map.fromList updates, epoch = epoch }) <|
         D.elems
-            >> D.elem (D.list <| D.map2 Tuple.pair (D.map Bytes.fromBytes D.bytes) decodeProtocolParamUpdate)
+            >> D.elem (D.associativeList (D.map Bytes.fromBytes D.bytes) decodeProtocolParamUpdate)
             >> D.elem D.natural
 
 
