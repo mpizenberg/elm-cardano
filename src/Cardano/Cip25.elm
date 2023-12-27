@@ -22,6 +22,7 @@ import Cbor.Decode as D
 import Cbor.Encode as E
 import Json.Decode as JD
 import Json.Encode as JE
+import String.Extra as String
 
 
 {-| Datatype for modeling CIP-0025.
@@ -51,7 +52,7 @@ fileToJson file =
         [ ( "name", JE.string file.name )
         , ( "mediaType"
           , if String.length file.src > 64 then
-                JE.list JE.string (String.toChunksOf 64 file.src)
+                JE.list JE.string (String.chunksOf 64 file.src)
 
             else
                 JE.string file.src
@@ -87,7 +88,7 @@ fileJsonDecoder =
                                         JD.fail "Invalid media type."
 
                             _ ->
-                                JD.fail "Imvalid media type format."
+                                JD.fail "Invalid media type format."
                     )
             )
         )
