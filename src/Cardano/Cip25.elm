@@ -32,7 +32,7 @@ The standard simply lays out a set of fields, some of which are optional.
 type alias Cip25 =
     { name : String
     , image : Image
-    , assetName : Bytes AssetName
+    , version : ( Int, Int )
     }
 
 
