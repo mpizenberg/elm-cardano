@@ -11,17 +11,11 @@ that transaction.
 
 -}
 
-import Bytes
-import Bytes.Comparable as Bytes exposing (Bytes)
-import Bytes.Crc8 as Crc8
-import Bytes.Decode as BD
-import Bytes.Encode as BE
-import Cardano.MultiAsset as MultiAsset
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
-import Cbor.Decode as D
-import Cbor.Encode as E
 import Json.Decode as JD
+import Json.Decode.Extra as JD
 import Json.Encode as JE
+import Json.Encode.Extra as JE
 import String.Extra as String
 
 
@@ -33,8 +27,48 @@ The standard simply lays out a set of fields, some of which are optional.
 type alias Cip25 =
     { name : String
     , image : Image
+    , mediaType : ImageMime
+    , description : String
+    , files : List File
     , version : ( Int, Int )
+
+    -- TODO
+    -- , otherProps : Dict String String
     }
+
+
+{-| Helper datatype for the `image` field of CIP-0025.
+
+The image can be either a URI that points to a resource with MIME type
+`image/*`, or an inline base64-encoded string.
+
+Should this datatype also support inlined SVG strings? e.g.
+`data:image/svg+xml,%3Csvg width='45' viewBox=... svg%3E`
+
+-}
+type Image
+    = ImageUri
+        { scheme : String
+        , cid : String
+        }
+    | InlineImage
+        { mediaType : ImageMime
+        , base64Encoded : String
+        }
+
+
+imageToJson : Image -> JE.Value
+imageToJson img =
+    case img of
+        ImageUri scheme cid ->
+            JE.longString <| scheme ++ "://" ++ cid
+
+        InlineImage mediaType base64 ->
+            JE.longString <|
+                "data:"
+                    ++ imageMimeToString mediaType
+                    ++ ";base64,"
+                    ++ base64
 
 
 {-| Datatype to represent optional files specified for an asset.
@@ -43,6 +77,9 @@ type alias File =
     { name : String
     , mediaType : ( MimeType, String )
     , src : String -- Must be decoded from either a string, or an array of strings.
+
+    -- TODO
+    -- , otherProps : Dict String String
     }
 
 
@@ -51,20 +88,14 @@ fileToJson file =
     JE.object
         [ ( "name", JE.string file.name )
         , ( "mediaType"
-          , if String.length file.src > 64 then
-                JE.list JE.string (String.chunksOf 64 file.src)
-
-            else
-                JE.string file.src
-          )
-        , ( "src"
           , JE.string <|
                 String.join
                     "/"
-                    [ mimeTypeToString <| Tuple.first file.mimeType
+                    [ Tuple.first file.mimeType |> mimeTypeToString
                     , Tuple.second file.mimeType
                     ]
           )
+        , ( "src", JE.longString file.src )
         ]
 
 
@@ -72,7 +103,6 @@ fileJsonDecoder : JD.Decoder File
 fileJsonDecoder =
     JD.map3 File
         (JD.field "name" JD.string)
-        -- TODO
         (JD.field
             "mediaType"
             (JD.string
@@ -92,7 +122,7 @@ fileJsonDecoder =
                     )
             )
         )
-        (JD.field "src" <| JD.oneOf JD.string (JD.list JD.string))
+        (JD.field "src" JD.longString)
 
 
 {-| Sum type to represent MIME Content Types listed in [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml).
@@ -144,6 +174,43 @@ mimeTypeToString mimeType =
             "video"
 
 
+mimeTypeFromString : String -> Maybe MimeType
+mimeTypeFromString mimeTypeStr =
+    case mimeTypeStr of
+        "application" ->
+            Just ApplicationMimeType
+
+        "audio" ->
+            Just AudioMimeType
+
+        "font" ->
+            Just FontMimeType
+
+        "example" ->
+            Just ExampleMimeType
+
+        "image" ->
+            Just ImageMimeType
+
+        "message" ->
+            Just MessageMimeType
+
+        "model" ->
+            Just ModelMimeType
+
+        "multipart" ->
+            Just MultipartMimeType
+
+        "text" ->
+            Just TextMimeType
+
+        "video" ->
+            Just VideoMimeType
+
+        _ ->
+            Nothing
+
+
 {-| Dedicated datatype for all image MIME media types according
 to [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml#image).
 
@@ -153,7 +220,7 @@ image types, this datatype leads to a more robust model (too excessive?).
 Having this completely decoupled from [MimeType] may not be a great idea.
 
 -}
-type Image
+type ImageMime
     = Aces
     | Apng
     | Avci
@@ -164,7 +231,7 @@ type Image
     | DicomRle
     | Dpx
     | Emf
-    | Example
+    | ExampleImageMime
     | Fits
     | G3fax
     | Gif
@@ -235,12 +302,12 @@ type Image
     | Wmf
 
 
-imageMimeTypePrefix =
+imageMimePrefix =
     "image/"
 
 
-imageToJson : Image -> JE.Value
-imageToJson img =
+imageMimeToString : Image -> String
+imageMimeToString img =
     let
         postfix =
             case img of
@@ -274,7 +341,7 @@ imageToJson img =
                 Emf ->
                     "emf"
 
-                Example ->
+                ExampleImageMime ->
                     "example"
 
                 Fits ->
@@ -481,20 +548,25 @@ imageToJson img =
                 Wmf ->
                     "wmf"
     in
-    JE.string <| imageMimeTypePrefix ++ postfix
+    imageMimePrefix ++ postfix
 
 
-imageJsonDecoder : JD.Decoder Image
-imageJsonDecoder =
+imageMimeToJson : Image -> JE.Value
+imageMimeToJson =
+    JE.string << imageMimeToString
+
+
+imageMimeJsonDecoder : JD.Decoder ImageMime
+imageMimeJsonDecoder =
     JD.string
         |> JD.andThen
             (\fullStr ->
                 let
                     prefixLength =
-                        String.length imageMimeTypePrefix
+                        String.length imageMimePrefix
 
                     prefixIsValid =
-                        String.startsWith imageMimeTypePrefix fullStr
+                        String.startsWith imageMimePrefix fullStr
                 in
                 if prefixIsValid then
                     case String.dropLeft prefixLength fullStr of
@@ -529,7 +601,7 @@ imageJsonDecoder =
                             D.succeed Emf
 
                         "example" ->
-                            D.succeed Example
+                            D.succeed ExampleImageMime
 
                         "fits" ->
                             D.succeed Fits
@@ -736,7 +808,7 @@ imageJsonDecoder =
                             D.succeed Wmf
 
                         _ ->
-                            D.fail "Unregistered image MIME type encountered."
+                            D.fail "Unregistered image MIME subtype encountered."
 
                 else
                     D.fail "Not an image MIME type."
