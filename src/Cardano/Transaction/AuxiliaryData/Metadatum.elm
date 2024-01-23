@@ -11,6 +11,7 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
+import Dict exposing (Dict)
 import Json.Decode as JD
 import Json.Encode as JE
 
@@ -66,7 +67,7 @@ toJson metadatum =
             JE.list toJson metadatums
 
         Map metadatums ->
-            List.map (fst >> toJson >> JE.encode 0) metadatums
+            List.map (Tuple.first >> toJson >> JE.encode 0) metadatums
                 |> Dict.fromList
                 |> JE.dict (toJson >> JE.encode 0) toJson
 

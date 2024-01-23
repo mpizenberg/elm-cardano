@@ -1,4 +1,7 @@
-module Cardano.Cip25 exposing (Cip25)
+module Cardano.Cip25 exposing
+    ( Cip25
+    , File, Image, jsonDecoder, toJson
+    )
 
 {-| CIP-0025 support.
 
@@ -12,6 +15,7 @@ that transaction.
 -}
 
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
+import Dict exposing (Dict)
 import Json.Decode as JD
 import Json.Decode.Extra as JD
 import Json.Encode as JE
@@ -30,9 +34,42 @@ type alias Cip25 =
     , mediaType : Maybe ImageMime
     , description : String
     , files : List File
-    , version : ( Int, Int )
+    , version : Version
     , otherProps : Dict String Metadatum
     }
+
+
+toJson : Cip25 -> JE.Value
+toJson cip25 =
+    let
+        requiredFields =
+            ( "name", JE.string file.name )
+                :: ( "image", imageToJson cip25.image )
+                :: ( "version", versionToJson cip25.version )
+                :: Dict.foldr
+                    (\k v acc -> ( k, Metadatum.toJson v ) :: acc)
+                    []
+                    cip25.otherProps
+
+        optionalFields =
+            [ Maybe.map
+                (\imageMime -> ( "mediaType", imageMimeToJson imageMime ))
+                cip25.mediaType
+            , case cip25.description of
+                "" ->
+                    Nothing
+
+                _ ->
+                    Just ( "description", JE.string cip25.description )
+            , case cip25.files of
+                [] ->
+                    Nothing
+
+                _ ->
+                    Just ( "files", JE.list fileToJson cip25.files )
+            ]
+    in
+    JE.object <| requiredFields ++ List.filterMap id optionalFields
 
 
 {-| Helper datatype for the `image` field of CIP-0025.
@@ -69,6 +106,36 @@ imageToJson img =
                     ++ base64
 
 
+type alias Version =
+    { primary : Int
+    , secondary : Int
+    }
+
+
+versionToJson : Version -> JE.Value
+versionToJson version =
+    JE.string <|
+        String.join
+            "."
+            [ String.fromInt version.primary
+            , String.fromInt version.secondary
+            ]
+
+
+versionJsonDecoder : JD.Decoder Version
+versionJsonDecoder =
+    JD.string
+        |> JD.andThen
+            (\verStr ->
+                case List.map String.toInt (String.split "." fullMimeStr) of
+                    [ Just primaryInt, Just secondaryInt ] ->
+                        JD.map2 Version primaryInt secondaryInt
+
+                    _ ->
+                        JD.fail "Invalid version string."
+            )
+
+
 {-| Datatype to represent optional files specified for an asset.
 -}
 type alias File =
@@ -102,24 +169,28 @@ fileJsonDecoder : JD.Decoder File
 fileJsonDecoder =
     JD.map4 File
         (JD.field "name" JD.string)
-        (JD.field "mediaType" (JD.string |> JD.andThen mimeStringDecoder))
+        (JD.field "mediaType" mimeStringDecoder)
         (JD.field "src" JD.longString)
         (JD.dict Metadatum.jsonDecoder)
 
 
-mimeStringDecoder : String -> JD.Decoder ( MimeType, String )
+mimeStringDecoder : JD.Decoder ( MimeType, String )
 mimeStringDecoder fullMimeStr =
-    case String.split "/" fullMimeStr of
-        [ mimeStr, subMimeStr ] ->
-            case mimeTypeFromString mimeStr of
-                Just mimeType ->
-                    JD.succeed ( mimeType, subMimeStr )
+    JD.string
+        |> JD.andThen
+            (\fullMimeStr ->
+                case String.split "/" fullMimeStr of
+                    [ mimeStr, subMimeStr ] ->
+                        case mimeTypeFromString mimeStr of
+                            Just mimeType ->
+                                JD.succeed ( mimeType, subMimeStr )
 
-                Nothing ->
-                    JD.fail "Invalid media type."
+                            Nothing ->
+                                JD.fail "Invalid media type."
 
-        _ ->
-            JD.fail "Invalid media type format."
+                    _ ->
+                        JD.fail "Invalid media type format."
+            )
 
 
 {-| Sum type to represent MIME Content Types listed in [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml).

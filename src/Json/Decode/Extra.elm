@@ -9,8 +9,8 @@ import Json.Decode as JD
 {-| Decoder for strings or an array of strings.
 -}
 longString : JD.Decoder String
-longString str =
+longString =
     JD.oneOf
         [ JD.string
-        , JD.list JD.string |> D.map String.concat
+        , JD.list JD.string |> JD.map String.concat
         ]
