@@ -1,6 +1,6 @@
 module Cardano.Cip25 exposing
     ( Cip25
-    , File, Image, jsonDecoder, toJson
+    , File, Image(..), Version, jsonDecoder, toJson
     )
 
 {-| CIP-0025 support.
@@ -39,6 +39,12 @@ type alias Cip25 =
     }
 
 
+{-| JSON encoder for [Cip25].
+
+Since metadata is typically interacted in JSON format, it seems reasonable to
+support its encoding/decoding.
+
+-}
 toJson : Cip25 -> JE.Value
 toJson cip25 =
     let
@@ -72,9 +78,22 @@ toJson cip25 =
     JE.object <| requiredFields ++ List.filterMap identity optionalFields
 
 
+{-| JSON decoder for [Cip25].
+-}
 jsonDecoder : JD.Decoder Cip25
 jsonDecoder =
-    JD.fail "TODO"
+    JD.map7 Cip25
+        (JD.field "name" JD.string)
+        (JD.field "image" imageJsonDecoder)
+        (JD.maybe <| JD.field "mediaType" imageMimeJsonDecoder)
+        (JD.map (Maybe.withDefault "") <|
+            JD.maybe (JD.field "description" JD.string)
+        )
+        (JD.map (Maybe.withDefault []) <|
+            JD.maybe (JD.field "files" <| JD.list fileJsonDecoder)
+        )
+        (JD.field "version" versionJsonDecoder)
+        (JD.dict Metadatum.jsonDecoder)
 
 
 {-| Helper datatype for the `image` field of CIP-0025.
@@ -109,6 +128,43 @@ imageToJson img =
                     ++ imageMimeToString props.mediaType
                     ++ ";base64,"
                     ++ props.base64Encoded
+
+
+imageJsonDecoder : JD.Decoder Image
+imageJsonDecoder =
+    JD.longString
+        |> JD.andThen
+            (\imageStr ->
+                case String.split "://" imageStr of
+                    [ scheme, cid ] ->
+                        JD.succeed <| ImageUri { scheme = scheme, cid = cid }
+
+                    _ ->
+                        let
+                            prefix =
+                                "data:"
+
+                            withoutPrefix =
+                                String.dropLeft (String.length prefix) imageStr
+                        in
+                        if String.startsWith prefix imageStr then
+                            case String.split ";base64," withoutPrefix of
+                                [ imageMimeStr, base64 ] ->
+                                    imageMimeJsonDecoder
+                                        |> JD.map
+                                            (\imageMime ->
+                                                InlineImage
+                                                    { mediaType = imageMime
+                                                    , base64Encoded = base64
+                                                    }
+                                            )
+
+                                _ ->
+                                    JD.fail "Invalid base64 image."
+
+                        else
+                            JD.fail "Invalid image."
+            )
 
 
 type alias Version =
