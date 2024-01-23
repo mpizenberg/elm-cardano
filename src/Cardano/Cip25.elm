@@ -79,7 +79,7 @@ type alias File =
     , src : String -- Must be decoded from either a string, or an array of strings.
 
     -- TODO
-    -- , otherProps : Dict String String
+    -- , otherProps : Dict String Metadatum
     }
 
 
@@ -303,7 +303,7 @@ type ImageMime
 
 
 imageMimePrefix =
-    "image/"
+    mimeTypeToString ImageMimeType ++ "/"
 
 
 imageMimeToString : Image -> String

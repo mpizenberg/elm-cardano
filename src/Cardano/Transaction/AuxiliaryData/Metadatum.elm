@@ -5,6 +5,8 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
+import Json.Decode as JD
+import Json.Encode as JE
 
 
 {-| -}
