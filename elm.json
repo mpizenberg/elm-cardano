@@ -9,6 +9,7 @@
         "Bytes.Crc8",
         "Bytes.Map",
         "Cardano.Address",
+        "Cardano.Cip25",
         "Cardano.Cip30",
         "Cardano.Cip67",
         "Cardano.Data",
