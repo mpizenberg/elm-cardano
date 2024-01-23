@@ -1,6 +1,6 @@
 module Cardano.Cip25 exposing
     ( Cip25
-    , File, Image(..), Version, jsonDecoder, toJson
+    , File, Image(..), MimeType(..), Version, jsonDecoder, toJson
     )
 
 {-| CIP-0025 support.
@@ -86,11 +86,11 @@ jsonDecoder =
         (JD.field "name" JD.string)
         (JD.field "image" imageJsonDecoder)
         (JD.maybe <| JD.field "mediaType" imageMimeJsonDecoder)
-        (JD.map (Maybe.withDefault "") <|
-            JD.maybe (JD.field "description" JD.string)
+        (JD.maybe (JD.field "description" JD.string)
+            |> JD.map (Maybe.withDefault "")
         )
-        (JD.map (Maybe.withDefault []) <|
-            JD.maybe (JD.field "files" <| JD.list fileJsonDecoder)
+        (JD.maybe (JD.field "files" <| JD.list fileJsonDecoder)
+            |> JD.map (Maybe.withDefault [])
         )
         (JD.field "version" versionJsonDecoder)
         (JD.dict Metadatum.jsonDecoder)
@@ -167,6 +167,8 @@ imageJsonDecoder =
             )
 
 
+{-| Datatype to represent a versioning which is compliant with [schema.org](https://schema.org).
+-}
 type alias Version =
     { primary : Int
     , secondary : Int
@@ -202,7 +204,7 @@ versionJsonDecoder =
 type alias File =
     { name : String
     , mediaType : ( MimeType, String )
-    , src : String -- Must be decoded from either a string, or an array of strings.
+    , src : String
     , otherProps : Dict String Metadatum
     }
 
@@ -344,14 +346,14 @@ mimeTypeFromString mimeTypeStr =
 to [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml#image).
 
 Since the `image` field of CIP-0025 is required, and also must be one of the
-image types, this datatype leads to a more robust model with a compromise of
-a limited support.
+image types, this datatype leads to a more robust model with the compromise of
+limited support.
 
-TODO: Adding a custom variant (arbitrary string) will allow
-two representations for defined constructors. However seems inevitable if
-for future support. This also applies to [MimeType]'s current implementation.
+TODO: Adding a custom variant (arbitrary string) will allow two representations
+for defined constructors, however it seems inevitable in order to support
+future image MIMEs. This is also true for [MimeType]'s current implementation.
 
-Having this completely decoupled from [MimeType] may not be a great idea.
+Also, having this completely decoupled from [MimeType] may not be a great idea.
 
 -}
 type ImageMime
