@@ -1,4 +1,10 @@
-module Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum(..), fromCbor, toCbor)
+module Cardano.Transaction.AuxiliaryData.Metadatum exposing
+    ( Metadatum(..)
+    , fromCbor
+    , jsonDecoder
+    , toCbor
+    , toJson
+    )
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cbor.Decode as D
@@ -42,3 +48,57 @@ toCbor metadatum =
 fromCbor : D.Decoder Metadatum
 fromCbor =
     D.failWith "decodeMetadatum (not implemented) failed to decode"
+
+
+toJson : Metadatum -> JE.Value
+toJson metadatum =
+    case metadatum of
+        Int n ->
+            JE.int n
+
+        Bytes bytes ->
+            JE.string <| Bytes.toString bytes
+
+        String str ->
+            JE.string str
+
+        List metadatums ->
+            JE.list toJson metadatums
+
+        Map metadatums ->
+            List.map (fst >> toJson >> JE.encode 0) metadatums
+                |> Dict.fromList
+                |> JE.dict (toJson >> JE.encode 0) toJson
+
+
+jsonDecoder : JD.Decoder Metadatum
+jsonDecoder =
+    JD.oneOf
+        [ JD.int
+            |> JD.map Int
+        , JD.string
+            |> JD.map
+                (\str ->
+                    case Bytes.fromString str of
+                        Just bs ->
+                            Bytes bs
+
+                        Nothing ->
+                            String str
+                )
+        , JD.list jsonDecoder
+        , JD.keyValuePairs jsonDecoder
+            |> JD.map
+                (List.filterMap
+                    (\( k, v ) ->
+                        fromString k
+                            |> Maybe.map (\decodedK -> ( decodedK, v ))
+                    )
+                )
+            |> JD.map Map
+        ]
+
+
+fromString : String -> Maybe Metadatum
+fromString =
+    JD.decodeString jsonDecoder >> Result.toMaybe

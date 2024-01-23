@@ -27,7 +27,7 @@ The standard simply lays out a set of fields, some of which are optional.
 type alias Cip25 =
     { name : String
     , image : Image
-    , mediaType : ImageMime
+    , mediaType : Maybe ImageMime
     , description : String
     , files : List File
     , version : ( Int, Int )
@@ -75,52 +75,51 @@ type alias File =
     { name : String
     , mediaType : ( MimeType, String )
     , src : String -- Must be decoded from either a string, or an array of strings.
-
-    -- TODO
-    -- , otherProps : Dict String Metadatum
+    , otherProps : Dict String Metadatum
     }
 
 
 fileToJson : File -> JD.Value
 fileToJson file =
-    JE.object
-        [ ( "name", JE.string file.name )
-        , ( "mediaType"
-          , JE.string <|
-                String.join
-                    "/"
-                    [ Tuple.first file.mimeType |> mimeTypeToString
-                    , Tuple.second file.mimeType
-                    ]
-          )
-        , ( "src", JE.longString file.src )
-        ]
+    JE.object <|
+        ( "name", JE.string file.name )
+            :: ( "mediaType"
+               , JE.string <|
+                    String.join
+                        "/"
+                        [ Tuple.first file.mimeType |> mimeTypeToString
+                        , Tuple.second file.mimeType
+                        ]
+               )
+            :: ( "src", JE.longString file.src )
+            :: Dict.foldr
+                (\k v acc -> ( k, Metadatum.toJson v ) :: acc)
+                []
+                file.otherProps
 
 
 fileJsonDecoder : JD.Decoder File
 fileJsonDecoder =
-    JD.map3 File
+    JD.map4 File
         (JD.field "name" JD.string)
-        (JD.field
-            "mediaType"
-            (JD.string
-                |> JD.andThen
-                    (\fullMimeStr ->
-                        case String.split "/" fullMimeStr of
-                            [ mimeStr, subMimeStr ] ->
-                                case mimeTypeFromString mimeStr of
-                                    Just mimeType ->
-                                        JD.succeed ( mimeType, subMimeStr )
-
-                                    Nothing ->
-                                        JD.fail "Invalid media type."
-
-                            _ ->
-                                JD.fail "Invalid media type format."
-                    )
-            )
-        )
+        (JD.field "mediaType" (JD.string |> JD.andThen mimeStringDecoder))
         (JD.field "src" JD.longString)
+        (JD.dict Metadatum.jsonDecoder)
+
+
+mimeStringDecoder : String -> JD.Decoder ( MimeType, String )
+mimeStringDecoder fullMimeStr =
+    case String.split "/" fullMimeStr of
+        [ mimeStr, subMimeStr ] ->
+            case mimeTypeFromString mimeStr of
+                Just mimeType ->
+                    JD.succeed ( mimeType, subMimeStr )
+
+                Nothing ->
+                    JD.fail "Invalid media type."
+
+        _ ->
+            JD.fail "Invalid media type format."
 
 
 {-| Sum type to represent MIME Content Types listed in [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml).
@@ -213,7 +212,12 @@ mimeTypeFromString mimeTypeStr =
 to [IANA registry](https://iana.org/assignments/media-types/media-types.xhtml#image).
 
 Since the `image` field of CIP-0025 is required, and also must be one of the
-image types, this datatype leads to a more robust model (too excessive?).
+image types, this datatype leads to a more robust model with a compromise of
+a limited support.
+
+TODO: Adding a custom variant (arbitrary string) will allow
+two representations for defined constructors. However seems inevitable if
+for future support. This also applies to [MimeType]'s current implementation.
 
 Having this completely decoupled from [MimeType] may not be a great idea.
 
@@ -271,12 +275,6 @@ imageMimeToString img =
                 Vnd_wap_wbmp ->
                     "vnd.wap.wbmp"
 
-                Vnd_xiff ->
-                    "vnd.xiff"
-
-                Vnd_zbrush_pcx ->
-                    "vnd.zbrush.pcx"
-
                 Webp ->
                     "webp"
 
@@ -306,41 +304,41 @@ imageMimeJsonDecoder =
                 if prefixIsValid then
                     case String.dropLeft prefixLength fullStr of
                         "bmp" ->
-                            D.succeed Bmp
+                            JD.succeed Bmp
 
                         "gif" ->
-                            D.succeed Gif
+                            JD.succeed Gif
 
                         "jpeg" ->
-                            D.succeed Jpeg
+                            JD.succeed Jpeg
 
                         "png" ->
-                            D.succeed Png
+                            JD.succeed Png
 
                         "svg+xml" ->
-                            D.succeed SvgXml
+                            JD.succeed SvgXml
 
                         "tiff" ->
-                            D.succeed Tiff
+                            JD.succeed Tiff
 
                         "vnf.adobe.photoshop" ->
-                            D.succeed Vnf_adobe_photoshop
+                            JD.succeed Vnf_adobe_photoshop
 
                         "vnd.dwg" ->
-                            D.succeed Vnd_dwg
+                            JD.succeed Vnd_dwg
 
                         "vnd.dxf" ->
-                            D.succeed Vnd_dxf
+                            JD.succeed Vnd_dxf
 
                         "webp" ->
-                            D.succeed Webp
+                            JD.succeed Webp
 
                         "wmf" ->
-                            D.succeed Wmf
+                            JD.succeed Wmf
 
                         _ ->
-                            D.fail "Unregistered image MIME subtype encountered."
+                            JD.fail "Unregistered image MIME subtype encountered."
 
                 else
-                    D.fail "Not an image MIME type."
+                    JD.fail "Not an image MIME type."
             )
