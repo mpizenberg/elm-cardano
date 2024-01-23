@@ -43,7 +43,7 @@ toJson : Cip25 -> JE.Value
 toJson cip25 =
     let
         requiredFields =
-            ( "name", JE.string file.name )
+            ( "name", JE.string cip25.name )
                 :: ( "image", imageToJson cip25.image )
                 :: ( "version", versionToJson cip25.version )
                 :: Dict.foldr
@@ -69,7 +69,12 @@ toJson cip25 =
                     Just ( "files", JE.list fileToJson cip25.files )
             ]
     in
-    JE.object <| requiredFields ++ List.filterMap id optionalFields
+    JE.object <| requiredFields ++ List.filterMap identity optionalFields
+
+
+jsonDecoder : JD.Decoder Cip25
+jsonDecoder =
+    JD.fail "TODO"
 
 
 {-| Helper datatype for the `image` field of CIP-0025.
@@ -95,15 +100,15 @@ type Image
 imageToJson : Image -> JE.Value
 imageToJson img =
     case img of
-        ImageUri scheme cid ->
-            JE.longString <| scheme ++ "://" ++ cid
+        ImageUri props ->
+            JE.longString <| props.scheme ++ "://" ++ props.cid
 
-        InlineImage mediaType base64 ->
+        InlineImage props ->
             JE.longString <|
                 "data:"
-                    ++ imageMimeToString mediaType
+                    ++ imageMimeToString props.mediaType
                     ++ ";base64,"
-                    ++ base64
+                    ++ props.base64Encoded
 
 
 type alias Version =
@@ -127,9 +132,9 @@ versionJsonDecoder =
     JD.string
         |> JD.andThen
             (\verStr ->
-                case List.map String.toInt (String.split "." fullMimeStr) of
+                case List.map String.toInt (String.split "." verStr) of
                     [ Just primaryInt, Just secondaryInt ] ->
-                        JD.map2 Version primaryInt secondaryInt
+                        JD.succeed <| Version primaryInt secondaryInt
 
                     _ ->
                         JD.fail "Invalid version string."
@@ -154,8 +159,8 @@ fileToJson file =
                , JE.string <|
                     String.join
                         "/"
-                        [ Tuple.first file.mimeType |> mimeTypeToString
-                        , Tuple.second file.mimeType
+                        [ Tuple.first file.mediaType |> mimeTypeToString
+                        , Tuple.second file.mediaType
                         ]
                )
             :: ( "src", JE.longString file.src )
@@ -175,7 +180,7 @@ fileJsonDecoder =
 
 
 mimeStringDecoder : JD.Decoder ( MimeType, String )
-mimeStringDecoder fullMimeStr =
+mimeStringDecoder =
     JD.string
         |> JD.andThen
             (\fullMimeStr ->
@@ -311,7 +316,7 @@ imageMimePrefix =
     mimeTypeToString ImageMimeType ++ "/"
 
 
-imageMimeToString : Image -> String
+imageMimeToString : ImageMime -> String
 imageMimeToString img =
     let
         postfix =
@@ -343,9 +348,6 @@ imageMimeToString img =
                 Vnd_dxf ->
                     "vnd.dxf"
 
-                Vnd_wap_wbmp ->
-                    "vnd.wap.wbmp"
-
                 Webp ->
                     "webp"
 
@@ -355,7 +357,7 @@ imageMimeToString img =
     imageMimePrefix ++ postfix
 
 
-imageMimeToJson : Image -> JE.Value
+imageMimeToJson : ImageMime -> JE.Value
 imageMimeToJson =
     JE.string << imageMimeToString
 

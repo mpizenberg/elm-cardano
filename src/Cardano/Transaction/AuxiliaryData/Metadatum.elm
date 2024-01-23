@@ -67,9 +67,14 @@ toJson metadatum =
             JE.list toJson metadatums
 
         Map metadatums ->
-            List.map (Tuple.first >> toJson >> JE.encode 0) metadatums
-                |> Dict.fromList
-                |> JE.dict (toJson >> JE.encode 0) toJson
+            JE.object <|
+                List.foldr
+                    -- TODO: Keys here are turning into strings, which doesn't
+                    -- seem right for `List` and `Map` constructors. But what
+                    -- is the right encoding?
+                    (\( k, v ) acc -> ( toJson k |> JE.encode 0, toJson v ) :: acc)
+                    []
+                    metadatums
 
 
 jsonDecoder : JD.Decoder Metadatum
@@ -87,8 +92,9 @@ jsonDecoder =
                         Nothing ->
                             String str
                 )
-        , JD.list jsonDecoder
-        , JD.keyValuePairs jsonDecoder
+        , JD.list (JD.lazy (\_ -> jsonDecoder))
+            |> JD.map List
+        , JD.keyValuePairs (JD.lazy (\_ -> jsonDecoder))
             |> JD.map
                 (List.filterMap
                     (\( k, v ) ->
@@ -102,4 +108,4 @@ jsonDecoder =
 
 fromString : String -> Maybe Metadatum
 fromString =
-    JD.decodeString jsonDecoder >> Result.toMaybe
+    JD.decodeString (JD.lazy (\_ -> jsonDecoder)) >> Result.toMaybe
