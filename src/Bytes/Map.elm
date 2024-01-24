@@ -50,7 +50,7 @@ Insert, remove, and query operations all take O(log n) time.
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Dict exposing (Dict)
@@ -63,7 +63,10 @@ import Dict exposing (Dict)
 {-| Dictionary mapping [Bytes] keys to values.
 -}
 type BytesMap k v
-    = BytesMap (Dict String v)
+    = BytesMap
+        { k2bytes : k -> Bytes Any
+        , kvs : Dict String v
+        }
 
 
 
@@ -72,39 +75,53 @@ type BytesMap k v
 
 {-| Create an empty `BytesMap`.
 -}
-empty : BytesMap k v
-empty =
-    BytesMap <|
-        Dict.empty
+empty : (k -> Bytes Any) -> BytesMap k v
+empty k2bytes =
+    BytesMap
+        { k2bytes = k2bytes
+        , kvs = Dict.empty
+        }
 
 
 {-| Create a `BytesMap` with one key-value pair.
 -}
-singleton : Bytes k -> v -> BytesMap k v
-singleton k v =
-    BytesMap <| Dict.singleton (Bytes.toString k) v
+singleton : (k -> Bytes Any) -> k -> v -> BytesMap k v
+singleton k2bytes k v =
+    BytesMap
+        { k2bytes = k2bytes
+        , kvs = Dict.singleton (k2str k2bytes k) v
+        }
 
 
 {-| Insert a key-value pair into a `BytesMap`. Replaces value when there is a collision.
 -}
-insert : Bytes k -> v -> BytesMap k v -> BytesMap k v
-insert k v (BytesMap m) =
-    BytesMap <| Dict.insert (Bytes.toString k) v m
+insert : k -> v -> BytesMap k v -> BytesMap k v
+insert k v (BytesMap props) =
+    BytesMap
+        { props
+            | kvs = Dict.insert (k2str props.k2bytes k) v props.kvs
+        }
 
 
 {-| Update the value of a `BytesMap` for a specific key with a given function.
 -}
-update : Bytes k -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
-update k f (BytesMap m) =
-    BytesMap <| Dict.update (Bytes.toString k) f m
+update : k -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
+update k f (BytesMap props) =
+    BytesMap
+        { props
+            | kvs = Dict.update (k2str props.k2bytes k) f props.kvs
+        }
 
 
 {-| Remove a key-value pair from a `BytesMap`. If the key is not found, no changes
 are made.
 -}
-remove : Bytes k -> BytesMap k v -> BytesMap k v
-remove k (BytesMap m) =
-    BytesMap <| Dict.remove (Bytes.toString k) m
+remove : k -> BytesMap k v -> BytesMap k v
+remove k (BytesMap props) =
+    BytesMap
+        { props
+            | kvs = Dict.remove (k2str props.k2bytes k) props.kvs
+        }
 
 
 
@@ -114,29 +131,29 @@ remove k (BytesMap m) =
 {-| Determine if a `BytesMap` is empty.
 -}
 isEmpty : BytesMap k v -> Bool
-isEmpty (BytesMap m) =
-    Dict.isEmpty m
+isEmpty (BytesMap props) =
+    Dict.isEmpty props.kvs
 
 
 {-| Determine if a key is in a `BytesMap`.
 -}
-member : Bytes k -> BytesMap k v -> Bool
-member k (BytesMap m) =
-    Dict.member (Bytes.toString k) m
+member : k -> BytesMap k v -> Bool
+member k (BytesMap props) =
+    Dict.member (k2str props.k2bytes k) props.kvs
 
 
 {-| Get the value associated with a key. If the key is not found, return `Nothing`. This is useful when you are not sure if a key will be in the `BytesMap`
 -}
-get : Bytes k -> BytesMap k v -> Maybe v
-get k (BytesMap m) =
-    Dict.get (Bytes.toString k) m
+get : k -> BytesMap k v -> Maybe v
+get k (BytesMap props) =
+    Dict.get (k2str props.k2bytes k) props.kvs
 
 
 {-| Determine the number of key-value pairs in the `BytesMap`.
 -}
 size : BytesMap k v -> Int
-size (BytesMap m) =
-    Dict.size m
+size (BytesMap props) =
+    Dict.size props.kvs
 
 
 
@@ -145,30 +162,30 @@ size (BytesMap m) =
 
 {-| Get all of the keys in a `BytesMap`, sorted from lowest to highest.
 -}
-keys : BytesMap k v -> List (Bytes k)
-keys (BytesMap m) =
-    Dict.foldr (\k _ ks -> Bytes.fromStringUnchecked k :: ks) [] m
+keys : BytesMap k v -> List (Bytes Any)
+keys (BytesMap props) =
+    Dict.foldr (\k _ ks -> Bytes.fromStringUnchecked k :: ks) [] props.kvs
 
 
 {-| Get all of the values in a dictionary, in the order of their keys.
 -}
 values : BytesMap k v -> List v
-values (BytesMap m) =
-    Dict.values m
+values (BytesMap props) =
+    Dict.values props.kvs
 
 
 {-| Convert a `BytesMap` into an association list of key-value pairs, sorted by keys.
 -}
-toList : BytesMap k v -> List ( Bytes k, v )
-toList (BytesMap m) =
-    Dict.foldr (\k v ks -> ( Bytes.fromStringUnchecked k, v ) :: ks) [] m
+toList : BytesMap k v -> List ( Bytes Any, v )
+toList (BytesMap props) =
+    Dict.foldr (\k v ks -> ( Bytes.fromStringUnchecked k, v ) :: ks) [] props.kvs
 
 
 {-| Convert an association list into a `BytesMap`.
 -}
-fromList : List ( Bytes k, v ) -> BytesMap k v
-fromList =
-    List.foldr (\( k, v ) -> insert k v) empty
+fromList : (k -> Bytes Any) -> List ( k, v ) -> BytesMap k v
+fromList k2bytes =
+    List.foldr (\( k, v ) -> insert k v) (empty k2bytes)
 
 
 
@@ -178,57 +195,69 @@ fromList =
 {-| Apply a function to all values in a `BytesMap`.
 -}
 map : (a -> b) -> BytesMap k a -> BytesMap k b
-map f (BytesMap m) =
-    BytesMap <| Dict.map (always f) m
+map f (BytesMap props) =
+    BytesMap
+        { k2bytes = props.k2bytes
+        , kvs = Dict.map (always f) props.kvs
+        }
 
 
 {-| Apply a function to all keys and values in a `BytesMap`.
 -}
-mapWithKeys : (Bytes k -> a -> b) -> BytesMap k a -> BytesMap k b
-mapWithKeys f (BytesMap m) =
-    BytesMap <| Dict.map (Bytes.fromStringUnchecked >> f) m
+mapWithKeys : (Bytes Any -> k) -> (k -> a -> b) -> BytesMap k a -> BytesMap k b
+mapWithKeys bytes2k f (BytesMap props) =
+    BytesMap
+        { k2bytes = props.k2bytes
+        , kvs = Dict.map (Bytes.fromStringUnchecked >> bytes2k >> f) props.kvs
+        }
 
 
 {-| Fold over the values in a `BytesMap` from lowest key to highest key.
 -}
 foldl : (v -> result -> result) -> result -> BytesMap k v -> result
-foldl f zero (BytesMap m) =
-    Dict.foldl (always f) zero m
+foldl f zero (BytesMap props) =
+    Dict.foldl (always f) zero props.kvs
 
 
 {-| Fold over the key-value pairs in a `BytesMap` from lowest key to highest key.
 -}
-foldlWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
-foldlWithKeys f zero (BytesMap m) =
-    Dict.foldl (Bytes.fromStringUnchecked >> f) zero m
+foldlWithKeys : (Bytes Any -> k) -> (k -> v -> result -> result) -> result -> BytesMap k v -> result
+foldlWithKeys bytes2k f zero (BytesMap props) =
+    Dict.foldl (Bytes.fromStringUnchecked >> bytes2k >> f) zero props.kvs
 
 
 {-| Fold over the values in a `BytesMap` from highest key to lowest key.
 -}
 foldr : (v -> result -> result) -> result -> BytesMap k v -> result
-foldr f zero (BytesMap m) =
-    Dict.foldr (always f) zero m
+foldr f zero (BytesMap props) =
+    Dict.foldr (always f) zero props.kvs
 
 
 {-| Fold over the key-value pairs in a `BytesMap` from highest key to lowest key.
 -}
-foldrWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
-foldrWithKeys f zero (BytesMap m) =
-    Dict.foldr (Bytes.fromStringUnchecked >> f) zero m
+foldrWithKeys : (Bytes Any -> k) -> (k -> v -> result -> result) -> result -> BytesMap k v -> result
+foldrWithKeys bytes2k f zero (BytesMap props) =
+    Dict.foldr (Bytes.fromStringUnchecked >> bytes2k >> f) zero props.kvs
 
 
 {-| Keep only the values that pass the given test.
 -}
 filter : (v -> Bool) -> BytesMap k v -> BytesMap k v
-filter f (BytesMap m) =
-    BytesMap <| Dict.filter (always f) m
+filter f (BytesMap props) =
+    BytesMap
+        { props
+            | kvs = Dict.filter (always f) props.kvs
+        }
 
 
 {-| Keep only the key-value pairs that pass the given test.
 -}
-filterWithKeys : (Bytes k -> v -> Bool) -> BytesMap k v -> BytesMap k v
-filterWithKeys f (BytesMap m) =
-    BytesMap <| Dict.filter (Bytes.fromStringUnchecked >> f) m
+filterWithKeys : (Bytes Any -> k) -> (k -> v -> Bool) -> BytesMap k v -> BytesMap k v
+filterWithKeys bytes2k f (BytesMap props) =
+    BytesMap
+        { props
+            | kvs = Dict.filter (Bytes.fromStringUnchecked >> bytes2k >> f) props.kvs
+        }
 
 
 
@@ -239,23 +268,32 @@ filterWithKeys f (BytesMap m) =
 the first `BytesMap`.
 -}
 union : BytesMap k v -> BytesMap k v -> BytesMap k v
-union (BytesMap left) (BytesMap right) =
-    BytesMap <| Dict.union left right
+union (BytesMap lProps) (BytesMap rProps) =
+    BytesMap
+        { lProps
+            | kvs = Dict.union lProps.kvs rProps.kvs
+        }
 
 
 {-| Keep a key-value pair when its key appears in the second `BytesMap`.
 Preference is given to values in the first `BytesMap`.
 -}
 intersect : BytesMap k v -> BytesMap k v -> BytesMap k v
-intersect (BytesMap left) (BytesMap right) =
-    BytesMap <| Dict.intersect left right
+intersect (BytesMap lProps) (BytesMap rProps) =
+    BytesMap
+        { lProps
+            | kvs = Dict.intersect lProps.kvs rProps.kvs
+        }
 
 
 {-| Keep a key-value pair when its key does not appear in the second `BytesMap`.
 -}
 diff : BytesMap k v -> BytesMap k v -> BytesMap k v
-diff (BytesMap left) (BytesMap right) =
-    BytesMap <| Dict.diff left right
+diff (BytesMap lProps) (BytesMap rProps) =
+    BytesMap
+        { lProps
+            | kvs = Dict.diff lProps.kvs rProps.kvs
+        }
 
 
 {-| The most general way of combining two `BytesMap`. You provide three accumulators for when a given key appears:
@@ -268,20 +306,21 @@ You then traverse all the keys from lowest to highest, building up whatever you 
 
 -}
 merge :
-    (Bytes k -> a -> result -> result)
-    -> (Bytes k -> a -> b -> result -> result)
-    -> (Bytes k -> b -> result -> result)
+    (Bytes Any -> k)
+    -> (k -> a -> result -> result)
+    -> (k -> a -> b -> result -> result)
+    -> (k -> b -> result -> result)
     -> BytesMap k a
     -> BytesMap k b
     -> result
     -> result
-merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
+merge k2bytes whenLeft whenBoth whenRight (BytesMap lProps) (BytesMap rProps) =
     Dict.merge
-        (Bytes.fromStringUnchecked >> whenLeft)
-        (Bytes.fromStringUnchecked >> whenBoth)
-        (Bytes.fromStringUnchecked >> whenRight)
-        left
-        right
+        (Bytes.fromStringUnchecked >> k2bytes >> whenLeft)
+        (Bytes.fromStringUnchecked >> k2bytes >> whenBoth)
+        (Bytes.fromStringUnchecked >> k2bytes >> whenRight)
+        lProps.kvs
+        rProps.kvs
 
 
 {-| Cbor encoder.
@@ -292,4 +331,9 @@ toCbor valueEncoder (BytesMap data) =
         keyEncoder =
             Bytes.fromStringUnchecked >> Bytes.toCbor
     in
-    EE.ledgerDict keyEncoder valueEncoder data
+    EE.ledgerDict keyEncoder valueEncoder data.kvs
+
+
+k2str : (k -> Bytes Any) -> k -> String
+k2str k2bytes =
+    Bytes.toString << k2bytes
