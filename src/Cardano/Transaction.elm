@@ -41,6 +41,7 @@ module Cardano.Transaction exposing
 -}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
+import Bytes.Fixed exposing (Bytes16, Bytes28, Bytes32, Bytes4, Bytes64, bytes16, bytes28, bytes32, bytes4, bytes64)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
 import Cardano.Data as Data exposing (Data)
@@ -77,15 +78,15 @@ type alias TransactionBody =
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Natural ) -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
+    , auxiliaryDataHash : Maybe AuxiliaryDataHash -- 7
     , validityIntervalStart : Maybe Int -- 8
 
     -- TODO: Use a type that can have negative numbers instead
     -- and make MultiAsset only positive numbers?
     , mint : MultiAsset -- 9
-    , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
+    , scriptDataHash : Maybe ScriptDataHash -- 11
     , collateral : List OutputReference -- 13
-    , requiredSigners : List (Bytes CredentialHash) -- 14
+    , requiredSigners : List CredentialHash -- 14
     , networkId : Maybe NetworkId -- 15
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
@@ -96,15 +97,15 @@ type alias TransactionBody =
 {-| Phantom type for auxiliary data hashes.
 This is a 32-bytes Blake2b-256 hash.
 -}
-type AuxiliaryDataHash
-    = AuxiliaryDataHash Never
+type alias AuxiliaryDataHash =
+    Bytes32
 
 
 {-| Phantom type for script data hashes.
 This is a 32-bytes Blake2b-256 hash.
 -}
-type ScriptDataHash
-    = ScriptDataHash Never
+type alias ScriptDataHash =
+    Bytes32
 
 
 {-| A Cardano transaction witness set.
@@ -118,10 +119,10 @@ type alias WitnessSet =
     { vkeywitness : Maybe (List VKeyWitness) -- 0
     , nativeScripts : Maybe (List NativeScript) -- 1
     , bootstrapWitness : Maybe (List BootstrapWitness) -- 2
-    , plutusV1Script : Maybe (List (Bytes ScriptCbor)) -- 3
+    , plutusV1Script : Maybe (List ScriptCbor) -- 3
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
-    , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
+    , plutusV2Script : Maybe (List ScriptCbor) -- 6
     }
 
 
@@ -206,44 +207,44 @@ type alias RationalNumber =
 
 {-| -}
 type alias VKeyWitness =
-    { vkey : Bytes Ed25519PublicKey -- 0
-    , signature : Bytes Ed25519Signature -- 1
+    { vkey : Ed25519PublicKey -- 0
+    , signature : Ed25519Signature -- 1
     }
 
 
 {-| -}
 type alias BootstrapWitness =
-    { publicKey : Bytes Ed25519PublicKey -- 0
-    , signature : Bytes Ed25519Signature -- 1
-    , chainCode : Bytes BootstrapWitnessChainCode -- 2
-    , attributes : Bytes BootstrapWitnessAttributes -- 3
+    { publicKey : Ed25519PublicKey -- 0
+    , signature : Ed25519Signature -- 1
+    , chainCode : BootstrapWitnessChainCode -- 2
+    , attributes : BootstrapWitnessAttributes -- 3
     }
 
 
 {-| Phantom type for ED25519 public keys, of length 32 bytes.
 -}
-type Ed25519PublicKey
-    = Ed25519PublicKey Never
+type alias Ed25519PublicKey =
+    Bytes32
 
 
 {-| Phantom type for ED25519 signatures, of length 64 bytes.
 -}
-type Ed25519Signature
-    = Ed25519Signature Never
+type alias Ed25519Signature =
+    Bytes64
 
 
 {-| Phantom type for [BootstrapWitness] chain code.
 It has a length of 32 bytes.
 -}
-type BootstrapWitnessChainCode
-    = BootstrapWitnessChainCode Never
+type alias BootstrapWitnessChainCode =
+    Bytes32
 
 
 {-| Phantom type for [BootstrapWitness] attributes.
 Bytes of this type can be of any length.
 -}
-type BootstrapWitnessAttributes
-    = BootstrapWitnessAttributes Never
+type alias BootstrapWitnessAttributes =
+    Bytes Any
 
 
 
@@ -266,7 +267,7 @@ type alias ScriptContext =
 {-| Characterizes the kind of script being executed and the associated resource.
 -}
 type ScriptPurpose
-    = SPMint { policyId : Bytes PolicyId }
+    = SPMint { policyId : PolicyId }
     | SPSpend OutputReference
     | SPWithdrawFrom Credential
     | SPPublish Certificate
@@ -283,13 +284,13 @@ Most of the time, they require signatures from specific keys.
 type Certificate
     = StakeRegistration { delegator : Credential }
     | StakeDeregistration { delegator : Credential }
-    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId }
+    | StakeDelegation { delegator : Credential, poolId : PoolId }
     | PoolRegistration PoolParams
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural }
+    | PoolRetirement { poolId : PoolId, epoch : Natural }
     | GenesisKeyDelegation
-        { genesisHash : Bytes GenesisHash
-        , genesisDelegateHash : Bytes GenesisDelegateHash
-        , vrfKeyHash : Bytes VrfKeyHash
+        { genesisHash : GenesisHash
+        , genesisDelegateHash : GenesisDelegateHash
+        , vrfKeyHash : VrfKeyHash
         }
     | MoveInstantaneousRewardsCert MoveInstantaneousReward
 
@@ -297,41 +298,41 @@ type Certificate
 {-| Phantom type for pool ID.
 This is a 28-bytes Blake2b-224 hash.
 -}
-type PoolId
-    = PoolId Never
+type alias PoolId =
+    Bytes28
 
 
 {-| Phantom type for Genesis hash.
 This is a 28-bytes Blake2b-224 hash.
 -}
-type GenesisHash
-    = GenesisHash Never
+type alias GenesisHash =
+    Bytes28
 
 
 {-| Phantom type for Genesis delegate hash.
 This is a 28-bytes Blake2b-224 hash.
 -}
-type GenesisDelegateHash
-    = GenesisDelegateHash Never
+type alias GenesisDelegateHash =
+    Bytes28
 
 
 {-| Phantom type for VRF key hash.
 This is a 32-bytes Blake2b-256 hash.
 -}
-type VrfKeyHash
-    = VrfKeyHash Never
+type alias VrfKeyHash =
+    Bytes32
 
 
 {-| Parameters for stake pool registration.
 -}
 type alias PoolParams =
-    { operator : Bytes PoolId
-    , vrfKeyHash : Bytes VrfKeyHash
+    { operator : PoolId
+    , vrfKeyHash : VrfKeyHash
     , pledge : Natural
     , cost : Natural
     , margin : UnitInterval
     , rewardAccount : StakeAddress
-    , poolOwners : List (Bytes CredentialHash)
+    , poolOwners : List CredentialHash
     , relays : List Relay
     , poolMetadata : Maybe PoolMetadata
     }
@@ -340,36 +341,36 @@ type alias PoolParams =
 {-| A pool's relay information.
 -}
 type Relay
-    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe (Bytes IpV4), ipv6 : Maybe (Bytes IpV6) }
+    = SingleHostAddr { port_ : Maybe Int, ipv4 : Maybe IpV4, ipv6 : Maybe IpV6 }
     | SingleHostName { port_ : Maybe Int, dnsName : String }
     | MultiHostName { dnsName : String }
 
 
 {-| Phantom type for 4-bytes IPV4 addresses.
 -}
-type IpV4
-    = IpV4 Never
+type alias IpV4 =
+    Bytes4
 
 
 {-| Phantom type for 16-bytes IPV6 addresses.
 -}
-type IpV6
-    = IpV6 Never
+type alias IpV6 =
+    Bytes16
 
 
 {-| A pool's metadata hash.
 -}
 type alias PoolMetadata =
     { url : String -- tstr .size (0..64)
-    , poolMetadataHash : Bytes PoolMetadataHash
+    , poolMetadataHash : PoolMetadataHash
     }
 
 
 {-| Phantom type for 32-bytes pool metadata hash.
 This is a Blacke2b-256 hash.
 -}
-type PoolMetadataHash
-    = PoolMetadataHash Never
+type alias PoolMetadataHash =
+    Bytes32
 
 
 {-| Payload for [MoveInstantaneousRewardsCert].
@@ -441,10 +442,10 @@ encodeTransactionBody =
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.natural) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
-            >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
+            >> E.optionalField 7 bytes32.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
             >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.toCbor .mint
-            >> E.optionalField 11 Bytes.toCbor .scriptDataHash
+            >> E.optionalField 11 bytes32.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
             >> E.optionalField 15 Address.encodeNetworkId .networkId
@@ -478,8 +479,8 @@ encodeVKeyWitness : VKeyWitness -> E.Encoder
 encodeVKeyWitness =
     E.tuple <|
         E.elems
-            >> E.elem Bytes.toCbor .vkey
-            >> E.elem Bytes.toCbor .signature
+            >> E.elem bytes32.toCbor .vkey
+            >> E.elem bytes64.toCbor .signature
 
 
 {-| -}
@@ -493,8 +494,8 @@ encodeBootstrapWitness : BootstrapWitness -> E.Encoder
 encodeBootstrapWitness =
     E.tuple <|
         E.elems
-            >> E.elem Bytes.toCbor .publicKey
-            >> E.elem Bytes.toCbor .signature
+            >> E.elem bytes32.toCbor .publicKey
+            >> E.elem bytes64.toCbor .signature
 
 
 {-| -}
@@ -533,33 +534,33 @@ encodeCertificate certificate =
             StakeDelegation { delegator, poolId } ->
                 [ E.int 2
                 , Address.credentialToCbor delegator
-                , Bytes.toCbor poolId
+                , bytes28.toCbor poolId
                 ]
 
             PoolRegistration poolParams ->
                 [ E.int 3
-                , Bytes.toCbor poolParams.operator
-                , Bytes.toCbor poolParams.vrfKeyHash
+                , bytes28.toCbor poolParams.operator
+                , bytes32.toCbor poolParams.vrfKeyHash
                 , E.natural poolParams.pledge
                 , E.natural poolParams.cost
                 , encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
-                , E.ledgerList Bytes.toCbor poolParams.poolOwners
+                , E.ledgerList bytes28.toCbor poolParams.poolOwners
                 , E.ledgerList encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
             PoolRetirement { poolId, epoch } ->
                 [ E.int 4
-                , Bytes.toCbor poolId
+                , bytes28.toCbor poolId
                 , E.natural epoch
                 ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
                 [ E.int 5
-                , Bytes.toCbor genesisHash
-                , Bytes.toCbor genesisDelegateHash
-                , Bytes.toCbor vrfKeyHash
+                , bytes28.toCbor genesisHash
+                , bytes28.toCbor genesisDelegateHash
+                , bytes32.toCbor vrfKeyHash
                 ]
 
             MoveInstantaneousRewardsCert moveInstantaneousReward ->
@@ -575,8 +576,8 @@ encodeRelay relay =
             SingleHostAddr { port_, ipv4, ipv6 } ->
                 [ E.int 0
                 , E.maybe E.int port_
-                , E.maybe Bytes.toCbor ipv4
-                , E.maybe Bytes.toCbor ipv6
+                , E.maybe bytes4.toCbor ipv4
+                , E.maybe bytes16.toCbor ipv6
                 ]
 
             SingleHostName { port_, dnsName } ->
@@ -596,7 +597,7 @@ encodePoolMetadata =
     E.tuple <|
         E.elems
             >> E.elem E.string .url
-            >> E.elem Bytes.toCbor .poolMetadataHash
+            >> E.elem bytes32.toCbor .poolMetadataHash
 
 
 encodeMoveInstantaneousReward : MoveInstantaneousReward -> E.Encoder
@@ -629,9 +630,9 @@ encodeRewardTarget target =
 
 
 {-| -}
-encodeRequiredSigners : List (Bytes CredentialHash) -> E.Encoder
+encodeRequiredSigners : List CredentialHash -> E.Encoder
 encodeRequiredSigners =
-    E.ledgerList Bytes.toCbor
+    E.ledgerList bytes28.toCbor
 
 
 {-| -}
@@ -748,7 +749,7 @@ decodeBody =
             -- update
             >> D.optionalField 6 (D.oneOf [ decodeUpdate, D.failWith "Failed to decode protocol update" ])
             -- metadata hash
-            >> D.optionalField 7 (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode metadata hash" ])
+            >> D.optionalField 7 (D.oneOf [ bytes32.cborDecoder, D.failWith "Failed to decode metadata hash" ])
 
 
 decodeCertificate : D.Decoder Certificate
@@ -776,7 +777,7 @@ decodeCertificateHelper length id =
             D.map2
                 (\cred poolId -> StakeDelegation { delegator = cred, poolId = poolId })
                 decodeStakeCredential
-                (D.map Bytes.fromBytes D.bytes)
+                bytes28.cborDecoder
 
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
@@ -786,7 +787,7 @@ decodeCertificateHelper length id =
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
             D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
-                (D.map Bytes.fromBytes D.bytes)
+                bytes28.cborDecoder
                 D.natural
 
         -- genesis_key_delegation = (5, genesishash, genesis_delegate_hash, vrf_keyhash)
@@ -799,9 +800,9 @@ decodeCertificateHelper length id =
                         , vrfKeyHash = vrfKeyHash
                         }
                 )
-                (D.map Bytes.fromBytes D.bytes)
-                (D.map Bytes.fromBytes D.bytes)
-                (D.map Bytes.fromBytes D.bytes)
+                bytes28.cborDecoder
+                bytes28.cborDecoder
+                bytes32.cborDecoder
 
         -- move_instantaneous_rewards_cert = (6, move_instantaneous_reward)
         ( 2, 6 ) ->
@@ -828,11 +829,11 @@ decodeStakeCredential =
                             (\id ->
                                 if id == 0 then
                                     -- If the id is 0, it's a vkey hash
-                                    D.map (Address.VKeyHash << Bytes.fromBytes) D.bytes
+                                    D.map Address.VKeyHash bytes28.cborDecoder
 
                                 else if id == 1 then
                                     -- If the id is 1, it's a script hash
-                                    D.map (Address.ScriptHash << Bytes.fromBytes) D.bytes
+                                    D.map Address.ScriptHash bytes28.cborDecoder
 
                                 else
                                     D.fail
@@ -846,13 +847,13 @@ decodeStakeCredential =
 decodePoolParams : D.Decoder PoolParams
 decodePoolParams =
     D.succeed PoolParams
-        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode operator" ])
-        |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode vrfkeyhash" ])
+        |> D.keep (D.oneOf [ bytes28.cborDecoder, D.failWith "Failed to decode operator" ])
+        |> D.keep (D.oneOf [ bytes32.cborDecoder, D.failWith "Failed to decode vrfkeyhash" ])
         |> D.keep (D.oneOf [ D.natural, D.failWith "Failed to decode pledge" ])
         |> D.keep D.natural
         |> D.keep (D.oneOf [ decodeRational, D.failWith "Failed to decode rational" ])
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
-        |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
+        |> D.keep (D.list bytes28.cborDecoder)
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])
         |> D.keep (D.oneOf [ D.maybe decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
 
@@ -887,8 +888,8 @@ decodeRelayHelper length id =
         ( 4, 0 ) ->
             D.map3 (\port_ ipv4 ipv6 -> SingleHostAddr { port_ = port_, ipv4 = ipv4, ipv6 = ipv6 })
                 (D.maybe D.int)
-                (D.maybe <| D.map Bytes.fromBytes D.bytes)
-                (D.maybe <| D.map Bytes.fromBytes D.bytes)
+                (D.maybe bytes4.cborDecoder)
+                (D.maybe bytes16.cborDecoder)
 
         -- single_host_name = ( 1, port / null, dns_name )  -- An A or AAAA DNS record
         ( 3, 1 ) ->
@@ -915,7 +916,7 @@ decodePoolMetadata =
     D.tuple PoolMetadata <|
         D.elems
             >> D.elem D.string
-            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem bytes32.cborDecoder
 
 
 decodeMoveInstantaneousRewards : D.Decoder MoveInstantaneousReward
@@ -1046,15 +1047,11 @@ decodeWitness =
 decodeVKeyWitness : D.Decoder VKeyWitness
 decodeVKeyWitness =
     D.tuple
-        (\vkey sig ->
-            { vkey = Bytes.fromBytes vkey
-            , signature = Bytes.fromBytes sig
-            }
+        VKeyWitness
+        (D.elems
+            >> D.elem bytes32.cborDecoder
+            >> D.elem bytes64.cborDecoder
         )
-    <|
-        D.elems
-            >> D.elem D.bytes
-            >> D.elem D.bytes
 
 
 decodeNativeScript : D.Decoder NativeScript
@@ -1065,19 +1062,13 @@ decodeNativeScript =
 decodeBootstrapWitness : D.Decoder BootstrapWitness
 decodeBootstrapWitness =
     D.tuple
-        (\pubkey sig chainCode attr ->
-            { publicKey = Bytes.fromBytes pubkey
-            , signature = Bytes.fromBytes sig
-            , chainCode = Bytes.fromBytes chainCode
-            , attributes = Bytes.fromBytes attr
-            }
+        BootstrapWitness
+        (D.elems
+            >> D.elem bytes32.cborDecoder
+            >> D.elem bytes64.cborDecoder
+            >> D.elem bytes32.cborDecoder
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
         )
-    <|
-        D.elems
-            >> D.elem D.bytes
-            >> D.elem D.bytes
-            >> D.elem D.bytes
-            >> D.elem D.bytes
 
 
 

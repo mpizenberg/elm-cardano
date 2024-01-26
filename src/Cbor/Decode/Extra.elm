@@ -26,7 +26,7 @@ natural =
             )
 
 
-failWith : String -> D.Decoder a
+failWith : String -> Decoder a
 failWith msg =
     D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
         |> D.andThen
@@ -37,3 +37,16 @@ failWith msg =
                 in
                 D.fail
             )
+
+
+fromMaybe : Decoder (Maybe a) -> Decoder a
+fromMaybe =
+    D.andThen
+        (\mValue ->
+            case mValue of
+                Just v ->
+                    D.succeed v
+
+                Nothing ->
+                    D.fail
+        )
