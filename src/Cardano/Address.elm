@@ -24,6 +24,7 @@ import Bitwise
 import Bytes as B
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Decode as BD
+import Bytes.Fixed exposing (Bytes28, bytes28)
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
@@ -67,8 +68,8 @@ Credentials are always one of two kinds: a direct public/private key pair, or a 
 
 -}
 type Credential
-    = VKeyHash (Bytes CredentialHash)
-    | ScriptHash (Bytes CredentialHash)
+    = VKeyHash CredentialHash
+    | ScriptHash CredentialHash
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
@@ -89,13 +90,13 @@ type alias StakeCredentialPointer =
 {-| Phantom type for 28-bytes credential hashes.
 This is a Blake2b-224 hash.
 -}
-type CredentialHash
-    = CredentialHash Never
+type alias CredentialHash =
+    Bytes28
 
 
 {-| Create a simple enterprise address, with only a payment credential and no stake credential.
 -}
-enterprise : NetworkId -> Bytes CredentialHash -> Address
+enterprise : NetworkId -> CredentialHash -> Address
 enterprise networkId credentials =
     Shelley
         { networkId = networkId
@@ -106,7 +107,7 @@ enterprise networkId credentials =
 
 {-| Create a simple script address, with only a payment credential and no stake credential.
 -}
-script : NetworkId -> Bytes CredentialHash -> Address
+script : NetworkId -> CredentialHash -> Address
 script networkId credentials =
     Shelley
         { networkId = networkId
@@ -176,35 +177,35 @@ toCbor address =
             case ( paymentCredential, stakeCredential ) of
                 -- (0) 0000.... PaymentKeyHash StakeKeyHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    encodeAddress networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
+                    encodeAddress networkId "0" (bytes28.toString paymentKeyHash ++ bytes28.toString stakeKeyHash)
 
                 -- (1) 0001.... ScriptHash StakeKeyHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    encodeAddress networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
+                    encodeAddress networkId "1" (bytes28.toString paymentScriptHash ++ bytes28.toString stakeKeyHash)
 
                 -- (2) 0010.... PaymentKeyHash ScriptHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    encodeAddress networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
+                    encodeAddress networkId "2" (bytes28.toString paymentKeyHash ++ bytes28.toString stakeScriptHash)
 
                 -- (3) 0011.... ScriptHash ScriptHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    encodeAddress networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
+                    encodeAddress networkId "3" (bytes28.toString paymentScriptHash ++ bytes28.toString stakeScriptHash)
 
                 -- (4) 0100.... PaymentKeyHash Pointer
                 ( VKeyHash paymentKeyHash, Just (PointerCredential _) ) ->
-                    encodeAddress networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
+                    encodeAddress networkId "4" (bytes28.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
 
                 -- (5) 0101.... ScriptHash Pointer
                 ( ScriptHash paymentScriptHash, Just (PointerCredential _) ) ->
-                    encodeAddress networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
+                    encodeAddress networkId "5" (bytes28.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
 
                 -- (6) 0110.... PaymentKeyHash ø
                 ( VKeyHash paymentKeyHash, Nothing ) ->
-                    encodeAddress networkId "6" (Bytes.toString paymentKeyHash)
+                    encodeAddress networkId "6" (bytes28.toString paymentKeyHash)
 
                 -- (7) 0111.... ScriptHash ø
                 ( ScriptHash paymentScriptHash, Nothing ) ->
-                    encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
+                    encodeAddress networkId "7" (bytes28.toString paymentScriptHash)
 
         Reward stakeAddress ->
             stakeAddressToCbor stakeAddress
@@ -217,11 +218,11 @@ stakeAddressToCbor { networkId, stakeCredential } =
     case stakeCredential of
         -- (14) 1110.... StakeKeyHash
         VKeyHash stakeKeyHash ->
-            encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
+            encodeAddress networkId "e" (bytes28.toString stakeKeyHash)
 
         -- (15) 1111.... ScriptHash
         ScriptHash stakeScriptHash ->
-            encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
+            encodeAddress networkId "f" (bytes28.toString stakeScriptHash)
 
 
 encodeAddress : NetworkId -> String -> String -> E.Encoder
@@ -248,12 +249,12 @@ credentialToCbor stakeCredential =
         case stakeCredential of
             VKeyHash addrKeyHash ->
                 [ E.int 0
-                , Bytes.toCbor addrKeyHash
+                , bytes28.toCbor addrKeyHash
                 ]
 
             ScriptHash scriptHash ->
                 [ E.int 1
-                , Bytes.toCbor scriptHash
+                , bytes28.toCbor scriptHash
                 ]
 
 
@@ -312,7 +313,8 @@ decodeReward =
 
 
 {-| Address decoder from raw bytes. Internal use only.
-Cannot be compose with other decoders as it may not consume the correct number of bytes.
+Cannot be compose with other decoders as it may not consume the correct number
+of bytes.
 
 This needs a copy of the bytes of the address to compensate
 the absence of backtracking in bytes decoders.
@@ -324,62 +326,60 @@ decodeBytes bytesCopy =
     BD.unsignedInt8
         |> BD.andThen
             (\header ->
+                let
+                    ntwrk =
+                        networkIdFromHeader header
+
+                    baseDecoder payConstr stakeConstr =
+                        BD.map2
+                            (\payment stake -> base ntwrk (payConstr payment) (stakeConstr stake))
+                            bytes28.rawBytesDecoder
+                            bytes28.rawBytesDecoder
+                in
                 case Bitwise.shiftRightBy 4 header of
                     -- (0) 0000.... PaymentKeyHash StakeKeyHash
                     0 ->
-                        BD.map2
-                            (\payment stake -> base (networkIdFromHeader header) (VKeyHash payment) (VKeyHash stake))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        baseDecoder VKeyHash VKeyHash
 
                     -- (1) 0001.... ScriptHash StakeKeyHash
                     1 ->
-                        BD.map2
-                            (\payment stake -> base (networkIdFromHeader header) (ScriptHash payment) (VKeyHash stake))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        baseDecoder ScriptHash VKeyHash
 
                     -- (2) 0010.... PaymentKeyHash ScriptHash
                     2 ->
-                        BD.map2
-                            (\payment stake -> base (networkIdFromHeader header) (VKeyHash payment) (ScriptHash stake))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        baseDecoder VKeyHash ScriptHash
 
                     -- (3) 0011.... ScriptHash ScriptHash
                     3 ->
-                        BD.map2
-                            (\payment stake -> base (networkIdFromHeader header) (ScriptHash payment) (ScriptHash stake))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        baseDecoder ScriptHash ScriptHash
 
                     -- (4) 0100.... PaymentKeyHash Pointer
                     4 ->
                         BD.map2
                             (\payment ->
-                                pointer (networkIdFromHeader header) (VKeyHash payment)
+                                pointer ntwrk (VKeyHash payment)
                             )
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            bytes28.rawBytesDecoder
                             (BD.map3 StakeCredentialPointer Word7.fromBytes Word7.fromBytes Word7.fromBytes)
 
                     -- (5) 0101.... ScriptHash Pointer
                     5 ->
                         BD.map2
                             (\payment ->
-                                pointer (networkIdFromHeader header) (ScriptHash payment)
+                                pointer ntwrk (ScriptHash payment)
                             )
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                            bytes28.rawBytesDecoder
                             (BD.map3 StakeCredentialPointer Word7.fromBytes Word7.fromBytes Word7.fromBytes)
 
                     -- (6) 0110.... PaymentKeyHash ø
                     6 ->
-                        BD.map (enterprise (networkIdFromHeader header))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        BD.map (enterprise ntwrk)
+                            bytes28.rawBytesDecoder
 
                     -- (7) 0111.... ScriptHash ø
                     7 ->
-                        BD.map (script (networkIdFromHeader header))
-                            (BD.map Bytes.fromBytes <| BD.bytes 28)
+                        BD.map (script ntwrk)
+                            bytes28.rawBytesDecoder
 
                     -- (8) 1000.... Byron
                     8 ->
@@ -388,13 +388,13 @@ decodeBytes bytesCopy =
 
                     -- (14) 1110.... StakeKeyHash
                     14 ->
-                        BD.map (\cred -> Reward <| StakeAddress (networkIdFromHeader header) cred)
-                            (BD.map (VKeyHash << Bytes.fromBytes) <| BD.bytes 28)
+                        BD.map (\cred -> Reward <| StakeAddress ntwrk cred)
+                            (BD.map VKeyHash bytes28.rawBytesDecoder)
 
                     -- (15) 1111.... ScriptHash
                     15 ->
                         BD.map (\cred -> Reward <| StakeAddress (networkIdFromHeader header) cred)
-                            (BD.map (ScriptHash << Bytes.fromBytes) <| BD.bytes 28)
+                            (BD.map ScriptHash bytes28.rawBytesDecoder)
 
                     _ ->
                         BD.fail

@@ -38,7 +38,7 @@ module Cardano.Utxo exposing
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Fixed exposing (Bytes32, bytes32)
 import Cardano.Address as Address exposing (Address)
 import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset
@@ -55,7 +55,7 @@ import Natural as N exposing (Natural)
 {-| The reference for a eUTxO.
 -}
 type alias OutputReference =
-    { transactionId : Bytes TransactionId
+    { transactionId : TransactionId
     , outputIndex : Int
     }
 
@@ -63,8 +63,8 @@ type alias OutputReference =
 {-| Phantom type for 32-bytes transaction IDs.
 This is a Blake2b-256 hash.
 -}
-type TransactionId
-    = TransactionId Never
+type alias TransactionId =
+    Bytes32
 
 
 {-| CBOR encoder for [OutputReference].
@@ -73,7 +73,7 @@ encodeOutputReference : OutputReference -> E.Encoder
 encodeOutputReference =
     E.tuple <|
         E.elems
-            >> E.elem Bytes.toCbor .transactionId
+            >> E.elem bytes32.toCbor .transactionId
             >> E.elem E.int .outputIndex
 
 
@@ -83,7 +83,7 @@ decodeOutputReference : D.Decoder OutputReference
 decodeOutputReference =
     D.tuple OutputReference <|
         D.elems
-            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem bytes32.cborDecoder
             >> D.elem D.int
 
 
@@ -93,7 +93,7 @@ type Output
     = Legacy
         { address : Address
         , amount : Value
-        , datumHash : Maybe (Bytes DatumHash)
+        , datumHash : Maybe DatumHash
         }
     | PostAlonzo
         { address : Address
@@ -106,8 +106,8 @@ type Output
 {-| Phantom type for 32-bytes datum hashes.
 This is a Blake2b-256 hash.
 -}
-type DatumHash
-    = DatumHash_ Never
+type alias DatumHash =
+    Bytes32
 
 
 {-| Sorts a list of UTXOs in descending order by lovelace value.
@@ -164,7 +164,7 @@ encodeOutput output =
                 (E.elems
                     >> E.elem Address.toCbor .address
                     >> E.elem Value.encode .amount
-                    >> E.optionalElem Bytes.toCbor .datumHash
+                    >> E.optionalElem bytes32.toCbor .datumHash
                 )
                 fields
 
@@ -187,7 +187,7 @@ encodeOutput output =
 {-| Nickname for data stored in a eUTxO.
 -}
 type DatumOption
-    = DatumHash (Bytes DatumHash)
+    = DatumHash DatumHash
     | Datum Data
 
 
@@ -199,7 +199,7 @@ encodeDatumOption datumOption =
         case datumOption of
             DatumHash hash ->
                 [ E.int 0
-                , Bytes.toCbor hash
+                , bytes32.toCbor hash
                 ]
 
             Datum datum ->

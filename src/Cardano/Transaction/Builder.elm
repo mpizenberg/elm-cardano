@@ -186,12 +186,12 @@ addFee amount body =
     { body | fee = Just amount }
 
 
-scriptDataHash : Bytes ScriptDataHash -> Tx -> Tx
+scriptDataHash : ScriptDataHash -> Tx -> Tx
 scriptDataHash dataHash (Tx inner) =
     inner |> updateBody (addScriptDataHash dataHash)
 
 
-addScriptDataHash : Bytes ScriptDataHash -> TransactionBody -> TransactionBody
+addScriptDataHash : ScriptDataHash -> TransactionBody -> TransactionBody
 addScriptDataHash dataHash body =
     { body | scriptDataHash = Just dataHash }
 
@@ -208,12 +208,12 @@ addCollateral newInput body =
     }
 
 
-requiredSigner : Bytes CredentialHash -> Tx -> Tx
+requiredSigner : CredentialHash -> Tx -> Tx
 requiredSigner signer (Tx inner) =
     inner |> updateBody (addRequiredSigner signer)
 
 
-addRequiredSigner : Bytes CredentialHash -> TransactionBody -> TransactionBody
+addRequiredSigner : CredentialHash -> TransactionBody -> TransactionBody
 addRequiredSigner signer body =
     { body
         | requiredSigners = signer :: body.requiredSigners

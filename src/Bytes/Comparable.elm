@@ -25,8 +25,9 @@ import Hex.Convert as Hex
 
 {-| A custom `Bytes` type that is comparable with `==`.
 
-Useful as otherwise, the original `Bytes` type from `elm/bytes` package cannot be used to compare for equality with `==`.
-The phantom type parameter `a` indicates what type of Bytes are stored.
+Useful as otherwise, the original `Bytes` type from `elm/bytes` package cannot
+be used to compare for equality with `==`. The phantom type parameter `a` indicates
+what type of Bytes are stored.
 
 -}
 type Bytes a

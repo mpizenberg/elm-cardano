@@ -10,6 +10,8 @@ module Cardano.MultiAsset exposing
 
 -}
 
+import Bytes.Comparable exposing (Any, Bytes)
+import Bytes.Fixed exposing (Bytes28)
 import Bytes.Map exposing (BytesMap)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
@@ -25,15 +27,15 @@ type alias MultiAsset =
 {-| Phantom type for 28-bytes policy id.
 This is a Blacke2b-224 hash.
 -}
-type PolicyId
-    = PolicyId Never
+type alias PolicyId =
+    Bytes28
 
 
 {-| Phantom type for asset names.
 This is a free-form bytes array of length <= 32 bytes.
 -}
 type AssetName
-    = AssetName Never
+    = Bytes Any
 
 
 {-| Create an empty [MultiAsset].

@@ -14,7 +14,8 @@ module Cardano.Script exposing
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
+import Bytes.Fixed exposing (Bytes28, bytes28)
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 
@@ -37,7 +38,7 @@ type Script
 <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
 -}
 type NativeScript
-    = ScriptPubkey (Bytes NativeScriptPubkeyHash)
+    = ScriptPubkey NativeScriptPubkeyHash
     | ScriptAll (List NativeScript)
     | ScriptAny (List NativeScript)
     | ScriptNofK Int (List NativeScript)
@@ -48,15 +49,15 @@ type NativeScript
 {-| Phantom type for 28-bytes native script public key hash.
 This is a Blake2b-224 hash.
 -}
-type NativeScriptPubkeyHash
-    = NativeScriptPubkeyHash Never
+type alias NativeScriptPubkeyHash =
+    Bytes28
 
 
 {-| A plutus script.
 -}
 type alias PlutusScript =
     { version : PlutusVersion
-    , script : Bytes ScriptCbor
+    , script : ScriptCbor
     }
 
 
@@ -69,8 +70,8 @@ type PlutusVersion
 
 {-| Phantom type describing the kind of bytes within a [PlutusScript] object.
 -}
-type ScriptCbor
-    = ScriptCbor Never
+type alias ScriptCbor =
+    Bytes Any
 
 
 {-| Cbor Encoder for [Script]
@@ -99,7 +100,7 @@ encodeNativeScript nativeScript =
         case nativeScript of
             ScriptPubkey addrKeyHash ->
                 [ E.int 0
-                , Bytes.toCbor addrKeyHash
+                , bytes28.toCbor addrKeyHash
                 ]
 
             ScriptAll nativeScripts ->
