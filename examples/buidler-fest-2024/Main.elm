@@ -1,18 +1,19 @@
 port module Main exposing (main)
 
-import AppUrl
+import AppUrl exposing (AppUrl)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
 import Cardano.Cip30 as Cip30
 import Cardano.Utxo as Utxo
-import Cardano.Value as ECValue
+import Cardano.Value as CValue
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
-import Html.Attributes exposing (height, src)
-import Html.Events exposing (onClick, preventDefaultOn)
+import Html.Attributes as HA exposing (height, src)
+import Html.Events exposing (onClick, onInput, preventDefaultOn)
 import Json.Decode as JDecode exposing (Value, value)
 import Natural as N
+import Ogmios6
 import Url
 
 
@@ -31,6 +32,7 @@ subscriptions _ =
     Sub.batch
         [ fromWallet WalletMsg
         , onUrlChange (locationHrefToRoute >> UrlChanged)
+        , fromOgmios OgmiosMsg
         ]
 
 
@@ -46,8 +48,16 @@ port onUrlChange : (String -> msg) -> Sub msg
 port pushUrl : String -> Cmd msg
 
 
+port toOgmios : Value -> Cmd msg
+
+
+port fromOgmios : (Value -> msg) -> Sub msg
+
+
 type Msg
     = UrlChanged Route
+    | OgmiosMsg Value
+      -- Wallet stuff
     | WalletMsg Value
     | DiscoverButtonClicked
     | ConnectButtonClicked { id : String, extensions : List Int }
@@ -62,6 +72,9 @@ type Msg
     | GetChangeAddressButtonClicked Cip30.Wallet
     | GetRewardAddressesButtonClicked Cip30.Wallet
     | SignDataButtonClicked Cip30.Wallet
+      -- Keys stuff
+    | KeyInputChange String
+    | CheckKeyInput String
 
 
 type Route
@@ -76,12 +89,31 @@ type Route
 
 type alias Model =
     { route : Route
+    , ogmiosConnection : OgmiosConnectionStatus
+    , websocketAddress : String
     , availableWallets : List Cip30.WalletDescriptor
     , connectedWallets : Dict String Cip30.Wallet
     , rewardAddress : Maybe { walletId : String, address : String }
     , lastApiResponse : String
     , lastError : String
+    , keyInput : String
+
+    -- TODO: use actual addresses
+    , utxo : UtxoStatus
     }
+
+
+type UtxoStatus
+    = UnknownUtxoStatus
+    | FetchingUtxoAt { txId : String, index : Int }
+    | UtxoContents { address : String, value : CValue.Value }
+    | UtxoConsumedAlready
+
+
+type OgmiosConnectionStatus
+    = OgmiosDisconnected
+    | OgmiosConnecting
+    | OgmiosConnected { websocket : Value, connectionId : String }
 
 
 init : String -> ( Model, Cmd Msg )
@@ -89,27 +121,43 @@ init locationHref =
     let
         route =
             locationHrefToRoute locationHref
+
+        websocketAddress =
+            "wss://0.0.0.0:1337"
     in
     ( { route = route
+      , ogmiosConnection = OgmiosConnecting
+      , websocketAddress = websocketAddress
       , availableWallets = []
       , connectedWallets = Dict.empty
       , rewardAddress = Nothing
       , lastApiResponse = ""
       , lastError = ""
+      , keyInput = ""
+      , utxo = UnknownUtxoStatus
       }
     , Cmd.batch
         [ toWallet <| Cip30.encodeRequest Cip30.discoverWallets
-        , routePostRequests route
+        , connectCmd websocketAddress
+
+        -- TODO: find a way to retrigger this after Ogmios is connected
+        , routePostCmds OgmiosDisconnected route
         ]
     )
 
 
-routePostRequests : Route -> Cmd Msg
-routePostRequests route =
-    case route of
-        RouteClaim outputRef { key1, key2 } ->
-            -- TODO: check utxo content if exists or consumed
-            Cmd.none
+routePostCmds : OgmiosConnectionStatus -> Route -> Cmd Msg
+routePostCmds connection route =
+    case ( route, connection ) of
+        ( RouteClaim { transactionId, outputIndex } _, OgmiosConnected { websocket } ) ->
+            -- Check utxo content if exists or consumed
+            Ogmios6.queryLedgerStateUtxo
+                { websocket = websocket
+                , txId = Bytes.toString transactionId
+                , index = outputIndex
+                }
+                |> Ogmios6.encodeRequest
+                |> toOgmios
 
         _ ->
             Cmd.none
@@ -126,7 +174,7 @@ link href attrs children =
 
 locationHrefToRoute : String -> Route
 locationHrefToRoute locationHref =
-    case Url.fromString locationHref |> Maybe.map AppUrl.fromUrl of
+    case Url.fromString (Debug.log "loc" locationHref) |> Maybe.map AppUrl.fromUrl of
         Nothing ->
             Route404
 
@@ -137,6 +185,7 @@ locationHrefToRoute locationHref =
 
                 [ "claim", txId, index ] ->
                     RouteClaim
+                        -- TODO: do not use fromStringUnchecked and withDefault ...
                         { transactionId = Bytes.fromStringUnchecked txId
                         , outputIndex = String.toInt index |> Maybe.withDefault 0
                         }
@@ -148,8 +197,35 @@ locationHrefToRoute locationHref =
                     Route404
 
 
+routeToAppUrl : Route -> AppUrl
+routeToAppUrl route =
+    case route of
+        RouteHome ->
+            AppUrl.fromPath []
 
--- myParser : Url.Parser (Route -> Route) Route
+        Route404 ->
+            AppUrl.fromPath [ "404" ]
+
+        RouteClaim { transactionId, outputIndex } { key1, key2 } ->
+            { path = [ "claim", Bytes.toString transactionId, String.fromInt outputIndex ]
+            , queryParameters =
+                case ( key1, key2 ) of
+                    ( Nothing, Nothing ) ->
+                        Dict.empty
+
+                    ( Just k1, Nothing ) ->
+                        Dict.singleton "key1" [ k1 ]
+
+                    ( Nothing, Just k2 ) ->
+                        Dict.singleton "key2" [ k2 ]
+
+                    ( Just k1, Just k2 ) ->
+                        Dict.fromList [ ( "key1", [ k1 ] ), ( "key2", [ k2 ] ) ]
+            , fragment = Nothing
+            }
+
+
+
 -- UPDATE
 
 
@@ -157,7 +233,29 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         UrlChanged route ->
-            ( { model | route = route }, Cmd.none )
+            ( { model | route = route }
+            , routePostCmds model.ogmiosConnection route
+            )
+
+        OgmiosMsg value ->
+            case JDecode.decodeValue Ogmios6.responseDecoder value of
+                Ok (Ogmios6.Connected connection) ->
+                    handleConnection connection model
+
+                Ok (Ogmios6.Disconnected _) ->
+                    handleDisconnection model
+
+                Ok (Ogmios6.ApiResponse _ response) ->
+                    handleApiResponse response { model | lastApiResponse = Debug.toString response }
+
+                Ok (Ogmios6.Error error) ->
+                    ( { model | lastError = error }, Cmd.none )
+
+                Ok (Ogmios6.UnhandledResponseType error) ->
+                    ( { model | lastError = error }, Cmd.none )
+
+                Err error ->
+                    ( { model | lastError = JDecode.errorToString error }, Cmd.none )
 
         WalletMsg value ->
             case JDecode.decodeValue Cip30.responseDecoder value of
@@ -303,12 +401,12 @@ update msg model =
             -- Lace picks at random (fun!)
             -- Gero does not handle the amount parameter
             -- NuFi does not handle the amount parameter
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (CValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
             -- Typhon crashes with the amounts
             -- Nami crashes as the method does not exist
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace <| N.fromSafeInt 3000000 } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = CValue.onlyLovelace <| N.fromSafeInt 3000000 } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response
@@ -351,9 +449,31 @@ update msg model =
                                     }
                         )
 
+        KeyInputChange keyInput ->
+            ( { model | keyInput = keyInput }, Cmd.none )
+
+        CheckKeyInput keyInput ->
+            case model.route of
+                RouteClaim ref { key1, key2 } ->
+                    case ( key1, key2 ) of
+                        ( Nothing, Nothing ) ->
+                            ( model, pushUrl <| AppUrl.toString <| routeToAppUrl <| RouteClaim ref { key1 = Just keyInput, key2 = key2 } )
+
+                        ( Just k1, Nothing ) ->
+                            ( model, pushUrl <| AppUrl.toString <| routeToAppUrl <| RouteClaim ref { key1 = Just k1, key2 = Just keyInput } )
+
+                        ( Nothing, Just k2 ) ->
+                            ( model, pushUrl <| AppUrl.toString <| routeToAppUrl <| RouteClaim ref { key1 = Just keyInput, key2 = Just k2 } )
+
+                        ( Just _, Just _ ) ->
+                            ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
 
 addEnabledWallet : Cip30.Wallet -> Model -> Model
-addEnabledWallet wallet { route, availableWallets, connectedWallets, rewardAddress } =
+addEnabledWallet wallet ({ availableWallets, connectedWallets } as model) =
     -- Modify the available wallets with the potentially new "enabled" status
     let
         { id, isEnabled } =
@@ -371,13 +491,50 @@ addEnabledWallet wallet { route, availableWallets, connectedWallets, rewardAddre
                             w
                     )
     in
-    { route = route
-    , availableWallets = updatedAvailableWallets
-    , connectedWallets = Dict.insert id wallet connectedWallets
-    , rewardAddress = rewardAddress
-    , lastApiResponse = ""
-    , lastError = ""
+    { model
+        | availableWallets = updatedAvailableWallets
+        , connectedWallets = Dict.insert id wallet connectedWallets
+        , lastApiResponse = ""
+        , lastError = ""
     }
+
+
+
+-- OGMIOS
+
+
+handleConnection : { connectionId : String, ws : Value } -> Model -> ( Model, Cmd Msg )
+handleConnection { connectionId, ws } model =
+    ( { model | ogmiosConnection = OgmiosConnected { websocket = ws, connectionId = connectionId } }
+    , Cmd.none
+    )
+
+
+handleDisconnection : Model -> ( Model, Cmd Msg )
+handleDisconnection model =
+    ( { model | ogmiosConnection = OgmiosDisconnected }
+    , connectCmd model.websocketAddress
+    )
+
+
+connectCmd : String -> Cmd Msg
+connectCmd websocketAddress =
+    Ogmios6.connect { connectionId = "from-elm-to-" ++ websocketAddress, websocketAddress = websocketAddress }
+        |> Ogmios6.encodeRequest
+        |> toOgmios
+
+
+handleApiResponse : Ogmios6.ApiResponse -> Model -> ( Model, Cmd Msg )
+handleApiResponse response model =
+    -- TODO: handle Ogmios response
+    case response of
+        Ogmios6.LedgerStateUtxo [ { address, value } ] ->
+            ( { model | utxo = UtxoContents { address = address, value = value } }
+            , Cmd.none
+            )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 
@@ -414,7 +571,7 @@ viewHome model =
 
 
 viewClaim : Maybe String -> Maybe String -> Model -> Html Msg
-viewClaim maybeKey1 maybeKey2 _ =
+viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
     case ( maybeKey1, maybeKey2 ) of
         ( Nothing, Nothing ) ->
             div []
@@ -423,6 +580,8 @@ viewClaim maybeKey1 maybeKey2 _ =
                 , div [] [ text <| "Keys to unlock the gift:" ]
                 , Html.pre [] [ text <| "   key1: ?" ]
                 , Html.pre [] [ text <| "   key2: ?" ]
+                , div [] [ text <| "Gift contents:" ]
+                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
                 ]
 
         ( Just key1, Just key2 ) ->
@@ -432,16 +591,34 @@ viewClaim maybeKey1 maybeKey2 _ =
                 , div [] [ text <| "Keys to unlock the gift:" ]
                 , Html.pre [] [ text <| "   key1: " ++ key1 ]
                 , Html.pre [] [ text <| "   key2: " ++ key2 ]
+                , div [] [ text <| "Gift contents:" ]
+                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
+
+                -- TODO: Add claim button and destination address to build transaction
                 ]
 
         _ ->
             div []
                 [ div [] [ text <| "You found this claim link, congrats!" ]
-                , div [] [ text <| "Seems you got your hand on one key. Let's find the other one now! Clue: talk to people and look for the same symbol." ]
+                , div [] [ text <| "Seems you got your hands on one key. Let's find the other one now! Clue: talk to people and look for the same symbol." ]
                 , div [] [ text <| "Keys to unlock the gift:" ]
-                , Html.pre [] [ text <| "   key1: " ++ Maybe.withDefault "?" maybeKey1 ]
-                , Html.pre [] [ text <| "   key2: " ++ Maybe.withDefault "?" maybeKey2 ]
+                , Html.pre [] (text "   key1: " :: viewMaybeKey maybeKey1 keyInput)
+                , Html.pre [] (text "   key2: " :: viewMaybeKey maybeKey2 keyInput)
+                , div [] [ text <| "Gift contents:" ]
+                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
                 ]
+
+
+viewMaybeKey : Maybe String -> String -> List (Html Msg)
+viewMaybeKey maybeKey keyInput =
+    case maybeKey of
+        Nothing ->
+            [ viewInput "text" "dog" keyInput KeyInputChange
+            , Html.button [ onClick (CheckKeyInput keyInput) ] [ text "check" ]
+            ]
+
+        Just key ->
+            [ text key ]
 
 
 view404 : Model -> Html Msg
@@ -512,3 +689,8 @@ walletActions wallet =
     , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
     , Html.button [ onClick <| SignDataButtonClicked wallet ] [ text "signData" ]
     ]
+
+
+viewInput : String -> String -> String -> (String -> msg) -> Html msg
+viewInput t p v toMsg =
+    Html.input [ HA.type_ t, HA.placeholder p, HA.value v, onInput toMsg ] []

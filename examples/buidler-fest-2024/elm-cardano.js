@@ -25,7 +25,7 @@ function initElmCardanoJs(app) {
                 const { descriptor, api, walletHandle } = await enableCip30Wallet(value.id, value.extensions)
                 app.ports.fromWallet.send({ responseType: "cip30-enable", descriptor, api, walletHandle })
             } else if (value.requestType == "cip30-api") {
-                const apiResponse = await handleApiRequest(value)
+                const apiResponse = await handleWalletApiRequest(value)
                 app.ports.fromWallet.send(apiResponse)
             }
         } catch (error) {
@@ -84,7 +84,7 @@ function initElmCardanoJs(app) {
         }
     }
 
-    async function handleApiRequest({ id, api, method, args }) {
+    async function handleWalletApiRequest({ id, api, method, args }) {
         if (id in window.cardano) {
             // Replace "null" by "undefined" in the args array
             correctArgs = args.map(item => item === null ? undefined : item)
@@ -111,7 +111,7 @@ function initElmCardanoJs(app) {
             } else if (value.requestType == "ogmios-disconnect") {
                 value.ws.close()
             } else if (value.requestType == "ogmios-api") {
-                handleApiRequest(value)
+                handleOgmiosApiRequest(value)
             }
         } catch (error) {
             app.ports.fromOgmios.send({ responseType: "ogmios-error", error: error })
@@ -122,7 +122,7 @@ function initElmCardanoJs(app) {
         const client = new WebSocket(address)
         // Listen for messages
         client.addEventListener("message", (event) => {
-            // console.log("Message from ogmios (", typeof event.data, "):", event.data)
+            console.log("Message from ogmios (", typeof event.data, "):", event.data)
             // Handle potential big integers
             const preprocessedData = bigIntToStringPreProcess(event.data)
             const parsedMessage = JSON.parse(preprocessedData)
@@ -156,9 +156,11 @@ function initElmCardanoJs(app) {
     }
 
     // Send the API remote call from Elm to Ogmios
-    async function handleApiRequest({ ws, request }) {
+    async function handleOgmiosApiRequest({ ws, request }) {
         // Convert elm big integers back to JSON integers
         const jsonRequest = JSON.stringify(request, null, "") // must be compact
+        console.log("request:", request)
+        console.log("jsonRequest:", jsonRequest)
         ws.send(replaceBigIntObject(jsonRequest))
     }
 
