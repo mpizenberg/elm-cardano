@@ -5,6 +5,7 @@ import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
 import Cardano.Cip30 as Cip30
+import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
@@ -65,7 +66,7 @@ type Msg
 
 type Route
     = RouteHome
-    | RouteClaim { key1 : Maybe String, key2 : Maybe String }
+    | RouteClaim Utxo.OutputReference { key1 : Maybe String, key2 : Maybe String }
     | Route404
 
 
@@ -85,15 +86,33 @@ type alias Model =
 
 init : String -> ( Model, Cmd Msg )
 init locationHref =
-    ( { route = locationHrefToRoute locationHref
+    let
+        route =
+            locationHrefToRoute locationHref
+    in
+    ( { route = route
       , availableWallets = []
       , connectedWallets = Dict.empty
       , rewardAddress = Nothing
       , lastApiResponse = ""
       , lastError = ""
       }
-    , toWallet <| Cip30.encodeRequest Cip30.discoverWallets
+    , Cmd.batch
+        [ toWallet <| Cip30.encodeRequest Cip30.discoverWallets
+        , routePostRequests route
+        ]
     )
+
+
+routePostRequests : Route -> Cmd Msg
+routePostRequests route =
+    case route of
+        RouteClaim outputRef { key1, key2 } ->
+            -- TODO: check utxo content if exists or consumed
+            Cmd.none
+
+        _ ->
+            Cmd.none
 
 
 
@@ -116,8 +135,11 @@ locationHrefToRoute locationHref =
                 [] ->
                     RouteHome
 
-                [ "claim" ] ->
+                [ "claim", txId, index ] ->
                     RouteClaim
+                        { transactionId = Bytes.fromStringUnchecked txId
+                        , outputIndex = String.toInt index |> Maybe.withDefault 0
+                        }
                         { key1 = Dict.get "key1" queryParameters |> Maybe.andThen List.head
                         , key2 = Dict.get "key2" queryParameters |> Maybe.andThen List.head
                         }
@@ -368,7 +390,7 @@ view model =
         RouteHome ->
             viewHome model
 
-        RouteClaim { key1, key2 } ->
+        RouteClaim _ { key1, key2 } ->
             viewClaim key1 key2 model
 
         Route404 ->
@@ -392,11 +414,34 @@ viewHome model =
 
 
 viewClaim : Maybe String -> Maybe String -> Model -> Html Msg
-viewClaim key1 key2 _ =
-    div []
-        [ div [] [ text <| "key1: " ++ Maybe.withDefault "" key1 ]
-        , div [] [ text <| "key2: " ++ Maybe.withDefault "" key2 ]
-        ]
+viewClaim maybeKey1 maybeKey2 _ =
+    case ( maybeKey1, maybeKey2 ) of
+        ( Nothing, Nothing ) ->
+            div []
+                [ div [] [ text <| "You found this claim link, congrats!" ]
+                , div [] [ text <| "Now let's find the keys to that lock, shall we?" ]
+                , div [] [ text <| "Keys to unlock the gift:" ]
+                , Html.pre [] [ text <| "   key1: ?" ]
+                , Html.pre [] [ text <| "   key2: ?" ]
+                ]
+
+        ( Just key1, Just key2 ) ->
+            div []
+                [ div [] [ text <| "You found this claim link, congrats!" ]
+                , div [] [ text <| "Wow seems like you found a pair of keys, let's try claiming it!" ]
+                , div [] [ text <| "Keys to unlock the gift:" ]
+                , Html.pre [] [ text <| "   key1: " ++ key1 ]
+                , Html.pre [] [ text <| "   key2: " ++ key2 ]
+                ]
+
+        _ ->
+            div []
+                [ div [] [ text <| "You found this claim link, congrats!" ]
+                , div [] [ text <| "Seems you got your hand on one key. Let's find the other one now! Clue: talk to people and look for the same symbol." ]
+                , div [] [ text <| "Keys to unlock the gift:" ]
+                , Html.pre [] [ text <| "   key1: " ++ Maybe.withDefault "?" maybeKey1 ]
+                , Html.pre [] [ text <| "   key2: " ++ Maybe.withDefault "?" maybeKey2 ]
+                ]
 
 
 view404 : Model -> Html Msg
