@@ -97,8 +97,6 @@ type alias Model =
     , lastApiResponse : String
     , lastError : String
     , keyInput : String
-
-    -- TODO: use actual addresses
     , utxo : UtxoStatus
     }
 
@@ -106,6 +104,7 @@ type alias Model =
 type UtxoStatus
     = UnknownUtxoStatus
     | FetchingUtxoAt { txId : String, index : Int }
+      -- IMPROVE: use actual address type
     | UtxoContents { address : String, value : CValue.Value }
     | UtxoConsumedAlready
 
@@ -136,8 +135,6 @@ init ( locationHref, websocketAddress ) =
     , Cmd.batch
         [ toWallet <| Cip30.encodeRequest Cip30.discoverWallets
         , connectCmd websocketAddress
-
-        -- TODO: find a way to retrigger this after Ogmios is connected
         , routePostCmds OgmiosDisconnected route
         ]
     )
@@ -187,7 +184,7 @@ locationHrefToRoute locationHref =
 
                 [ "claim", txId, index ] ->
                     RouteClaim
-                        -- TODO: do not use fromStringUnchecked and withDefault ...
+                        -- IMPROVE: do not use fromStringUnchecked and withDefault ...
                         { transactionId = Bytes.fromStringUnchecked txId
                         , outputIndex = String.toInt index |> Maybe.withDefault 0
                         }
@@ -533,7 +530,6 @@ connectCmd websocketAddress =
 
 handleApiResponse : Ogmios6.ApiResponse -> Model -> ( Model, Cmd Msg )
 handleApiResponse response model =
-    -- TODO: handle Ogmios response
     case response of
         Ogmios6.LedgerStateUtxo [ { address, value } ] ->
             ( { model | utxo = UtxoContents { address = address, value = value } }
