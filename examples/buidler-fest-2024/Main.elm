@@ -98,6 +98,7 @@ type alias Model =
     , lastError : String
     , keyInput : String
     , utxo : UtxoStatus
+    , words3To23 : List String
     }
 
 
@@ -105,7 +106,7 @@ type UtxoStatus
     = UnknownUtxoStatus
     | FetchingUtxoAt { txId : String, index : Int }
       -- IMPROVE: use actual address type
-    | UtxoContents { address : String, value : CValue.Value }
+    | UtxoContents { txId : String, index : Int, address : String, value : CValue.Value }
     | UtxoConsumedAlready
 
 
@@ -130,7 +131,14 @@ init ( locationHref, websocketAddress ) =
       , lastApiResponse = ""
       , lastError = ""
       , keyInput = ""
-      , utxo = UnknownUtxoStatus
+      , utxo =
+            case route of
+                RouteClaim { transactionId, outputIndex } _ ->
+                    FetchingUtxoAt { txId = Bytes.toString transactionId, index = outputIndex }
+
+                _ ->
+                    UnknownUtxoStatus
+      , words3To23 = [ "zero", "keen", "woman", "gospel", "spend", "pupil", "analyst", "lava", "lens", "private", "dice", "add", "breeze", "joy", "bundle", "junior", "then", "throw", "inside", "stove", "goose" ]
       }
     , Cmd.batch
         [ toWallet <| Cip30.encodeRequest Cip30.discoverWallets
@@ -530,9 +538,9 @@ connectCmd websocketAddress =
 
 handleApiResponse : Ogmios6.ApiResponse -> Model -> ( Model, Cmd Msg )
 handleApiResponse response model =
-    case response of
-        Ogmios6.LedgerStateUtxo [ { address, value } ] ->
-            ( { model | utxo = UtxoContents { address = address, value = value } }
+    case ( response, model.utxo ) of
+        ( Ogmios6.LedgerStateUtxo [ { address, value } ], FetchingUtxoAt { txId, index } ) ->
+            ( { model | utxo = UtxoContents { txId = txId, index = index, address = address, value = value } }
             , Cmd.none
             )
 
@@ -574,14 +582,14 @@ viewHome model =
 
 
 viewClaim : Maybe String -> Maybe String -> Model -> Html Msg
-viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
+viewClaim maybeKey1 maybeKey2 ({ keyInput, utxo } as model) =
     case ( maybeKey1, maybeKey2 ) of
         ( Nothing, Nothing ) ->
             div []
                 [ div [] [ text <| "You found this claim link, congrats!" ]
                 , div [] [ text <| "Now let's find the keys to that lock, shall we?" ]
                 , div [] [ text <| "Keys to unlock the gift:" ]
-                , Html.pre [] [ text <| "   key1: ?" ]
+                , Html.pre [] (text "   key1: " :: viewMaybeKey maybeKey1 keyInput)
                 , Html.pre [] [ text <| "   key2: ?" ]
                 , div [] [ text <| "Gift contents:" ]
                 , viewUtxoContents utxo
@@ -596,8 +604,7 @@ viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
                 , Html.pre [] [ text <| "   key2: " ++ key2 ]
                 , div [] [ text <| "Gift contents:" ]
                 , viewUtxoContents utxo
-
-                -- TODO: Add claim button and destination address to build transaction
+                , viewClaimButton utxo key1 key2 model
                 ]
 
         _ ->
@@ -612,13 +619,31 @@ viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
                 ]
 
 
+viewClaimButton : UtxoStatus -> String -> String -> Model -> Html Msg
+viewClaimButton utxo word1 word2 model =
+    case utxo of
+        UtxoContents { txId, index, address, value } ->
+            let
+                seed23 =
+                    word1 :: word2 :: model.words3To23
+
+                claimTx =
+                    Debug.todo "claim the utxo contents"
+            in
+            -- TODO: button that builds Tx and ask to submit via Ogmios
+            div [] []
+
+        _ ->
+            div [] []
+
+
 viewUtxoContents : UtxoStatus -> Html msg
 viewUtxoContents utxo =
     let
         contents =
             case utxo of
                 UnknownUtxoStatus ->
-                    "Loading ..."
+                    "Unknown utxo status, loading ..."
 
                 FetchingUtxoAt _ ->
                     "Loading ..."
