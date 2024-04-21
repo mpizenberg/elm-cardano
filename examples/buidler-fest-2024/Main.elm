@@ -5,6 +5,7 @@ import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
 import Cardano.Cip30 as Cip30
+import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo
 import Cardano.Value as CValue
 import Dict exposing (Dict)
@@ -104,9 +105,9 @@ type alias Model =
 
 type UtxoStatus
     = UnknownUtxoStatus
-    | FetchingUtxoAt { txId : String, index : Int }
+    | FetchingUtxoAt Utxo.OutputReference
       -- IMPROVE: use actual address type
-    | UtxoContents { txId : String, index : Int, address : String, value : CValue.Value }
+    | UtxoContents Utxo.OutputReference { address : String, value : CValue.Value }
     | UtxoConsumedAlready
 
 
@@ -133,8 +134,8 @@ init ( locationHref, websocketAddress ) =
       , keyInput = ""
       , utxo =
             case route of
-                RouteClaim { transactionId, outputIndex } _ ->
-                    FetchingUtxoAt { txId = Bytes.toString transactionId, index = outputIndex }
+                RouteClaim outputRef _ ->
+                    FetchingUtxoAt outputRef
 
                 _ ->
                     UnknownUtxoStatus
@@ -539,8 +540,8 @@ connectCmd websocketAddress =
 handleApiResponse : Ogmios6.ApiResponse -> Model -> ( Model, Cmd Msg )
 handleApiResponse response model =
     case ( response, model.utxo ) of
-        ( Ogmios6.LedgerStateUtxo [ { address, value } ], FetchingUtxoAt { txId, index } ) ->
-            ( { model | utxo = UtxoContents { txId = txId, index = index, address = address, value = value } }
+        ( Ogmios6.LedgerStateUtxo [ { address, value } ], FetchingUtxoAt outputRef ) ->
+            ( { model | utxo = UtxoContents outputRef { address = address, value = value } }
             , Cmd.none
             )
 
@@ -622,13 +623,32 @@ viewClaim maybeKey1 maybeKey2 ({ keyInput, utxo } as model) =
 viewClaimButton : UtxoStatus -> String -> String -> Model -> Html Msg
 viewClaimButton utxo word1 word2 model =
     case utxo of
-        UtxoContents { txId, index, address, value } ->
+        UtxoContents outputRef { address, value } ->
             let
                 seed23 =
                     word1 :: word2 :: model.words3To23
 
+                txFee =
+                    -- fee of 0.20 ada
+                    N.fromSafeInt 200000
+
+                adaOut =
+                    N.sub value.lovelace txFee
+
+                ada1 =
+                    N.divBy (N.fromSafeInt 2)
+                        |> Maybe.withDefault N.zero
+
+                ada2 =
+                    N.sub adaOut ada1
+
                 claimTx =
-                    Debug.todo "claim the utxo contents"
+                    Tx.new
+                        |> Tx.input outputRef
+                        |> Tx.fee txFee
+                        |> Tx.payToAddress dest1 ada1
+                        |> Tx.payToAddress dest2 ada2
+                        |> Debug.todo "add the two destination addresses"
             in
             -- TODO: button that builds Tx and ask to submit via Ogmios
             div [] []
@@ -648,7 +668,7 @@ viewUtxoContents utxo =
                 FetchingUtxoAt _ ->
                     "Loading ..."
 
-                UtxoContents { address, value } ->
+                UtxoContents _ { address, value } ->
                     -- TODO: also display native tokens
                     "Address: "
                         ++ address
