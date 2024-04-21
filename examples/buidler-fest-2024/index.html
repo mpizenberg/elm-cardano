@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Main</title>
+    <script src="/secrets.js"></script>
     <script src="/main.js"></script>
     <script src="/elm-cardano.js"></script>
 </head>
@@ -10,9 +11,10 @@
 <body>
     <div id="myapp"></div>
     <script>
+        const ogmiosWs = (typeof ogmiosWebsocket !== 'undefined') ? ogmiosWebsocket : "ws://0.0.0.0:1337"
         var app = Elm.Main.init({
             node: document.getElementById('myapp'),
-            flags: location.href,
+            flags: [location.href, ogmiosWs],
         });
         initElmCardanoJs(app)
     </script>

@@ -17,7 +17,7 @@ import Ogmios6
 import Url
 
 
-main : Program String Model Msg
+main : Program ( String, String ) Model Msg
 main =
     Browser.element
         { init = init
@@ -116,14 +116,11 @@ type OgmiosConnectionStatus
     | OgmiosConnected { websocket : Value, connectionId : String }
 
 
-init : String -> ( Model, Cmd Msg )
-init locationHref =
+init : ( String, String ) -> ( Model, Cmd Msg )
+init ( locationHref, websocketAddress ) =
     let
         route =
             locationHrefToRoute locationHref
-
-        websocketAddress =
-            "wss://0.0.0.0:1337"
     in
     ( { route = route
       , ogmiosConnection = OgmiosConnecting
@@ -149,18 +146,23 @@ init locationHref =
 routePostCmds : OgmiosConnectionStatus -> Route -> Cmd Msg
 routePostCmds connection route =
     case ( route, connection ) of
-        ( RouteClaim { transactionId, outputIndex } _, OgmiosConnected { websocket } ) ->
+        ( RouteClaim outputRef _, OgmiosConnected { websocket } ) ->
             -- Check utxo content if exists or consumed
-            Ogmios6.queryLedgerStateUtxo
-                { websocket = websocket
-                , txId = Bytes.toString transactionId
-                , index = outputIndex
-                }
-                |> Ogmios6.encodeRequest
-                |> toOgmios
+            utxoLookup websocket outputRef
 
         _ ->
             Cmd.none
+
+
+utxoLookup : Value -> Utxo.OutputReference -> Cmd Msg
+utxoLookup websocket { transactionId, outputIndex } =
+    Ogmios6.queryLedgerStateUtxo
+        { websocket = websocket
+        , txId = Bytes.toString transactionId
+        , index = outputIndex
+        }
+        |> Ogmios6.encodeRequest
+        |> toOgmios
 
 
 
@@ -506,7 +508,12 @@ addEnabledWallet wallet ({ availableWallets, connectedWallets } as model) =
 handleConnection : { connectionId : String, ws : Value } -> Model -> ( Model, Cmd Msg )
 handleConnection { connectionId, ws } model =
     ( { model | ogmiosConnection = OgmiosConnected { websocket = ws, connectionId = connectionId } }
-    , Cmd.none
+    , case model.route of
+        RouteClaim outputRef _ ->
+            utxoLookup ws outputRef
+
+        _ ->
+            Cmd.none
     )
 
 
@@ -581,7 +588,7 @@ viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
                 , Html.pre [] [ text <| "   key1: ?" ]
                 , Html.pre [] [ text <| "   key2: ?" ]
                 , div [] [ text <| "Gift contents:" ]
-                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
+                , viewUtxoContents utxo
                 ]
 
         ( Just key1, Just key2 ) ->
@@ -592,7 +599,7 @@ viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
                 , Html.pre [] [ text <| "   key1: " ++ key1 ]
                 , Html.pre [] [ text <| "   key2: " ++ key2 ]
                 , div [] [ text <| "Gift contents:" ]
-                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
+                , viewUtxoContents utxo
 
                 -- TODO: Add claim button and destination address to build transaction
                 ]
@@ -605,8 +612,33 @@ viewClaim maybeKey1 maybeKey2 { keyInput, utxo } =
                 , Html.pre [] (text "   key1: " :: viewMaybeKey maybeKey1 keyInput)
                 , Html.pre [] (text "   key2: " :: viewMaybeKey maybeKey2 keyInput)
                 , div [] [ text <| "Gift contents:" ]
-                , Html.div [] [ text <| "   " ++ Debug.toString utxo ]
+                , viewUtxoContents utxo
                 ]
+
+
+viewUtxoContents : UtxoStatus -> Html msg
+viewUtxoContents utxo =
+    let
+        contents =
+            case utxo of
+                UnknownUtxoStatus ->
+                    "Loading ..."
+
+                FetchingUtxoAt _ ->
+                    "Loading ..."
+
+                UtxoContents { address, value } ->
+                    -- TODO: also display native tokens
+                    "Address: "
+                        ++ address
+                        ++ "\n   "
+                        ++ "lovelace: "
+                        ++ N.toString value.lovelace
+
+                UtxoConsumedAlready ->
+                    "Already claimed it seems! :("
+    in
+    Html.pre [] [ text <| "   " ++ contents ]
 
 
 viewMaybeKey : Maybe String -> String -> List (Html Msg)
