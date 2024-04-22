@@ -205,4 +205,19 @@ function initElmCardanoJs(app) {
     function replaceBigIntObject(compactJsonString) {
         return compactJsonString.replace(bigIntObject, (_match, bigint) => bigint);
     }
+
+    // KEYS STUFF ##############################################################
+
+    app.ports.checkKeysValidity.subscribe(async ({ key1, key2, seed23, publicAddress }) => {
+        console.log("Received :", { key1, key2, seed23, publicAddress })
+        const word24 = "word24" // TODO: compute word24 from the first 23 words in array seed23
+        let fullPhrase = [...seed23]
+        fullPhrase.push(word24)
+        const privateKey = "" // TODO: derive from full seed phrase
+        const derivedPublicAddress = "" // TODO: derive from full seed phrase
+        const validity = publicAddress == derivedPublicAddress
+        app.ports.keysValidityChecked.send({
+            key1, key2, publicAddress, privateKey, validity
+        })
+    })
 }

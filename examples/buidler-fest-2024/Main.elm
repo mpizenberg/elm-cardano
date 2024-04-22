@@ -4,6 +4,7 @@ import AppUrl exposing (AppUrl)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
+import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
 import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo
@@ -34,6 +35,7 @@ subscriptions _ =
         [ fromWallet WalletMsg
         , onUrlChange (locationHrefToRoute >> UrlChanged)
         , fromOgmios OgmiosMsg
+        , keysValidityChecked KeysValidityChecked
         ]
 
 
@@ -53,6 +55,21 @@ port toOgmios : Value -> Cmd msg
 
 
 port fromOgmios : (Value -> msg) -> Sub msg
+
+
+port checkKeysValidity : { key1 : String, key2 : String, seed23 : List String, publicAddress : String } -> Cmd msg
+
+
+port keysValidityChecked :
+    ({ key1 : String
+     , key2 : String
+     , privateKey : String
+     , publicAddress : String
+     , validity : Bool
+     }
+     -> msg
+    )
+    -> Sub msg
 
 
 type Msg
@@ -76,6 +93,13 @@ type Msg
       -- Keys stuff
     | KeyInputChange String
     | CheckKeyInput String
+    | KeysValidityChecked
+        { key1 : String
+        , key2 : String
+        , privateKey : String
+        , publicAddress : String
+        , validity : Bool
+        }
 
 
 type Route
@@ -100,6 +124,13 @@ type alias Model =
     , keyInput : String
     , utxo : UtxoStatus
     , words3To23 : List String
+    , keysValidity :
+        { key1 : String
+        , key2 : String
+        , privateKey : String
+        , publicAddress : String
+        , validity : Bool
+        }
     }
 
 
@@ -140,6 +171,7 @@ init ( locationHref, websocketAddress ) =
                 _ ->
                     UnknownUtxoStatus
       , words3To23 = [ "zero", "keen", "woman", "gospel", "spend", "pupil", "analyst", "lava", "lens", "private", "dice", "add", "breeze", "joy", "bundle", "junior", "then", "throw", "inside", "stove", "goose" ]
+      , keysValidity = { key1 = "", key2 = "", privateKey = "", publicAddress = "", validity = False }
       }
     , Cmd.batch
         [ toWallet <| Cip30.encodeRequest Cip30.discoverWallets
@@ -479,6 +511,9 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
+        KeysValidityChecked keysValidity ->
+            ( { model | keysValidity = keysValidity }, Cmd.none )
+
 
 addEnabledWallet : Cip30.Wallet -> Model -> Model
 addEnabledWallet wallet ({ availableWallets, connectedWallets } as model) =
@@ -542,7 +577,29 @@ handleApiResponse response model =
     case ( response, model.utxo ) of
         ( Ogmios6.LedgerStateUtxo [ { address, value } ], FetchingUtxoAt outputRef ) ->
             ( { model | utxo = UtxoContents outputRef { address = address, value = value } }
+              -- Once we have the public address,
+              -- we can easily check the validity of the two keys by deriving the private/public pair
             , Cmd.none
+            )
+
+        ( Ogmios6.LedgerStateUtxo _, UtxoContents _ { address } ) ->
+            ( model
+            , case Debug.log "route in handle" model.route of
+                RouteClaim _ { key1, key2 } ->
+                    case ( key1, key2 ) of
+                        ( Just k1, Just k2 ) ->
+                            checkKeysValidity
+                                { key1 = k1
+                                , key2 = k2
+                                , seed23 = k1 :: k2 :: model.words3To23
+                                , publicAddress = address
+                                }
+
+                        _ ->
+                            Cmd.none
+
+                _ ->
+                    Cmd.none
             )
 
         _ ->
@@ -625,9 +682,6 @@ viewClaimButton utxo word1 word2 model =
     case utxo of
         UtxoContents outputRef { address, value } ->
             let
-                seed23 =
-                    word1 :: word2 :: model.words3To23
-
                 txFee =
                     -- fee of 0.20 ada
                     N.fromSafeInt 200000
@@ -636,11 +690,23 @@ viewClaimButton utxo word1 word2 model =
                     N.sub value.lovelace txFee
 
                 ada1 =
-                    N.divBy (N.fromSafeInt 2)
+                    N.divBy (N.fromSafeInt 2) adaOut
                         |> Maybe.withDefault N.zero
 
                 ada2 =
                     N.sub adaOut ada1
+
+                -- TODO: add destination address
+                dest1 =
+                    Address.base Address.Mainnet
+                        (Address.VKeyHash <| Bytes.fromStringUnchecked "TODO1 payment Cred")
+                        (Address.VKeyHash <| Bytes.fromStringUnchecked "TODO1 stake Cred")
+
+                -- TODO: add destination address
+                dest2 =
+                    Address.base Address.Mainnet
+                        (Address.VKeyHash <| Bytes.fromStringUnchecked "TODO2 payment Cred")
+                        (Address.VKeyHash <| Bytes.fromStringUnchecked "TODO2 stake Cred")
 
                 claimTx =
                     Tx.new
@@ -648,10 +714,20 @@ viewClaimButton utxo word1 word2 model =
                         |> Tx.fee txFee
                         |> Tx.payToAddress dest1 ada1
                         |> Tx.payToAddress dest2 ada2
-                        |> Debug.todo "add the two destination addresses"
+                        |> Tx.complete
+
+                { key1, key2, privateKey, publicAddress, validity } =
+                    model.keysValidity
             in
-            -- TODO: button that builds Tx and ask to submit via Ogmios
-            div [] []
+            if key1 /= word1 || key2 /= word2 then
+                div [] [ text "Checking the validity of the keys ..." ]
+
+            else if publicAddress /= address || validity == False then
+                div [] [ text "Seems like keys do not match with each other, continue looking for you pair!" ]
+
+            else
+                -- TODO: button that builds Tx and ask to submit via Ogmios
+                div [] [ text "TODO button to claim" ]
 
         _ ->
             div [] []
