@@ -1,5 +1,11 @@
 module Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
 
+{-|
+
+@docs AuxiliaryData, fromCbor, toCbor
+
+-}
+
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..))
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cbor.Decode as D
@@ -20,6 +26,7 @@ type alias AuxiliaryData =
     }
 
 
+{-| -}
 toCbor : AuxiliaryData -> E.Encoder
 toCbor data =
     let
@@ -59,6 +66,7 @@ toCbor data =
             )
 
 
+{-| -}
 fromCbor : D.Decoder AuxiliaryData
 fromCbor =
     -- TODO: This only holds for Shelley. The format has changed in Allegra and then Alonzo.

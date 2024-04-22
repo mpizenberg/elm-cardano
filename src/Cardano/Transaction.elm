@@ -20,8 +20,6 @@ module Cardano.Transaction exposing
 
 @docs WitnessSet
 
-@docs AuxiliaryData, Metadata, Metadatum, MetadatumBytes
-
 @docs Update, ProtocolParamUpdate, ProtocolVersion
 
 @docs ScriptContext, ScriptPurpose

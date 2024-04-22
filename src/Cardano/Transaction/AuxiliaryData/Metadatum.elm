@@ -1,5 +1,11 @@
 module Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum(..), fromCbor, toCbor)
 
+{-|
+
+@docs Metadatum, fromCbor, toCbor
+
+-}
+
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
@@ -18,6 +24,7 @@ type
     | Map (List ( Metadatum, Metadatum ))
 
 
+{-| -}
 toCbor : Metadatum -> E.Encoder
 toCbor metadatum =
     case metadatum of
@@ -37,6 +44,7 @@ toCbor metadatum =
             E.ledgerAssociativeList toCbor toCbor metadatums
 
 
+{-| -}
 fromCbor : D.Decoder Metadatum
 fromCbor =
     D.failWith "decodeMetadatum (not implemented) failed to decode"

@@ -1,9 +1,17 @@
 module Word7 exposing (fromBytes)
 
+{-| Decoding 7-bits words.
+
+@docs fromBytes
+
+-}
+
 import Bitwise exposing (and, or, shiftLeftBy)
 import Bytes.Decode as D
 
 
+{-| Decode a 7-bit encoded integer
+-}
 fromBytes : D.Decoder Int
 fromBytes =
     let
