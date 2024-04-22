@@ -745,7 +745,7 @@ viewUtxoContents utxo =
                     "Loading ..."
 
                 UtxoContents _ { address, value } ->
-                    -- TODO: also display native tokens
+                    -- IMPROVEMENT: also display native tokens
                     "Address: "
                         ++ address
                         ++ "\n   "
