@@ -723,7 +723,7 @@ viewClaimButton utxo word1 word2 model =
                 div [] [ text "Checking the validity of the keys ..." ]
 
             else if publicAddress /= address || validity == False then
-                div [] [ text "Seems like keys do not match with each other, continue looking for you pair!" ]
+                div [] [ text "Seems you don't have the correct key match to claim this gift, keep looking!" ]
 
             else
                 -- TODO: button that builds Tx and ask to submit via Ogmios
