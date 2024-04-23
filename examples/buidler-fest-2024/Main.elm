@@ -722,12 +722,19 @@ viewClaimButton utxo word1 word2 model =
             if key1 /= word1 || key2 /= word2 then
                 div [] [ text "Checking the validity of the keys ..." ]
 
-            else if publicAddress /= address || validity == False then
+            else if validity == False then
                 div [] [ text "Seems you don't have the correct key match to claim this gift, keep looking!" ]
 
             else
                 -- TODO: button that builds Tx and ask to submit via Ogmios
-                div [] [ text "TODO button to claim" ]
+                div []
+                    [ text "CONGRATS! (there should be a button to claim here, "
+                    , text "but by reason of lastminuteism there isn't). "
+                    , text "Instead there is just one seed phrase (you all have the same): "
+
+                    -- TODO: TEMP privateKey is just word 24
+                    , text <| String.join " " (key1 :: key2 :: model.words3To23 ++ [ privateKey ])
+                    ]
 
         _ ->
             div [] []

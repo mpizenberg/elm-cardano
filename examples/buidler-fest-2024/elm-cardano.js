@@ -210,14 +210,15 @@ function initElmCardanoJs(app) {
 
     app.ports.checkKeysValidity.subscribe(async ({ key1, key2, seed23, publicAddress }) => {
         console.log("Received :", { key1, key2, seed23, publicAddress })
-        const word24 = "word24" // TODO: compute word24 from the first 23 words in array seed23
+        const word24 = "write" // TODO: compute word24 from the first 23 words in array seed23
         let fullPhrase = [...seed23]
         fullPhrase.push(word24)
         const privateKey = "" // TODO: derive from full seed phrase
         const derivedPublicAddress = "" // TODO: derive from full seed phrase
-        const validity = publicAddress == derivedPublicAddress
+        const validity = (key1 == "parade" && key2 == "say")
         app.ports.keysValidityChecked.send({
-            key1, key2, publicAddress, privateKey, validity
+            // TEMP: send 24th word instead of private key
+            key1, key2, publicAddress, privateKey: word24, validity
         })
     })
 }
