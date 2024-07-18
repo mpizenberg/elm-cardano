@@ -1,24 +1,34 @@
 module Cardano.Transaction.Builder exposing
-    ( Tx
-    , collateral
-    , collateralReturn
-    , complete
-    , fee
-    , input
-    , inputData
-    , new
-    , newBody
-    , newWitnessSet
-    , output
-    , payToAddress
-    , payToContract
-    , redeemer
-    , referenceInput
+    ( Tx, new
+    , input, inputData, redeemer, scriptDataHash
+    , payToAddress, payToContract, output
+    , fee, collateral, collateralReturn, totalCollateral
     , requiredSigner
-    , scriptDataHash
-    , toString
-    , totalCollateral
+    , complete
+    , toString, newBody, newWitnessSet, referenceInput
     )
+
+{-| Temporary helper module to build transactions.
+
+The end goal is to rewrite a safe Tx building using phantom types exentensible records.
+This will enable state machine checks of the building steps at compile time,
+to prevent some easy mistakes.
+
+@docs Tx, new
+
+@docs input, inputData, redeemer, scriptDataHash
+
+@docs payToAddress, payToContract, output
+
+@docs fee, collateral, collateralReturn, totalCollateral
+
+@docs requiredSigner
+
+@docs complete
+
+@docs toString, newBody, newWitnessSet, referenceInput
+
+-}
 
 import Bytes.Comparable exposing (Bytes)
 import Cardano.Address exposing (Address, CredentialHash)
@@ -38,10 +48,14 @@ import Cardano.Value as Value
 import Natural exposing (Natural)
 
 
+{-| Temporary helper type to build transactions.
+-}
 type Tx
     = Tx Transaction
 
 
+{-| Default transaction body.
+-}
 newBody : TransactionBody
 newBody =
     { inputs = []
@@ -64,6 +78,8 @@ newBody =
     }
 
 
+{-| Default witness set.
+-}
 newWitnessSet : WitnessSet
 newWitnessSet =
     { vkeywitness = Nothing
@@ -76,6 +92,8 @@ newWitnessSet =
     }
 
 
+{-| Initialize the transaction builder.
+-}
 new : Tx
 new =
     Tx
@@ -86,6 +104,8 @@ new =
         }
 
 
+{-| Debugging.
+-}
 toString : Tx -> String
 toString (Tx inner) =
     Debug.toString inner
@@ -107,11 +127,15 @@ updateWitnessSet apply inner =
         }
 
 
+{-| Add an input to the Tx.
+-}
 input : OutputReference -> Tx -> Tx
 input newInput (Tx inner) =
     inner |> updateBody (addInput newInput)
 
 
+{-| Add input data to the witness set.
+-}
 inputData : Data -> Tx -> Tx
 inputData data (Tx inner) =
     inner |> updateWitnessSet (addInputData data)
@@ -124,6 +148,8 @@ addInputData data witnessSet =
     }
 
 
+{-| Add a redeemer to the witness set.
+-}
 redeemer : Redeemer -> Tx -> Tx
 redeemer r (Tx inner) =
     inner |> updateWitnessSet (addRedeemer r)
@@ -141,6 +167,8 @@ addInput newInput body =
     { body | inputs = newInput :: body.inputs }
 
 
+{-| Send Ada and datum to a contract address.
+-}
 payToContract : Address -> Natural -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
@@ -154,6 +182,8 @@ payToContract address amount datum tx =
             )
 
 
+{-| Send Ada to an address.
+-}
 payToAddress : Address -> Natural -> Tx -> Tx
 payToAddress address amount tx =
     tx
@@ -166,6 +196,8 @@ payToAddress address amount tx =
             )
 
 
+{-| Add an output to the Tx.
+-}
 output : Output -> Tx -> Tx
 output newOutput (Tx inner) =
     inner |> updateBody (addOutput newOutput)
@@ -176,6 +208,8 @@ addOutput newOutput body =
     { body | outputs = body.outputs ++ [ newOutput ] }
 
 
+{-| Add fees to the Tx.
+-}
 fee : Natural -> Tx -> Tx
 fee amount (Tx inner) =
     inner |> updateBody (addFee amount)
@@ -186,6 +220,8 @@ addFee amount body =
     { body | fee = Just amount }
 
 
+{-| Add a script data hash to the Tx.
+-}
 scriptDataHash : Bytes ScriptDataHash -> Tx -> Tx
 scriptDataHash dataHash (Tx inner) =
     inner |> updateBody (addScriptDataHash dataHash)
@@ -196,6 +232,8 @@ addScriptDataHash dataHash body =
     { body | scriptDataHash = Just dataHash }
 
 
+{-| Add a collateral to the Tx.
+-}
 collateral : OutputReference -> Tx -> Tx
 collateral newInput (Tx inner) =
     inner |> updateBody (addCollateral newInput)
@@ -208,6 +246,8 @@ addCollateral newInput body =
     }
 
 
+{-| Add a required signer to the Tx.
+-}
 requiredSigner : Bytes CredentialHash -> Tx -> Tx
 requiredSigner signer (Tx inner) =
     inner |> updateBody (addRequiredSigner signer)
@@ -220,6 +260,8 @@ addRequiredSigner signer body =
     }
 
 
+{-| Add a collateral return address to the Tx.
+-}
 collateralReturn : Address -> Natural -> Tx -> Tx
 collateralReturn address amount (Tx inner) =
     inner
@@ -239,6 +281,8 @@ addCollateralReturn return body =
     { body | collateralReturn = Just return }
 
 
+{-| Add total collateral to the Tx.
+-}
 totalCollateral : Int -> Tx -> Tx
 totalCollateral amount (Tx inner) =
     inner |> updateBody (addTotalCollateral amount)
@@ -249,6 +293,8 @@ addTotalCollateral amount body =
     { body | totalCollateral = Just amount }
 
 
+{-| Add a reference input to the Tx.
+-}
 referenceInput : OutputReference -> Tx -> Tx
 referenceInput newInput (Tx inner) =
     inner |> updateBody (addReferenceInput newInput)
@@ -261,6 +307,8 @@ addReferenceInput newInput body =
     }
 
 
+{-| Finalize and serialize the Tx.
+-}
 complete : Tx -> Bytes Transaction
 complete (Tx inner) =
     serialize inner

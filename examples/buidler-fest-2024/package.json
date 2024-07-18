@@ -1,0 +1,19 @@
+{
+  "name": "buidler-fest-2024",
+  "version": "1.0.0",
+  "description": "```sh npx elm-watch hot ```",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "elm": "^0.19.1-6",
+    "elm-doc-preview": "^5.0.5",
+    "elm-format": "^0.8.7",
+    "elm-json": "^0.2.13",
+    "elm-review": "^2.11.1",
+    "elm-test": "^0.19.1-revision12",
+    "elm-watch": "^2.0.0-beta.3"
+  }
+}
