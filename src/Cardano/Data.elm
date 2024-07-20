@@ -140,12 +140,12 @@ fromCborItem item =
         CborBytes bs ->
             Just (Bytes <| Bytes.fromBytes bs)
 
-        CborTag Tag.PositiveBigNum tagged ->
+        CborTag Tag.PositiveBigNum _ ->
             E.encode (E.any item)
                 |> D.decode DE.integer
                 |> Maybe.map Int
 
-        CborTag Tag.NegativeBigNum tagged ->
+        CborTag Tag.NegativeBigNum _ ->
             E.encode (E.any item)
                 |> D.decode DE.integer
                 |> Maybe.map Int
@@ -196,15 +196,15 @@ unwrapCborUint item =
                 Nothing
 
         CborInt64 ( msb, lsb ) ->
-            let
-                bigMsb =
-                    Natural.fromSafeInt msb
-                        |> Natural.mul (Natural.fromSafeInt 4294967296)
-
-                bigLsb =
-                    Natural.fromSafeInt lsb
-            in
             if msb >= 0 then
+                let
+                    bigMsb =
+                        Natural.fromSafeInt msb
+                            |> Natural.mul (Natural.fromSafeInt 4294967296)
+
+                    bigLsb =
+                        Natural.fromSafeInt lsb
+                in
                 Just (Natural.add bigMsb bigLsb)
 
             else

@@ -1,6 +1,6 @@
 module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
-    , Credential(..), StakeCredential(..), CredentialHash
+    , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
@@ -10,7 +10,7 @@ module Cardano.Address exposing
 
 @docs Address, StakeAddress, NetworkId, ByronAddress
 
-@docs Credential, StakeCredential, CredentialHash
+@docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
 @docs enterprise, script, base, pointer
 
@@ -82,6 +82,11 @@ type StakeCredential
     | PointerCredential StakeCredentialPointer
 
 
+{-| A stake credential pointer.
+
+This should not be used and is only present for compatibility with previous eras.
+
+-}
 type alias StakeCredentialPointer =
     { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
 

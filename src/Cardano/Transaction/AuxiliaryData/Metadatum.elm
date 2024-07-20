@@ -13,7 +13,8 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 
 
-{-| -}
+{-| Transaction auxiliary data metadatum.
+-}
 type
     Metadatum
     -- TODO: replace Int with Natural
@@ -24,7 +25,8 @@ type
     | Map (List ( Metadatum, Metadatum ))
 
 
-{-| -}
+{-| Encode Metadatum to CBOR.
+-}
 toCbor : Metadatum -> E.Encoder
 toCbor metadatum =
     case metadatum of
@@ -44,7 +46,8 @@ toCbor metadatum =
             E.ledgerAssociativeList toCbor toCbor metadatums
 
 
-{-| -}
+{-| Decode Metadatum from CBOR
+-}
 fromCbor : D.Decoder Metadatum
 fromCbor =
     D.failWith "decodeMetadatum (not implemented) failed to decode"

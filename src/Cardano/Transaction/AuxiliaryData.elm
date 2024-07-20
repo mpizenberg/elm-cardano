@@ -26,7 +26,8 @@ type alias AuxiliaryData =
     }
 
 
-{-| -}
+{-| Encode transaction auxiliary data to CBOR.
+-}
 toCbor : AuxiliaryData -> E.Encoder
 toCbor data =
     let
@@ -58,15 +59,16 @@ toCbor data =
         |> E.tagged (Tag.Unknown 259)
             (E.record E.int
                 (E.fields
-                    >> E.field 0 (E.associativeList E.natural Metadatum.toCbor) .labels
-                    >> E.field 1 (E.list Script.encodeNativeScript) .nativeScripts
-                    >> E.field 2 (E.list Script.encodePlutusScript) plutusV1Scripts
-                    >> E.field 3 (E.list Script.encodePlutusScript) plutusV2Scripts
+                    >> E.field 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) .labels
+                    >> E.field 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
+                    >> E.field 2 (E.ledgerList Script.encodePlutusScript) plutusV1Scripts
+                    >> E.field 3 (E.ledgerList Script.encodePlutusScript) plutusV2Scripts
                 )
             )
 
 
-{-| -}
+{-| Decode transaction auxiliary data from CBOR.
+-}
 fromCbor : D.Decoder AuxiliaryData
 fromCbor =
     -- TODO: This only holds for Shelley. The format has changed in Allegra and then Alonzo.
