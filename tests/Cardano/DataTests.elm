@@ -77,9 +77,41 @@ suite =
                 Int Integer.zero
             , testEncode "20" <|
                 Int Integer.negativeOne
+            , testEncode "C249010000000000000000" <|
+                Int (Integer.fromSafeString "0x010000000000000000")
+            , testEncode "C349010000000000000000" <|
+                Int (Integer.fromSafeString "-0x010000000000000001")
             , testEncode "40" <|
                 (Bytes <| bytes [])
             , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
+                Constr Natural.one
+                    [ Int Integer.negativeTwo
+                    , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (bytes [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
+                    , Constr Natural.three [ Bytes (bytes [ 0xB1 ]), List [ Int Integer.zero, Bytes (bytes [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (bytes []) ]
+                    ]
+            ]
+        , describe "fromCbor"
+            [ testDecode "D87980" <|
+                Constr Natural.zero []
+            , testDecode "80" <|
+                List []
+            , testDecode "9F010203FF" <|
+                List [ Int Integer.one, Int Integer.two, Int Integer.three ]
+            , testDecode "A0" <|
+                Map []
+            , testDecode "A201020304" <|
+                Map [ ( Int Integer.one, Int Integer.two ), ( Int Integer.three, Int Integer.four ) ]
+            , testDecode "00" <|
+                Int Integer.zero
+            , testDecode "20" <|
+                Int Integer.negativeOne
+            , testDecode "C249010000000000000000" <|
+                Int (Integer.fromSafeString "0x010000000000000000")
+            , testDecode "C349010000000000000000" <|
+                Int (Integer.fromSafeString "-0x010000000000000001")
+            , testDecode "40" <|
+                (Bytes <| bytes [])
+            , testDecode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
                 Constr Natural.one
                     [ Int Integer.negativeTwo
                     , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (bytes [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]

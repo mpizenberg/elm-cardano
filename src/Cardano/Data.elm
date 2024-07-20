@@ -9,6 +9,7 @@ module Cardano.Data exposing (Data(..), fromCbor, toCbor)
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
@@ -139,7 +140,16 @@ fromCborItem item =
         CborBytes bs ->
             Just (Bytes <| Bytes.fromBytes bs)
 
-        -- TODO: also add a branch for known tag of type PositiveBigNum or NegativeBigNum
+        CborTag Tag.PositiveBigNum tagged ->
+            E.encode (E.any item)
+                |> D.decode DE.integer
+                |> Maybe.map Int
+
+        CborTag Tag.NegativeBigNum tagged ->
+            E.encode (E.any item)
+                |> D.decode DE.integer
+                |> Maybe.map Int
+
         CborTag (Tag.Unknown n) tagged ->
             if n == 102 then
                 case tagged of
