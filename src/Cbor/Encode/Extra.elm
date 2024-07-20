@@ -1,12 +1,12 @@
 module Cbor.Encode.Extra exposing
-    ( natural
+    ( natural, integer
     , nonEmptyField
     , ledgerList, ledgerDict, ledgerAssociativeList
     )
 
 {-| Extra CBOR encoding utility functions.
 
-@docs natural
+@docs natural, integer
 @docs nonEmptyField
 @docs ledgerList, ledgerDict, ledgerAssociativeList
 
@@ -16,6 +16,7 @@ import Bytes.Comparable as Bytes
 import Cbor.Encode as E
 import Cbor.Tag as Tag
 import Dict exposing (Dict)
+import Integer as I exposing (Integer)
 import Natural as N exposing (Natural)
 
 
@@ -23,7 +24,7 @@ import Natural as N exposing (Natural)
 -}
 natural : Natural -> E.Encoder
 natural n =
-    if isSafeInt n then
+    if isSafeNat n then
         E.int (N.toInt n)
 
     else
@@ -40,8 +41,51 @@ natural n =
         E.tagged Tag.PositiveBigNum E.bytes nAsBytes
 
 
-isSafeInt : Natural -> Bool
+{-| Encode a large integer number.
+-}
+integer : Integer -> E.Encoder
+integer n =
+    if isSafeInt n then
+        E.int (I.toInt n)
+
+    else if I.isNonNegative n then
+        -- Positive n
+        -- TODO: if 64-bit, we should encode as u64 instead!
+        let
+            -- simple implementation with hex encoding
+            -- TODO: improve this with a better performing approach if needed
+            nAsBytes =
+                I.toHexString n
+                    |> prependWith0IfOddLength
+                    |> Bytes.fromStringUnchecked
+                    |> Bytes.toBytes
+        in
+        E.tagged Tag.PositiveBigNum E.bytes nAsBytes
+
+    else
+        -- Negative n
+        -- TODO: if 64-bit, we should encode as u64 instead!
+        let
+            -- simple implementation with hex encoding
+            -- TODO: improve this with a better performing approach if needed
+            nAsBytes =
+                I.toHexString (I.add n I.one)
+                    |> String.dropLeft 1
+                    |> prependWith0IfOddLength
+                    |> Bytes.fromStringUnchecked
+                    |> Bytes.toBytes
+        in
+        E.tagged Tag.NegativeBigNum E.bytes nAsBytes
+
+
+isSafeInt : Integer -> Bool
 isSafeInt n =
+    (n |> I.isLessThanOrEqual (I.fromSafeInt I.maxSafeInt))
+        && (n |> I.isGreaterThanOrEqual (I.fromSafeInt I.minSafeInt))
+
+
+isSafeNat : Natural -> Bool
+isSafeNat n =
     n |> N.isLessThanOrEqual (N.fromSafeInt N.maxSafeInt)
 
 

@@ -12,6 +12,8 @@ import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
+import Integer exposing (Integer)
+import Natural exposing (Natural)
 
 
 {-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
@@ -20,10 +22,10 @@ TODO: make Data actually opaque.
 
 -}
 type Data
-    = Constr Int (List Data)
+    = Constr Natural (List Data)
     | Map (List ( Data, Data ))
     | List (List Data)
-    | Int Int
+    | Int Integer
     | Bytes (Bytes Any)
 
 
@@ -46,7 +48,14 @@ toCbor data =
                     E.indefiniteList toCbor xs
     in
     case data of
-        Constr ix fields ->
+        Constr ixNat fields ->
+            -- TODO: it is problematic that Tag.Unknown takes an Int but in fact
+            -- ixNat may be an arbitrarily big integer.
+            -- This would need to be dealt with directly in the Cbor package.
+            let
+                ix =
+                    Natural.toInt ixNat
+            in
             if 0 <= ix && ix < 7 then
                 E.tagged (Tag.Unknown <| 121 + ix) encodeList fields
 
@@ -68,21 +77,8 @@ toCbor data =
         List xs ->
             encodeList xs
 
-        -- NOTE: Technically, Plutus allows to encode arbitrarily large
-        -- integers. It tries to encode them as CBOR basic int when possible,
-        -- and otherwise default to bytes tagged as Positive or Negative
-        -- 'BigNum'.
-        --
-        -- Yet in Elm / JavaScript, we only truly support ints in the range of
-        -- -2^53, 2^53-1; which is well within the values that can be encoded
-        -- as plain CBOR int.
-        --
-        -- Similarly for decoding, we cannot decode larger ints value _anyway_,
-        -- unless we start using a BigInt library. For the purpose of this
-        -- particular SDK, we currently make the choice of simply not supporting
-        -- large ints. We may revise that choice if a use-case is made.
         Int i ->
-            E.int i
+            EE.integer i
 
         Bytes bytes ->
             if Bytes.width bytes <= 64 then
@@ -122,18 +118,38 @@ fromCborItem item =
         CborList xs ->
             collectCborItems [] xs |> Maybe.map List
 
-        CborInt i ->
-            Just (Int i)
+        CborInt32 i ->
+            Just (Int (Integer.fromSafeInt i))
+
+        CborInt64 ( msb, lsb ) ->
+            let
+                bigMsb =
+                    Integer.fromSafeInt msb
+                        |> Integer.mul (Integer.fromSafeInt 4294967296)
+
+                bigLsb =
+                    Integer.fromSafeInt lsb
+            in
+            if msb >= 0 then
+                Just (Int (Integer.add bigMsb bigLsb))
+
+            else
+                Just (Int (Integer.sub bigMsb bigLsb))
 
         CborBytes bs ->
             Just (Bytes <| Bytes.fromBytes bs)
 
+        -- TODO: also add a branch for known tag of type PositiveBigNum or NegativeBigNum
         CborTag (Tag.Unknown n) tagged ->
             if n == 102 then
                 case tagged of
-                    CborList [ CborInt ix, CborList fields ] ->
-                        collectCborItems [] fields
-                            |> Maybe.map (Constr ix)
+                    CborList [ ixItem, CborList fields ] ->
+                        case ( unwrapCborUint ixItem, collectCborItems [] fields ) of
+                            ( Just ix, Just items ) ->
+                                Just (Constr ix items)
+
+                            _ ->
+                                Nothing
 
                     _ ->
                         Nothing
@@ -150,10 +166,39 @@ fromCborItem item =
                                     n - 121
                         in
                         collectCborItems [] fields
-                            |> Maybe.map (Constr ix)
+                            |> Maybe.map (Constr <| Natural.fromSafeInt ix)
 
                     _ ->
                         Nothing
+
+        _ ->
+            Nothing
+
+
+unwrapCborUint : CborItem -> Maybe Natural
+unwrapCborUint item =
+    case item of
+        CborInt32 i ->
+            if i >= 0 then
+                Just (Natural.fromSafeInt i)
+
+            else
+                Nothing
+
+        CborInt64 ( msb, lsb ) ->
+            let
+                bigMsb =
+                    Natural.fromSafeInt msb
+                        |> Natural.mul (Natural.fromSafeInt 4294967296)
+
+                bigLsb =
+                    Natural.fromSafeInt lsb
+            in
+            if msb >= 0 then
+                Just (Natural.add bigMsb bigLsb)
+
+            else
+                Nothing
 
         _ ->
             Nothing
@@ -166,6 +211,7 @@ collectCborPairs st pairs =
             Just (List.reverse st)
 
         ( left, right ) :: tail ->
+            -- TODO: make tail rec
             fromCborItem left
                 |> Maybe.andThen
                     (\l ->
@@ -184,5 +230,6 @@ collectCborItems st items =
             Just (List.reverse st)
 
         head :: tail ->
+            -- TODO: make tail rec
             fromCborItem head
                 |> Maybe.andThen (\s -> collectCborItems (s :: st) tail)
