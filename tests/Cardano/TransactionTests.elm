@@ -616,6 +616,16 @@ txWitnessSet3dd8be52 =
     }
 
 
+{-| Next Shelley failure.
+
+Tx id: 3c03090c2f54a0f678ed03ef6545b404a1e9482d0f715638c3c85be40e688423
+Block height: 4492234
+Previous block intersection:
+
+  - slot: 4527260
+  - id: ?
+
+-}
 decode3c03090c : Test
 decode3c03090c =
     test "Tx id 3c03090c2f54a0f678ed03ef6545b404a1e9482d0f715638c3c85be40e688423" <|
@@ -688,6 +698,16 @@ txWitnessSet3c03090c =
     }
 
 
+{-| Next Shelley failure.
+
+Tx id: 35d2728ea6ad89bf809565c9ed698bb1c5cddf83591ba2e8bba951cb8fee0035
+Block height: 4494062
+Previous block intersection:
+
+  - slot: 4563820
+  - id: ?
+
+-}
 decode35d2728e : Test
 decode35d2728e =
     test "Tx id 35d2728ea6ad89bf809565c9ed698bb1c5cddf83591ba2e8bba951cb8fee0035" <|
@@ -1161,6 +1181,16 @@ txWitnessSet35d2728e =
     }
 
 
+{-| Next Shelley failure.
+
+Tx id: a2d8a92709fecadaa0b641ee296d2e0b512b4e81f8eadab4fed84769dcb549de
+Block height: 4497888
+Previous block intersection:
+
+  - slot: 4640780
+  - id: ?
+
+-}
 decodea2d8a927 : Test
 decodea2d8a927 =
     test "Tx id a2d8a92709fecadaa0b641ee296d2e0b512b4e81f8eadab4fed84769dcb549de" <|
@@ -1210,6 +1240,16 @@ txWitnessSeta2d8a927 =
     }
 
 
+{-| Next Shelley failure.
+
+Tx id: 2383af0582da2b18039fab49ef4bb246f7d23d4304e36eb48f9387ff80adc769
+Block height: 4512070
+Previous block intersection:
+
+  - slot: 4924900
+  - id: ?
+
+-}
 decode2383af05 : Test
 decode2383af05 =
     test "Tx id 2383af0582da2b18039fab49ef4bb246f7d23d4304e36eb48f9387ff80adc769" <|
@@ -1258,6 +1298,16 @@ txWitnessSet2383af05 =
     }
 
 
+{-| Next Shelley failure.
+
+Tx id: 1bcd8fa799bd7d47f6af8d54e9ebda4756597991ca44b33dcdae6f534f020257
+Block height: 4519399
+Previous block intersection:
+
+  - slot: 5071600
+  - id: ?
+
+-}
 decode1bcd8fa7 : Test
 decode1bcd8fa7 =
     test "Tx id 1bcd8fa799bd7d47f6af8d54e9ebda4756597991ca44b33dcdae6f534f020257" <|
