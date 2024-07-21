@@ -1210,6 +1210,54 @@ txWitnessSeta2d8a927 =
     }
 
 
+decode2383af05 : Test
+decode2383af05 =
+    test "Tx id 2383af0582da2b18039fab49ef4bb246f7d23d4304e36eb48f9387ff80adc769" <|
+        \_ ->
+            Bytes.fromStringUnchecked "83a5008182582072cb2dde1d5cea967255d6dd141aaf76801840033760f452763436bd1afc383601018182584c82d818584283581cce81d6b8d9f957ff8da898172fd08beea98e575b61e8ce01d0182372a101581e581c2b0b011ba3683d182bc2472ac7a7d5939b443746208b10c34367d9d6001a53e87e3b1b000000036ae06484021a000f4240031a004b420405a1581de1558f3ee09b26d88fac2eddc772a9eda94cce6dbadbe9fee439bd60011b000000036178a5aea10082825820e9b47b5d20a737cfc29b57642ef18723eff8b5a4bb6a8efb7ea0caa9a84f594d5840fe644cc6fe77d19bf75d766d2894246a5ad9c5482be671be5a81efb6ad694215e15312895bf8bb36150d9a15c80457017c2895792ad244da1d136ed50d41f60382582078d04608e7cf0d3dfc0b65a26ce571f47c17ea8e86f5b74c76a5794dfb7490c258401738eb2f7370490269cd5e513a2f7dbaad8c7694e45a3379127391c060ec938541e4233668e5479e17c7e706bcf45423301237aaee04c36aaf12aea897c3cb0ff6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = txBody2383af05
+                        , witnessSet = txWitnessSet2383af05
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody2383af05 : TransactionBody
+txBody2383af05 =
+    { newTxBody
+        | fee = Just (N.fromSafeInt 1000000)
+        , inputs = [ { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "72cb2dde1d5cea967255d6dd141aaf76801840033760f452763436bd1afc3836" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address = Address.Byron (Bytes.fromStringUnchecked "82d818584283581cce81d6b8d9f957ff8da898172fd08beea98e575b61e8ce01d0182372a101581e581c2b0b011ba3683d182bc2472ac7a7d5939b443746208b10c34367d9d6001a53e87e3b")
+                , amount = Value.onlyLovelace (bigNat [ 48260228, 218 ])
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (N.fromSafeInt 4932100)
+        , withdrawals = [ ( { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "558f3ee09b26d88fac2eddc772a9eda94cce6dbadbe9fee439bd6001") }, bigNat [ 24683950, 216 ] ) ]
+    }
+
+
+txWitnessSet2383af05 : WitnessSet
+txWitnessSet2383af05 =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "fe644cc6fe77d19bf75d766d2894246a5ad9c5482be671be5a81efb6ad694215e15312895bf8bb36150d9a15c80457017c2895792ad244da1d136ed50d41f603"
+                  , vkey = Bytes.fromStringUnchecked "e9b47b5d20a737cfc29b57642ef18723eff8b5a4bb6a8efb7ea0caa9a84f594d"
+                  }
+                , { signature = Bytes.fromStringUnchecked "1738eb2f7370490269cd5e513a2f7dbaad8c7694e45a3379127391c060ec938541e4233668e5479e17c7e706bcf45423301237aaee04c36aaf12aea897c3cb0f"
+                  , vkey = Bytes.fromStringUnchecked "78d04608e7cf0d3dfc0b65a26ce571f47c17ea8e86f5b74c76a5794dfb7490c2"
+                  }
+                ]
+    }
+
+
 
 -- txBody : TransactionBody
 -- txBody =
@@ -1225,15 +1273,6 @@ txWitnessSeta2d8a927 =
 --     { newTxWitnessSet
 --         | vkeywitness = Nothing
 --     }
-
-
-decode2383af05 : Test
-decode2383af05 =
-    test "Tx id 2383af0582da2b18039fab49ef4bb246f7d23d4304e36eb48f9387ff80adc769" <|
-        \_ ->
-            Bytes.fromStringUnchecked "83a5008182582072cb2dde1d5cea967255d6dd141aaf76801840033760f452763436bd1afc383601018182584c82d818584283581cce81d6b8d9f957ff8da898172fd08beea98e575b61e8ce01d0182372a101581e581c2b0b011ba3683d182bc2472ac7a7d5939b443746208b10c34367d9d6001a53e87e3b1b000000036ae06484021a000f4240031a004b420405a1581de1558f3ee09b26d88fac2eddc772a9eda94cce6dbadbe9fee439bd60011b000000036178a5aea10082825820e9b47b5d20a737cfc29b57642ef18723eff8b5a4bb6a8efb7ea0caa9a84f594d5840fe644cc6fe77d19bf75d766d2894246a5ad9c5482be671be5a81efb6ad694215e15312895bf8bb36150d9a15c80457017c2895792ad244da1d136ed50d41f60382582078d04608e7cf0d3dfc0b65a26ce571f47c17ea8e86f5b74c76a5794dfb7490c258401738eb2f7370490269cd5e513a2f7dbaad8c7694e45a3379127391c060ec938541e4233668e5479e17c7e706bcf45423301237aaee04c36aaf12aea897c3cb0ff6"
-                |> Transaction.deserialize
-                |> Expect.notEqual Nothing
 
 
 decode1bcd8fa7 : Test
