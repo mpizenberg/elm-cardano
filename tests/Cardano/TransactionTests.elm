@@ -1258,30 +1258,55 @@ txWitnessSet2383af05 =
     }
 
 
-
--- txBody : TransactionBody
--- txBody =
---     { newTxBody
---         | inputs = []
---         , outputs = []
---         , fee = Nothing
---         , ttl = Nothing
---         , certificates = []
---     }
--- txWitnessSet : WitnessSet
--- txWitnessSet =
---     { newTxWitnessSet
---         | vkeywitness = Nothing
---     }
-
-
 decode1bcd8fa7 : Test
 decode1bcd8fa7 =
     test "Tx id 1bcd8fa799bd7d47f6af8d54e9ebda4756597991ca44b33dcdae6f534f020257" <|
         \_ ->
             Bytes.fromStringUnchecked "83a4031a055d4a80018282582b82d818582183581c5f0b7754ae7707405bc7dcd03fce70fa7295ebd69d069ff786d78445a0001aea3675061a000f424082582b82d818582183581cac8b848e1ef9ad778bb8d8da127daeed273827727fa0e084194bd2efa0001a0d3c27671a0049b3a40081825820ca6267b5f2b336da224e6b5efac292f0eaf45b40f7f7b931e4b5ee21e68455d800021a0002979ca1028184582002ec61ad3946d5282d054fddd635789325a46b884bb8daebb424b0081ce9d9945840ef3e425c97d8f733f9d33302495e208056c877c6a9d89a35439fe5d6bda3b6958171958416754bcf18e5ddbb68533c16715fe180e06ce270dc37bfb556347b0c5820000000000000000000000000000000000000000000000000000000000000000041a0f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBody1bcd8fa7
+                        , witnessSet = txWitnessSet1bcd8fa7
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody1bcd8fa7 : TransactionBody
+txBody1bcd8fa7 =
+    { newTxBody
+        | fee = Just (N.fromSafeInt 169884)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "ca6267b5f2b336da224e6b5efac292f0eaf45b40f7f7b931e4b5ee21e68455d8" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address = Address.Byron (Bytes.fromStringUnchecked "82d818582183581c5f0b7754ae7707405bc7dcd03fce70fa7295ebd69d069ff786d78445a0001aea367506")
+                , amount = Value.onlyLovelace (N.fromSafeInt 1000000)
+                , datumHash = Nothing
+                }
+            , Utxo.Legacy
+                { address = Address.Byron (Bytes.fromStringUnchecked "82d818582183581cac8b848e1ef9ad778bb8d8da127daeed273827727fa0e084194bd2efa0001a0d3c2767")
+                , amount = Value.onlyLovelace (N.fromSafeInt 4830116)
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (bigNat [ 22891136, 1 ])
+    }
+
+
+txWitnessSet1bcd8fa7 : WitnessSet
+txWitnessSet1bcd8fa7 =
+    { newTxWitnessSet
+        | bootstrapWitness =
+            Just
+                [ { attributes = Bytes.fromStringUnchecked "a0"
+                  , chainCode = Bytes.fromStringUnchecked "0000000000000000000000000000000000000000000000000000000000000000"
+                  , publicKey = Bytes.fromStringUnchecked "02ec61ad3946d5282d054fddd635789325a46b884bb8daebb424b0081ce9d994"
+                  , signature = Bytes.fromStringUnchecked "ef3e425c97d8f733f9d33302495e208056c877c6a9d89a35439fe5d6bda3b6958171958416754bcf18e5ddbb68533c16715fe180e06ce270dc37bfb556347b0c"
+                  }
+                ]
+    }
 
 
 
