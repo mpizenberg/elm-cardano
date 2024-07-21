@@ -1167,7 +1167,47 @@ decodea2d8a927 =
         \_ ->
             Bytes.fromStringUnchecked "83a40081825820a6afff5e962033731b67a256b9205fdaadc57faa06793dbde553dd26a2cd17320001828258204186880a8bb19ec8742db9076795c5107f7ffc65a889e7b0980ffeaca20c0c0c1a000f424082581d6186880a8bb19ec8742da9076795c5107f7ffc65a889e7b0980ffeaca21a001398fd021a00034a63031a7fffffffa10081825820d08529ec8ca7640d0e79848d0d4c790743b88f6455d32f00437b28aebf943ffe58400c836a9aa1d5b32b7e282add2458e1a71e8828e34e6e2ad3ad50454e7bee4a3c83222d5b16d466be02d3e969684c1e09005b2c16a8ca26aabcbd344f56e8cb09f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBodya2d8a927
+                        , witnessSet = txWitnessSeta2d8a927
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBodya2d8a927 : TransactionBody
+txBodya2d8a927 =
+    { newTxBody
+        | fee = Just (N.fromSafeInt 215651)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "a6afff5e962033731b67a256b9205fdaadc57faa06793dbde553dd26a2cd1732" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "86880a8bb19ec8742db9076795c5107f7ffc65a889e7b0980ffeaca2"), stakeCredential = Just (Address.PointerCredential { certificateIndex = 12, slotNumber = 12, transactionIndex = 12 }) }
+                , amount = Value.onlyLovelace (N.fromSafeInt 1000000)
+                , datumHash = Nothing
+                }
+            , Utxo.Legacy
+                { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "86880a8bb19ec8742da9076795c5107f7ffc65a889e7b0980ffeaca2"), stakeCredential = Nothing }
+                , amount = Value.onlyLovelace (N.fromSafeInt 1284349)
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (bigNat [ 67108863, 31 ])
+    }
+
+
+txWitnessSeta2d8a927 : WitnessSet
+txWitnessSeta2d8a927 =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "0c836a9aa1d5b32b7e282add2458e1a71e8828e34e6e2ad3ad50454e7bee4a3c83222d5b16d466be02d3e969684c1e09005b2c16a8ca26aabcbd344f56e8cb09"
+                  , vkey = Bytes.fromStringUnchecked "d08529ec8ca7640d0e79848d0d4c790743b88f6455d32f00437b28aebf943ffe"
+                  }
+                ]
+    }
 
 
 
@@ -1219,6 +1259,8 @@ newTxWitnessSet =
     Tx.newWitnessSet
 
 
+{-| Convert the internal representation of Natural, using a base 2^26, back into a Natural.
+-}
 bigNat : List Int -> Natural
 bigNat xs =
     let
