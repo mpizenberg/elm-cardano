@@ -5,6 +5,8 @@ import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
+import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
+import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo
 import Cardano.Value as Value
@@ -1376,7 +1378,59 @@ decodec220e20c =
         \_ ->
             Bytes.fromStringUnchecked "83a500818258205b06f6ea129a404d5bc610880be35376625a8f7f11773bf79db1889eb3bb87eb00018182581d61c96001f4a4e10567ac18be3c47663a00a858f51c56779e94993d30ef1a0095e957021a0002ad29031a005991b0075820c2d2b42fbacf30eeddab1447f525297eec0ab134f8cddd2025a075c69d57e4bca100818258204251d746864839409bc2bb6dfbb680c503c3a2613dba0ac55c6791eaebd9ad84584057e649e46b1711bfd45cb2ae0e4ecb8c863e5c261545f0ec96fe6ee3fc8dd5b36106fd13d21e643c34e04c58b18759afaca58f990060b4342dd7369bd11b1d06a101a368766f7465725f69646f3132336162633030306362613332316662616c6c6f74a36669737375653163796573666973737565336e416c7068612043656e746175726966697373756532626e6f67766f74655f696469616263313233303030"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBodyc220e20c
+                        , witnessSet = txWitnessSetc220e20c
+                        , isValid = True
+                        , auxiliaryData = Just txAuxiliaryDatac220e20c
+                        }
+                    )
+
+
+txAuxiliaryDatac220e20c : AuxiliaryData
+txAuxiliaryDatac220e20c =
+    { labels =
+        [ ( N.fromSafeInt 1
+          , Metadatum.Map
+                [ ( Metadatum.String "voter_id", Metadatum.String "123abc000cba321" )
+                , ( Metadatum.String "ballot", Metadatum.Map [ ( Metadatum.String "issue1", Metadatum.String "yes" ), ( Metadatum.String "issue3", Metadatum.String "Alpha Centauri" ), ( Metadatum.String "issue2", Metadatum.String "no" ) ] )
+                , ( Metadatum.String "vote_id", Metadatum.String "abc123000" )
+                ]
+          )
+        ]
+    , nativeScripts = []
+    , plutusScripts = []
+    }
+
+
+txBodyc220e20c : TransactionBody
+txBodyc220e20c =
+    { newTxBody
+        | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "c2d2b42fbacf30eeddab1447f525297eec0ab134f8cddd2025a075c69d57e4bc")
+        , fee = Just (N.fromSafeInt 175401)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "5b06f6ea129a404d5bc610880be35376625a8f7f11773bf79db1889eb3bb87eb" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "c96001f4a4e10567ac18be3c47663a00a858f51c56779e94993d30ef"), stakeCredential = Nothing }
+                , amount = Value.onlyLovelace (N.fromSafeInt 9824599)
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (N.fromSafeInt 5870000)
+    }
+
+
+txWitnessSetc220e20c : WitnessSet
+txWitnessSetc220e20c =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "57e649e46b1711bfd45cb2ae0e4ecb8c863e5c261545f0ec96fe6ee3fc8dd5b36106fd13d21e643c34e04c58b18759afaca58f990060b4342dd7369bd11b1d06"
+                  , vkey = Bytes.fromStringUnchecked "4251d746864839409bc2bb6dfbb680c503c3a2613dba0ac55c6791eaebd9ad84"
+                  }
+                ]
+    }
 
 
 
