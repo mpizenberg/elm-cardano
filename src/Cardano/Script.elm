@@ -22,7 +22,6 @@ module Cardano.Script exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Decode as D
-import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 

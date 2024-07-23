@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
-import Cardano.Script as Script exposing (NativeScript(..))
+import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
