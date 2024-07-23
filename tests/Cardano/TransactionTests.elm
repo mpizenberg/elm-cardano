@@ -4,6 +4,7 @@ import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
+import Cardano.Script as Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
@@ -1544,7 +1545,61 @@ decode4a3f8676 =
         \_ ->
             Bytes.fromStringUnchecked "83a40081825820e7db1f809fcc21d3dd108ced6218bf0f0cbb6a0f679f848ff1790b68d3a35872000181825839010c57a4aa08aaa7c42b45e4e9490151e2665dbb7d374e795ad5be5e4960562a0d213c675c2b84ee0e34eb377d4abbe82a4c256a0708baac251a0016e360021a0007a120031a010c59f8a200838258205df1be8b0071123c982a94c19c0c06485dbe9271e4381e8cf4fc2ed554ac133f5840c271a9d652ae95e6a8a5117c5026369235182da7e4fe040b02465089e5e2caf05063cf8b61601e6f6074c03f700bacaadcd62483c48d66a5f8d418a7c27c4b01825820403171966fadb1ce9b26852cb74018a04bc031a4aee92be39702b18efd75e058584039395858906ec9ab7540e79022b25a1f3bdfece09f9e2f36254eb5abe625b72dbd8179ece4c9fc1d537afce95b67d8095d29e1f3c50de4ecc30fd67e1ba440048258206311da054c5dfa3ac53c9fc3be859bd322f0712f7e093596fa5f6de031d95acd58403d7deba60f80a03f5bf172c1699f07ecef557d9509551cbe8d2b9000e903c3e3f60bb127c9c0b4cd5df84c01791b98e10fe19209088d0b085c74702b25914a0d01818201838200581ca96da581c39549aeda81f539ac3940ac0cb53657e774ca7e68f15ed98200581cccfcb3fed004562be1354c837a4a4b9f4b1c2b6705229efeedd12d4d8200581c74fcd61aecebe36aa6b6cd4314027282fa4b41c3ce8af17d9b77d0d1f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBody4a3f8676
+                        , witnessSet = txWitnessSet4a3f8676
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBody4a3f8676 : TransactionBody
+txBody4a3f8676 =
+    { newTxBody
+        | fee = Just (N.fromSafeInt 500000)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "e7db1f809fcc21d3dd108ced6218bf0f0cbb6a0f679f848ff1790b68d3a35872" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "0c57a4aa08aaa7c42b45e4e9490151e2665dbb7d374e795ad5be5e49")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "60562a0d213c675c2b84ee0e34eb377d4abbe82a4c256a0708baac25")))
+                        }
+                , amount = Value.onlyLovelace (N.fromSafeInt 1500000)
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (N.fromSafeInt 17586680)
+    }
+
+
+txWitnessSet4a3f8676 : WitnessSet
+txWitnessSet4a3f8676 =
+    { newTxWitnessSet
+        | nativeScripts =
+            Just
+                [ ScriptAll
+                    [ ScriptPubkey (Bytes.fromStringUnchecked "a96da581c39549aeda81f539ac3940ac0cb53657e774ca7e68f15ed9")
+                    , ScriptPubkey (Bytes.fromStringUnchecked "ccfcb3fed004562be1354c837a4a4b9f4b1c2b6705229efeedd12d4d")
+                    , ScriptPubkey (Bytes.fromStringUnchecked "74fcd61aecebe36aa6b6cd4314027282fa4b41c3ce8af17d9b77d0d1")
+                    ]
+                ]
+        , vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "c271a9d652ae95e6a8a5117c5026369235182da7e4fe040b02465089e5e2caf05063cf8b61601e6f6074c03f700bacaadcd62483c48d66a5f8d418a7c27c4b01"
+                  , vkey = Bytes.fromStringUnchecked "5df1be8b0071123c982a94c19c0c06485dbe9271e4381e8cf4fc2ed554ac133f"
+                  }
+                , { signature = Bytes.fromStringUnchecked "39395858906ec9ab7540e79022b25a1f3bdfece09f9e2f36254eb5abe625b72dbd8179ece4c9fc1d537afce95b67d8095d29e1f3c50de4ecc30fd67e1ba44004"
+                  , vkey = Bytes.fromStringUnchecked "403171966fadb1ce9b26852cb74018a04bc031a4aee92be39702b18efd75e058"
+                  }
+                , { signature = Bytes.fromStringUnchecked "3d7deba60f80a03f5bf172c1699f07ecef557d9509551cbe8d2b9000e903c3e3f60bb127c9c0b4cd5df84c01791b98e10fe19209088d0b085c74702b25914a0d"
+                  , vkey = Bytes.fromStringUnchecked "6311da054c5dfa3ac53c9fc3be859bd322f0712f7e093596fa5f6de031d95acd"
+                  }
+                ]
+    }
 
 
 
