@@ -722,7 +722,7 @@ decodeBody =
                 | inputs = inputs
                 , outputs = outputs
                 , fee = Just fee
-                , ttl = Just ttl
+                , ttl = ttl
                 , certificates = Maybe.withDefault [] certificates
                 , withdrawals = Maybe.withDefault [] withdrawals
                 , update = update
@@ -738,7 +738,7 @@ decodeBody =
             -- fee
             >> D.field 2 (D.oneOf [ D.natural, D.failWith "Failed to decode fee" ])
             -- ttl
-            >> D.field 3 (D.oneOf [ D.natural, D.failWith "Failed to decode TTL" ])
+            >> D.optionalField 3 (D.oneOf [ D.natural, D.failWith "Failed to decode TTL" ])
             -- certificates
             >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, D.failWith "Failed to decode certificate" ])
             -- withdrawals
