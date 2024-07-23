@@ -2,7 +2,7 @@ module Cardano.Transaction exposing
     ( Transaction
     , TransactionBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet
-    , Update, ProtocolParamUpdate, ProtocolVersion
+    , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
@@ -20,7 +20,7 @@ module Cardano.Transaction exposing
 
 @docs WitnessSet
 
-@docs Update, ProtocolParamUpdate, ProtocolVersion
+@docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion
 
 @docs ScriptContext, ScriptPurpose
 
@@ -148,7 +148,7 @@ type alias ProtocolParamUpdate =
     , expansionRate : Maybe UnitInterval -- 10
     , treasuryGrowthRate : Maybe UnitInterval -- 11
     , decentralizationConstant : Maybe UnitInterval -- 12 (deprecated)
-    , extraEntropy : Maybe ( Int, Bytes Any ) -- 13 (deprecated)
+    , extraEntropy : Maybe Nonce -- 13 (deprecated)
     , protocolVersion : Maybe ProtocolVersion -- 14
     , minUtxoValue : Maybe Natural -- 15 (deprecated)
     , minPoolCost : Maybe Int -- 16
@@ -161,6 +161,12 @@ type alias ProtocolParamUpdate =
     , collateralPercentage : Maybe Int -- 23
     , maxCollateralInputs : Maybe Int -- 24
     }
+
+
+{-| -}
+type Nonce
+    = Just0
+    | RandomBytes (Bytes Any)
 
 
 {-| -}
@@ -1002,12 +1008,26 @@ decodeProtocolParamUpdate =
             >> D.optionalField 24 (D.failWith "maxCollateralInputs")
 
 
-decodeExtraEntropy : D.Decoder ( Int, Bytes Any )
+decodeExtraEntropy : D.Decoder Nonce
 decodeExtraEntropy =
-    D.tuple Tuple.pair <|
-        D.elems
-            >> D.elem D.int
-            >> D.elem (D.map Bytes.fromBytes D.bytes)
+    D.length
+        |> D.andThen
+            (\l ->
+                -- $nonce /= [ 0 // 1, bytes .size 32 ]
+                case l of
+                    1 ->
+                        -- Remark: we don’t check that the value is 0
+                        -- We just assume its correct and do not validate.
+                        D.map (always Just0) D.int
+
+                    2 ->
+                        -- Remark: we don’t check that the value is 1
+                        -- We just assume its correct and do not validate.
+                        D.int |> D.ignoreThen (D.map (RandomBytes << Bytes.fromBytes) D.bytes)
+
+                    _ ->
+                        D.fail
+            )
 
 
 decodeProtocolVersion : D.Decoder ProtocolVersion
