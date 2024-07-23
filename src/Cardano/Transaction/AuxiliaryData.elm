@@ -71,6 +71,15 @@ toCbor data =
 -}
 fromCbor : D.Decoder AuxiliaryData
 fromCbor =
-    -- TODO: This only holds for Shelley. The format has changed in Allegra and then Alonzo.
-    D.map (\labels -> { labels = labels, nativeScripts = [], plutusScripts = [] }) <|
-        D.associativeList D.natural Metadatum.fromCbor
+    -- TODO: This is missing the Alonzo variant.
+    D.oneOf
+        -- Shelley variant
+        [ D.map (\labels -> { labels = labels, nativeScripts = [], plutusScripts = [] }) <|
+            D.associativeList D.natural Metadatum.fromCbor
+
+        -- Allegra variant
+        , D.tuple (\txMetadata auxiliaryScripts -> { labels = txMetadata, nativeScripts = auxiliaryScripts, plutusScripts = [] }) <|
+            D.elems
+                >> D.elem (D.associativeList D.natural Metadatum.fromCbor)
+                >> D.elem (D.list Script.decodeNativeScript)
+        ]

@@ -1,6 +1,7 @@
 module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
     , encodeScript, encodeNativeScript, encodePlutusScript
+    , decodeNativeScript
     )
 
 {-| Script
@@ -12,9 +13,16 @@ module Cardano.Script exposing
 
 @docs encodeScript, encodeNativeScript, encodePlutusScript
 
+
+## Decoders
+
+@docs decodeNativeScript
+
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 
@@ -145,3 +153,14 @@ encodePlutusVersion version =
 
             PlutusV2 ->
                 2
+
+
+
+-- Decoders
+
+
+{-| Decode NativeScript from CBOR.
+-}
+decodeNativeScript : D.Decoder NativeScript
+decodeNativeScript =
+    DE.failWith "decode native script unimplemented"
