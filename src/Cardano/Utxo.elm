@@ -41,11 +41,9 @@ module Cardano.Utxo exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address)
 import Cardano.Data as Data exposing (Data)
-import Cardano.MultiAsset as MultiAsset
 import Cardano.Script as Script exposing (Script)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
-import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
@@ -216,11 +214,11 @@ encodeDatumOption datumOption =
 decodeOutput : D.Decoder Output
 decodeOutput =
     let
-        legacyOutputBuilder address amount =
+        legacyOutputBuilder address amount optionalDatumHash =
             Legacy
                 { address = address
-                , amount = { lovelace = amount, assets = MultiAsset.empty }
-                , datumHash = Nothing
+                , amount = amount
+                , datumHash = optionalDatumHash
                 }
     in
     D.tuple legacyOutputBuilder <|
@@ -228,4 +226,6 @@ decodeOutput =
             -- Address
             >> D.elem Address.decode
             -- Coin value (lovelace)
-            >> D.elem DE.natural
+            >> D.elem Value.fromCbor
+            -- ? datum_hash : $hash32
+            >> D.optionalElem (D.map Bytes.fromBytes D.bytes)

@@ -1,12 +1,14 @@
-module Cardano.Value exposing (Value, onlyLovelace, encode)
+module Cardano.Value exposing (Value, onlyLovelace, encode, fromCbor)
 
 {-| Handling Cardano values.
 
-@docs Value, onlyLovelace, encode
+@docs Value, onlyLovelace, encode, fromCbor
 
 -}
 
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Cbor.Decode as D
+import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Natural exposing (Natural)
@@ -21,7 +23,7 @@ TODO: make sure the previous statement stays true?
 
 -}
 type alias Value =
-    { lovelace : Natural, assets : MultiAsset }
+    { lovelace : Natural, assets : MultiAsset Natural }
 
 
 {-| Create a [Value] just containing Ada lovelaces.
@@ -42,6 +44,20 @@ encode { lovelace, assets } =
         E.sequence
             [ E.beginList
             , EE.natural lovelace
-            , MultiAsset.toCbor assets
+            , MultiAsset.coinsToCbor assets
             , E.break
             ]
+
+
+{-| CBOR decoder for [Value].
+-}
+fromCbor : D.Decoder Value
+fromCbor =
+    D.oneOf
+        -- value = coin / [coin,multiasset<uint>]
+        [ D.map onlyLovelace DE.natural
+        , D.tuple Value <|
+            D.elems
+                >> D.elem DE.natural
+                >> D.elem MultiAsset.coinsFromCbor
+        ]

@@ -52,6 +52,7 @@ import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
+import Integer exposing (Integer)
 import Natural exposing (Natural)
 
 
@@ -80,7 +81,7 @@ type alias TransactionBody =
 
     -- TODO: Use a type that can have negative numbers instead
     -- and make MultiAsset only positive numbers?
-    , mint : MultiAsset -- 9
+    , mint : MultiAsset Integer -- 9
     , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
     , requiredSigners : List (Bytes CredentialHash) -- 14
@@ -441,7 +442,7 @@ encodeTransactionBody =
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.toCbor .mint
+            >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.mintToCbor .mint
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
             >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
             >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners

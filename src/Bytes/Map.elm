@@ -5,7 +5,7 @@ module Bytes.Map exposing
     , keys, values, toList, fromList
     , map, mapWithKeys, foldl, foldlWithKeys, foldr, foldrWithKeys, filter, filterWithKeys
     , union, intersect, diff, merge
-    , toCbor
+    , toCbor, fromCbor
     )
 
 {-| A `BytesMap` is a dictionnary mapping unique keys to values, where all keys are
@@ -44,13 +44,14 @@ Insert, remove, and query operations all take O(log n) time.
 @docs union, intersect, diff, merge
 
 
-## Encode
+## Encode / Decode
 
-@docs toCbor
+@docs toCbor, fromCbor
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Dict exposing (Dict)
@@ -293,3 +294,14 @@ toCbor valueEncoder (BytesMap data) =
             Bytes.fromStringUnchecked >> Bytes.toCbor
     in
     EE.ledgerDict keyEncoder valueEncoder data
+
+
+{-| CBOR decoder.
+-}
+fromCbor : D.Decoder v -> D.Decoder (BytesMap k v)
+fromCbor valueDecoder =
+    D.map BytesMap <|
+        D.dict
+            -- Convert the key from Bytes to hex String
+            (D.map (Bytes.toString << Bytes.fromBytes) D.bytes)
+            valueDecoder
