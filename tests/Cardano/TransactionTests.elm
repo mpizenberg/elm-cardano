@@ -1,6 +1,7 @@
 module Cardano.TransactionTests exposing (suite)
 
 import Bytes.Comparable as Bytes
+import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
@@ -11,6 +12,7 @@ import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo
 import Cardano.Value as Value
+import Dict exposing (Dict)
 import Expect
 import Integer
 import Natural as N exposing (Natural)
@@ -1621,7 +1623,56 @@ decodee252be4c =
         \_ ->
             Bytes.fromStringUnchecked "83a50081825820d9a8ae2194e2e25e8079a04a4694e2679464a4f51512863a0008a35a85762ff00001818258390187be75696aea59b41b36415d0b7c8b7a0c21fe3dd5a63939acfbc3a0285f7ef46037e7fd61f04d19b4cabbc7ff7c2a7f8279a11f50422a95821a003d0900a1581c00000002df633853f6a47465c9496721d2d5b1291b8398016c0e87aea1476e7574636f696e01021a000f4240031a017290bf09a1581c00000002df633853f6a47465c9496721d2d5b1291b8398016c0e87aea1476e7574636f696e01a20082825820f89a1eb82e913f8622f7891cd7c41bae2cd0f1279f290ca4825b9c58e9f407ff584061e4e5821b852ecffaadc664bbfdd905b54520c11e76f04e684b6702a3204797a85b4d3f42cb66669a66623972d102da6f2a78f55a0a5862b0c090a1675a880782582008c2ca6654c9e43b41b0b1560ee6a7bb4997629c2646575982934a51ecd71900584034cb5fb5b8f9f9fd339611a2d82ca35468863cd205684534e104841dca0632f8b3a350e91c6696576252128f338f8636925dd66e398a9e2df25614a89c2c5d0d018182018282051a017290bf8200581ce97316c52c85eab276fd40feacf78bc5eff74e225e744567140070c3f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBodye252be4c
+                        , witnessSet = txWitnessSete252be4c
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+txBodye252be4c : TransactionBody
+txBodye252be4c =
+    { newTxBody
+        | auxiliaryDataHash = Nothing
+        , fee = Just (N.fromSafeInt 1000000)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "d9a8ae2194e2e25e8079a04a4694e2679464a4f51512863a0008a35a85762ff0" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "87be75696aea59b41b36415d0b7c8b7a0c21fe3dd5a63939acfbc3a0")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "285f7ef46037e7fd61f04d19b4cabbc7ff7c2a7f8279a11f50422a95")))
+                        }
+                , amount =
+                    { assets = bytesMap (Dict.fromList [ ( "00000002df633853f6a47465c9496721d2d5b1291b8398016c0e87ae", bytesMap (Dict.fromList [ ( "6e7574636f696e", N.fromSafeInt 1 ) ]) ) ])
+                    , lovelace = N.fromSafeInt 4000000
+                    }
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (N.fromSafeInt 24285375)
+    }
+
+
+txWitnessSete252be4c : WitnessSet
+txWitnessSete252be4c =
+    { newTxWitnessSet
+        | bootstrapWitness = Nothing
+        , nativeScripts = Just [ ScriptAll [ InvalidHereafter 24285375, ScriptPubkey (Bytes.fromStringUnchecked "e97316c52c85eab276fd40feacf78bc5eff74e225e744567140070c3") ] ]
+        , vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "61e4e5821b852ecffaadc664bbfdd905b54520c11e76f04e684b6702a3204797a85b4d3f42cb66669a66623972d102da6f2a78f55a0a5862b0c090a1675a8807"
+                  , vkey = Bytes.fromStringUnchecked "f89a1eb82e913f8622f7891cd7c41bae2cd0f1279f290ca4825b9c58e9f407ff"
+                  }
+                , { signature = Bytes.fromStringUnchecked "34cb5fb5b8f9f9fd339611a2d82ca35468863cd205684534e104841dca0632f8b3a350e91c6696576252128f338f8636925dd66e398a9e2df25614a89c2c5d0d"
+                  , vkey = Bytes.fromStringUnchecked "08c2ca6654c9e43b41b0b1560ee6a7bb4997629c2646575982934a51ecd71900"
+                  }
+                ]
+    }
 
 
 
@@ -1651,6 +1702,13 @@ bigNat xs =
     in
     List.foldl step ( N.zero, N.one ) xs
         |> Tuple.first
+
+
+bytesMap : Dict String v -> BytesMap k v
+bytesMap keyValues =
+    Dict.toList keyValues
+        |> List.map (\( k, v ) -> ( Bytes.fromStringUnchecked k, v ))
+        |> Bytes.Map.fromList
 
 
 
