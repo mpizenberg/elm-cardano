@@ -11,6 +11,7 @@ import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo
 import Cardano.Value as Value
 import Expect
+import Integer
 import Natural as N exposing (Natural)
 import Test exposing (Test, describe, test)
 import Tests exposing (expectBytes)
@@ -1452,7 +1453,78 @@ decode254685a8 =
         \_ ->
             Bytes.fromStringUnchecked "83a50081825820d241c8e10ff0d9ac04cfed2a6d6d6f80d0250bc2a47489df7b436f0d9f769b4d010182825839013ffb2a4330a1742c6243aecdb3619768f10efd50676cbbe90df6ee6f001b294a5d8925e7fc4ac1ee89235925c722c1eadbfa74f90c1f4b0d1a000f4240825839019a9cb3efe697ef46401222bc952ce1c7b63cee34c48951ce5e22f888001b294a5d8925e7fc4ac1ee89235925c722c1eadbfa74f90c1f4b0d1a035cf832021a0002b149031a00fd3c9807582027c2bbc74ce52de561afc65f4db18eaff9cf05938e570c2370bca19bf8b33c68a1008182582071b6f4525dea5a5c295cb78c8674e93202995f75157b38fc149338b5a8b35f195840b6fff317173f5aa8eff05ae47df56b89360fe547a3a900e1db849f52e83bd0743b18da254684256d29c016ed2e3792149bdbf6c3375b7b9ff4cf12507e662e0582a219ef64a2015820ad5c72ef06f056a8c3f49029e26bd93bf02aa5fde2c316d32057e1e16eb38c77025820b69b1be933e9463b1a1553c2829b6f093e7e4c5c6b6afb1ce5bd333262ef804c19ef65a10158408d6c17e1b41ecf192fe70bac45d452c33c6d4598c2f60f50fe4f9de35984ffdc9fda74ba8feaafe96c0cd2918f321e86ccb318ab46d7731192e5caf684c2930080"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = txBody254685a8
+                        , witnessSet = txWitnessSet254685a8
+                        , isValid = True
+                        , auxiliaryData = Just txAuxiliaryData254685a8
+                        }
+                    )
+
+
+txAuxiliaryData254685a8 : AuxiliaryData
+txAuxiliaryData254685a8 =
+    { labels =
+        [ ( N.fromSafeInt 61284
+          , Metadatum.Map
+                [ ( Metadatum.Int (Integer.fromNatural (N.fromSafeInt 1)), Metadatum.Bytes (Bytes.fromStringUnchecked "ad5c72ef06f056a8c3f49029e26bd93bf02aa5fde2c316d32057e1e16eb38c77") )
+                , ( Metadatum.Int (Integer.fromNatural (N.fromSafeInt 2)), Metadatum.Bytes (Bytes.fromStringUnchecked "b69b1be933e9463b1a1553c2829b6f093e7e4c5c6b6afb1ce5bd333262ef804c") )
+                ]
+          )
+        , ( N.fromSafeInt 61285
+          , Metadatum.Map
+                [ ( Metadatum.Int (Integer.fromNatural (N.fromSafeInt 1)), Metadatum.Bytes (Bytes.fromStringUnchecked "8d6c17e1b41ecf192fe70bac45d452c33c6d4598c2f60f50fe4f9de35984ffdc9fda74ba8feaafe96c0cd2918f321e86ccb318ab46d7731192e5caf684c29300") )
+                ]
+          )
+        ]
+    , nativeScripts = []
+    , plutusScripts = []
+    }
+
+
+txBody254685a8 : TransactionBody
+txBody254685a8 =
+    { newTxBody
+        | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "27c2bbc74ce52de561afc65f4db18eaff9cf05938e570c2370bca19bf8b33c68")
+        , fee = Just (N.fromSafeInt 176457)
+        , inputs = [ { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "d241c8e10ff0d9ac04cfed2a6d6d6f80d0250bc2a47489df7b436f0d9f769b4d" } ]
+        , outputs =
+            [ Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "3ffb2a4330a1742c6243aecdb3619768f10efd50676cbbe90df6ee6f")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "001b294a5d8925e7fc4ac1ee89235925c722c1eadbfa74f90c1f4b0d")))
+                        }
+                , amount = Value.onlyLovelace (N.fromSafeInt 1000000)
+                , datumHash = Nothing
+                }
+            , Utxo.Legacy
+                { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "9a9cb3efe697ef46401222bc952ce1c7b63cee34c48951ce5e22f888")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "001b294a5d8925e7fc4ac1ee89235925c722c1eadbfa74f90c1f4b0d")))
+                        }
+                , amount = Value.onlyLovelace (N.fromSafeInt 56424498)
+                , datumHash = Nothing
+                }
+            ]
+        , ttl = Just (N.fromSafeInt 16596120)
+    }
+
+
+txWitnessSet254685a8 : WitnessSet
+txWitnessSet254685a8 =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "b6fff317173f5aa8eff05ae47df56b89360fe547a3a900e1db849f52e83bd0743b18da254684256d29c016ed2e3792149bdbf6c3375b7b9ff4cf12507e662e05"
+                  , vkey = Bytes.fromStringUnchecked "71b6f4525dea5a5c295cb78c8674e93202995f75157b38fc149338b5a8b35f19"
+                  }
+                ]
+    }
 
 
 
