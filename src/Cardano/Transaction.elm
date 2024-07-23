@@ -1036,7 +1036,7 @@ decodeWitness =
             -- vkeywitness
             >> D.optionalField 0 (D.list decodeVKeyWitness)
             -- multisig_script
-            >> D.optionalField 1 (D.list decodeNativeScript)
+            >> D.optionalField 1 (D.list Script.decodeNativeScript)
             -- bootstrap_witness
             >> D.optionalField 2 (D.list decodeBootstrapWitness)
 
@@ -1053,11 +1053,6 @@ decodeVKeyWitness =
         D.elems
             >> D.elem D.bytes
             >> D.elem D.bytes
-
-
-decodeNativeScript : D.Decoder NativeScript
-decodeNativeScript =
-    D.failWith "decodeNativeScript (not implemented) failed to decode"
 
 
 decodeBootstrapWitness : D.Decoder BootstrapWitness

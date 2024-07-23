@@ -163,4 +163,29 @@ encodePlutusVersion version =
 -}
 decodeNativeScript : D.Decoder NativeScript
 decodeNativeScript =
-    DE.failWith "decode native script unimplemented"
+    D.length
+        |> D.ignoreThen D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.map (ScriptPubkey << Bytes.fromBytes) D.bytes
+
+                    1 ->
+                        D.map ScriptAll (D.list decodeNativeScript)
+
+                    2 ->
+                        D.map ScriptAny (D.list decodeNativeScript)
+
+                    3 ->
+                        D.map2 ScriptNofK D.int (D.list decodeNativeScript)
+
+                    4 ->
+                        D.map InvalidBefore D.int
+
+                    5 ->
+                        D.map InvalidHereafter D.int
+
+                    _ ->
+                        D.fail
+            )
