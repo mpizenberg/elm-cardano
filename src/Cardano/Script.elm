@@ -22,8 +22,10 @@ module Cardano.Script exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Decode as D
+import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
+import Natural exposing (Natural)
 
 
 {-| Cardano script, either a native script or a plutus script.
@@ -48,8 +50,8 @@ type NativeScript
     | ScriptAll (List NativeScript)
     | ScriptAny (List NativeScript)
     | ScriptNofK Int (List NativeScript)
-    | InvalidBefore Int
-    | InvalidHereafter Int
+    | InvalidBefore Natural
+    | InvalidHereafter Natural
 
 
 {-| Phantom type for 28-bytes native script public key hash.
@@ -127,12 +129,12 @@ encodeNativeScript nativeScript =
 
             InvalidBefore start ->
                 [ E.int 4
-                , E.int start
+                , EE.natural start
                 ]
 
             InvalidHereafter end ->
                 [ E.int 5
-                , E.int end
+                , EE.natural end
                 ]
 
 
@@ -180,10 +182,10 @@ decodeNativeScript =
                         D.map2 ScriptNofK D.int (D.list decodeNativeScript)
 
                     4 ->
-                        D.map InvalidBefore D.int
+                        D.map InvalidBefore D.natural
 
                     5 ->
-                        D.map InvalidHereafter D.int
+                        D.map InvalidHereafter D.natural
 
                     _ ->
                         D.fail

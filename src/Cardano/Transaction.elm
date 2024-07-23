@@ -1035,9 +1035,9 @@ decodeWitness =
     D.record D.int witnessBuilder <|
         D.fields
             -- vkeywitness
-            >> D.optionalField 0 (D.list decodeVKeyWitness)
+            >> D.optionalField 0 (D.oneOf [ D.list decodeVKeyWitness, D.failWith "Failed to decode KVeyWitness list" ])
             -- multisig_script
-            >> D.optionalField 1 (D.list Script.decodeNativeScript)
+            >> D.optionalField 1 (D.oneOf [ D.list Script.decodeNativeScript, D.failWith "Failed to decode NativeScript list" ])
             -- bootstrap_witness
             >> D.optionalField 2 (D.list decodeBootstrapWitness)
 
