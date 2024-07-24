@@ -78,9 +78,6 @@ type alias TransactionBody =
     , update : Maybe Update -- 6
     , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
     , validityIntervalStart : Maybe Int -- 8
-
-    -- TODO: Use a type that can have negative numbers instead
-    -- and make MultiAsset only positive numbers?
     , mint : MultiAsset Integer -- 9
     , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
     , collateral : List OutputReference -- 13
@@ -710,11 +707,23 @@ encodeRationalNumber =
 {-| -}
 decodeTransaction : D.Decoder Transaction
 decodeTransaction =
-    D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
-        D.elems
-            >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
-            >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
-            >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
+    let
+        preAlonzo =
+            D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
+                D.elems
+                    >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
+                    >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
+                    >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
+
+        postAlonzo =
+            D.tuple Transaction <|
+                D.elems
+                    >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
+                    >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
+                    >> D.elem D.bool
+                    >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
+    in
+    D.oneOf [ postAlonzo, preAlonzo ]
 
 
 
