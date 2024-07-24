@@ -97,6 +97,8 @@ type Output
         { address : Address
         , value : Value
         , datumOption : Maybe DatumOption
+
+        -- TODO: this is wrong, only script_ref here, not the full script
         , referenceScript : Maybe Script
         }
 

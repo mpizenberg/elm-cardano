@@ -1414,7 +1414,8 @@ txAuxiliaryDatac220e20c =
           )
         ]
     , nativeScripts = []
-    , plutusScripts = []
+    , plutusV1Scripts = []
+    , plutusV2Scripts = []
     }
 
 
@@ -1489,7 +1490,8 @@ txAuxiliaryData254685a8 =
           )
         ]
     , nativeScripts = []
-    , plutusScripts = []
+    , plutusV1Scripts = []
+    , plutusV2Scripts = []
     }
 
 
