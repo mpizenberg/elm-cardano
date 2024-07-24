@@ -43,7 +43,7 @@ import Cardano.Transaction
         , WitnessSet
         , serialize
         )
-import Cardano.Utxo exposing (DatumOption(..), Output(..), OutputReference)
+import Cardano.Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value
 import Natural exposing (Natural)
 
@@ -173,13 +173,11 @@ payToContract : Address -> Natural -> Data -> Tx -> Tx
 payToContract address amount datum tx =
     tx
         |> output
-            (PostAlonzo
-                { address = address
-                , value = Value.onlyLovelace amount
-                , datumOption = Just (Datum datum)
-                , referenceScript = Nothing
-                }
-            )
+            { address = address
+            , amount = Value.onlyLovelace amount
+            , datumOption = Just (Datum datum)
+            , referenceScript = Nothing
+            }
 
 
 {-| Send Ada to an address.
@@ -188,12 +186,11 @@ payToAddress : Address -> Natural -> Tx -> Tx
 payToAddress address amount tx =
     tx
         |> output
-            (Legacy
-                { address = address
-                , amount = Value.onlyLovelace amount
-                , datumHash = Nothing
-                }
-            )
+            { address = address
+            , amount = Value.onlyLovelace amount
+            , datumOption = Nothing
+            , referenceScript = Nothing
+            }
 
 
 {-| Add an output to the Tx.
@@ -267,12 +264,11 @@ collateralReturn address amount (Tx inner) =
     inner
         |> updateBody
             (addCollateralReturn
-                (Legacy
-                    { address = address
-                    , amount = Value.onlyLovelace amount
-                    , datumHash = Nothing
-                    }
-                )
+                { address = address
+                , amount = Value.onlyLovelace amount
+                , datumOption = Nothing
+                , referenceScript = Nothing
+                }
             )
 
 

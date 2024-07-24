@@ -1,5 +1,5 @@
 module Cardano.Utxo exposing
-    ( OutputReference, TransactionId, Output(..), DatumHash, DatumOption(..)
+    ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , fromLovelace
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
@@ -87,20 +87,14 @@ decodeOutputReference =
 
 {-| The content of a eUTxO.
 -}
-type Output
-    = Legacy
-        { address : Address
-        , amount : Value
-        , datumHash : Maybe (Bytes DatumHash)
-        }
-    | PostAlonzo
-        { address : Address
-        , value : Value
-        , datumOption : Maybe DatumOption
+type alias Output =
+    { address : Address
+    , amount : Value
+    , datumOption : Maybe DatumOption
 
-        -- TODO: this is wrong, only script_ref here, not the full script
-        , referenceScript : Maybe Script
-        }
+    -- TODO: this is wrong, only script_ref here, not the full script
+    , referenceScript : Maybe Script
+    }
 
 
 {-| Phantom type for 32-bytes datum hashes.
@@ -128,23 +122,18 @@ sortByAscendingLovelace =
 -}
 fromLovelace : Address -> Natural -> Output
 fromLovelace address amount =
-    Legacy
-        { address = address
-        , amount = Value.onlyLovelace amount
-        , datumHash = Nothing
-        }
+    { address = address
+    , amount = Value.onlyLovelace amount
+    , datumOption = Nothing
+    , referenceScript = Nothing
+    }
 
 
 {-| Extract the amount of lovelace in an `Output`
 -}
 lovelace : Output -> Natural
 lovelace output =
-    case output of
-        Legacy legacyOutput ->
-            legacyOutput.amount.lovelace
-
-        PostAlonzo postAlonzoOutput ->
-            postAlonzoOutput.value.lovelace
+    output.amount.lovelace
 
 
 {-| Calculate the total number of lovelace in a collection of `Output`
@@ -158,30 +147,19 @@ totalLovelace =
 -}
 encodeOutput : Output -> E.Encoder
 encodeOutput output =
-    case output of
-        Legacy fields ->
-            E.tuple
-                (E.elems
-                    >> E.elem Address.toCbor .address
-                    >> E.elem Value.encode .amount
-                    >> E.optionalElem Bytes.toCbor .datumHash
+    E.record E.int
+        (E.fields
+            >> E.field 0 Address.toCbor .address
+            >> E.field 1 Value.encode .amount
+            >> E.optionalField 2 encodeDatumOption .datumOption
+            >> E.optionalField 3
+                (Script.encodeScript
+                    >> E.encode
+                    >> E.tagged Tag.Cbor E.bytes
                 )
-                fields
-
-        PostAlonzo fields ->
-            E.record E.int
-                (E.fields
-                    >> E.field 0 Address.toCbor .address
-                    >> E.field 1 Value.encode .value
-                    >> E.optionalField 2 encodeDatumOption .datumOption
-                    >> E.optionalField 3
-                        (Script.encodeScript
-                            >> E.encode
-                            >> E.tagged Tag.Cbor E.bytes
-                        )
-                        .referenceScript
-                )
-                fields
+                .referenceScript
+        )
+        output
 
 
 {-| Nickname for data stored in a eUTxO.
@@ -216,14 +194,14 @@ encodeDatumOption datumOption =
 decodeOutput : D.Decoder Output
 decodeOutput =
     let
-        legacyOutputBuilder address amount optionalDatumHash =
-            Legacy
-                { address = address
-                , amount = amount
-                , datumHash = optionalDatumHash
-                }
+        outputBuilder address amount optionalDatum =
+            { address = address
+            , amount = amount
+            , datumOption = Maybe.map DatumHash optionalDatum
+            , referenceScript = Nothing
+            }
     in
-    D.tuple legacyOutputBuilder <|
+    D.tuple outputBuilder <|
         D.elems
             -- Address
             >> D.elem Address.decode
