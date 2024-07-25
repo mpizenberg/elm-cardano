@@ -50,27 +50,25 @@ toCbor data =
     in
     case data of
         Constr ixNat fields ->
-            -- TODO: it is problematic that Tag.Unknown takes an Int but in fact
-            -- ixNat may be an arbitrarily big integer.
-            -- This would need to be dealt with directly in the Cbor package.
-            let
-                ix =
-                    Natural.toInt ixNat
-            in
-            if 0 <= ix && ix < 7 then
-                E.tagged (Tag.Unknown <| 121 + ix) encodeList fields
+            if ixNat |> Natural.isLessThan (Natural.fromSafeInt 128) then
+                let
+                    ix =
+                        Natural.toInt ixNat
+                in
+                if ix < 7 then
+                    E.tagged (Tag.Unknown <| 121 + ix) encodeList fields
 
-            else if 7 <= ix && ix < 128 then
-                E.tagged (Tag.Unknown <| 1280 + ix - 7) encodeList fields
+                else
+                    E.tagged (Tag.Unknown <| 1280 + ix - 7) encodeList fields
 
             else
                 E.tagged (Tag.Unknown 102)
                     (E.tuple <|
                         E.elems
-                            >> E.elem E.int .ix
+                            >> E.elem EE.natural .ixNat
                             >> E.elem encodeList .fields
                     )
-                    { ix = ix, fields = fields }
+                    { ixNat = ixNat, fields = fields }
 
         Map xs ->
             EE.ledgerAssociativeList toCbor toCbor xs
