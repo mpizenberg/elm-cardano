@@ -1,14 +1,14 @@
 module Cardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
     , encode, encodeTag, encodeExUnits
-    , exUnitsFromCbor
+    , fromCbor, exUnitsFromCbor
     )
 
 {-| Redeemer
 
 @docs Redeemer, RedeemerTag, ExUnits
 @docs encode, encodeTag, encodeExUnits
-@docs exUnitsFromCbor
+@docs fromCbor, exUnitsFromCbor
 
 -}
 
@@ -42,6 +42,41 @@ type alias ExUnits =
     { mem : Int -- 0
     , steps : Int -- 1
     }
+
+
+{-| CBOR decoder for [Redeemer].
+-}
+fromCbor : D.Decoder Redeemer
+fromCbor =
+    D.tuple Redeemer <|
+        D.elems
+            >> D.elem tagFromCbor
+            >> D.elem D.int
+            >> D.elem Data.fromCbor
+            >> D.elem exUnitsFromCbor
+
+
+tagFromCbor : D.Decoder RedeemerTag
+tagFromCbor =
+    D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.succeed Spend
+
+                    1 ->
+                        D.succeed Mint
+
+                    2 ->
+                        D.succeed Cert
+
+                    3 ->
+                        D.succeed Reward
+
+                    _ ->
+                        D.fail
+            )
 
 
 {-| CBOR encoder for a [Redeemer].

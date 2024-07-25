@@ -1168,13 +1168,13 @@ decodeWitness =
             -- bootstrap_witness
             >> D.optionalField 2 (D.oneOf [ D.list decodeBootstrapWitness, D.failWith "Failed to decode bootstrap witness" ])
             -- plutus_v1_script
-            >> D.optionalField 3 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus v1 script" ])
+            >> D.optionalField 3 (D.oneOf [ D.list (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v1 script" ])
             -- plutus_data
-            >> D.optionalField 4 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus data" ])
+            >> D.optionalField 4 (D.oneOf [ D.list Data.fromCbor, D.failWith "Failed to decode plutus data" ])
             -- redeemer
-            >> D.optionalField 5 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode redeemer" ])
+            >> D.optionalField 5 (D.oneOf [ D.list Redeemer.fromCbor, D.failWith "Failed to decode redeemer" ])
             -- plutus_v2_script
-            >> D.optionalField 6 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus v2 script" ])
+            >> D.optionalField 6 (D.oneOf [ D.list (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v2 script" ])
 
 
 decodeVKeyWitness : D.Decoder VKeyWitness
