@@ -764,6 +764,116 @@ decodeTransaction =
 
 decodeBody : D.Decoder TransactionBody
 decodeBody =
+    let
+        buildTxBody inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash validityIntervalStart mint scriptDataHash collateral requiredSigners networkId collateralReturn totalCollateral referenceInputs =
+            { inputs = inputs
+            , outputs = outputs
+            , fee = Just fee
+            , ttl = ttl
+            , certificates = certificates |> Maybe.withDefault []
+            , withdrawals = withdrawals |> Maybe.withDefault []
+            , update = update
+            , auxiliaryDataHash = auxiliaryDataHash
+            , validityIntervalStart = validityIntervalStart
+            , mint = mint |> Maybe.withDefault MultiAsset.empty
+            , scriptDataHash = scriptDataHash
+            , collateral = collateral |> Maybe.withDefault []
+            , requiredSigners = requiredSigners |> Maybe.withDefault []
+            , networkId = networkId
+            , collateralReturn = collateralReturn
+            , totalCollateral = totalCollateral
+            , referenceInputs = referenceInputs |> Maybe.withDefault []
+            }
+    in
+    D.record D.int buildTxBody <|
+        D.fields
+            -- inputs
+            >> D.field 0
+                (D.oneOf
+                    [ D.list Utxo.decodeOutputReference
+                    , D.failWith "Failed to decode inputs (0)"
+                    ]
+                )
+            -- outputs
+            >> D.field 1
+                (D.oneOf
+                    [ D.list Utxo.decodeOutput
+                    , D.failWith "Failed to decode outputs (1)"
+                    ]
+                )
+            -- fee
+            >> D.field 2
+                (D.oneOf [ D.natural, D.failWith "Failed to decode fee (2)" ])
+            -- ttl
+            >> D.optionalField 3
+                (D.oneOf [ D.natural, D.failWith "Failed to decode TTL (3)" ])
+            -- certificates
+            >> D.optionalField 4
+                (D.oneOf
+                    [ D.list decodeCertificate
+                    , D.failWith "Failed to decode certificate (4)"
+                    ]
+                )
+            -- withdrawals
+            >> D.optionalField 5
+                (D.oneOf [ decodeWithdrawals, D.failWith "Failed to decode withdrawals (5)" ])
+            -- update
+            >> D.optionalField 6
+                (D.oneOf [ decodeUpdate, D.failWith "Failed to decode protocol update (6)" ])
+            -- auxiliary data hash
+            >> D.optionalField 7
+                (D.oneOf
+                    [ D.map Bytes.fromBytes D.bytes
+                    , D.failWith "Failed to decode auxiliary data hash (7)"
+                    ]
+                )
+            -- validity interval start
+            >> D.optionalField 8
+                (D.oneOf [ D.int, D.failWith "Failed to decode validity interval start (8)" ])
+            -- mint
+            >> D.optionalField 9
+                (D.oneOf [ MultiAsset.mintFromCbor, D.failWith "Failed to decode mint (9)" ])
+            -- script data hash
+            >> D.optionalField 11
+                (D.oneOf
+                    [ D.map Bytes.fromBytes D.bytes
+                    , D.failWith "Failed to decode script data hash (11)"
+                    ]
+                )
+            -- collateral
+            >> D.optionalField 13
+                (D.oneOf
+                    [ D.list Utxo.decodeOutputReference
+                    , D.failWith "Failed to decode collateral (13)"
+                    ]
+                )
+            -- required signers
+            >> D.optionalField 14
+                (D.oneOf
+                    [ D.list (D.map Bytes.fromBytes D.bytes)
+                    , D.failWith "Failed to decode required signers (14)"
+                    ]
+                )
+            -- network ID
+            >> D.optionalField 15
+                (D.oneOf [ decodeNetworkId, D.failWith "Failed to decode network id (15)" ])
+            -- collateral return
+            >> D.optionalField 16
+                (D.oneOf [ Utxo.decodeOutput, D.failWith "Failed to decode collateral return (16)" ])
+            -- total collateral
+            >> D.optionalField 17
+                (D.oneOf [ D.int, D.failWith "Failed to decode total collateral (17)" ])
+            -- reference inputs
+            >> D.optionalField 18
+                (D.oneOf
+                    [ D.list Utxo.decodeOutputReference
+                    , D.failWith "Failed to decode reference inputs (18)"
+                    ]
+                )
+
+
+decodeBodyFold : D.Decoder TransactionBody
+decodeBodyFold =
     D.fold D.int
         (\k ->
             case k of
