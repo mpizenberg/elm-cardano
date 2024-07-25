@@ -110,6 +110,8 @@ fromCbor =
 
 fromCborItem : CborItem -> Maybe Data
 fromCborItem item =
+    -- TODO: make more tail-rec,
+    -- but would require difficult inlining of collectCborPairs and collectCborItems
     case item of
         CborMap xs ->
             collectCborPairs [] xs |> Maybe.map Map
@@ -219,16 +221,12 @@ collectCborPairs st pairs =
             Just (List.reverse st)
 
         ( left, right ) :: tail ->
-            -- TODO: make tail rec
-            fromCborItem left
-                |> Maybe.andThen
-                    (\l ->
-                        fromCborItem right
-                            |> Maybe.andThen
-                                (\r ->
-                                    collectCborPairs (( l, r ) :: st) tail
-                                )
-                    )
+            case ( fromCborItem left, fromCborItem right ) of
+                ( Just l, Just r ) ->
+                    collectCborPairs (( l, r ) :: st) tail
+
+                _ ->
+                    Nothing
 
 
 collectCborItems : List Data -> List CborItem -> Maybe (List Data)
@@ -238,6 +236,9 @@ collectCborItems st items =
             Just (List.reverse st)
 
         head :: tail ->
-            -- TODO: make tail rec
-            fromCborItem head
-                |> Maybe.andThen (\s -> collectCborItems (s :: st) tail)
+            case fromCborItem head of
+                Just s ->
+                    collectCborItems (s :: st) tail
+
+                Nothing ->
+                    Nothing
