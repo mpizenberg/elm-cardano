@@ -148,8 +148,8 @@ type alias ProtocolParamUpdate =
     , extraEntropy : Maybe Nonce -- 13 (deprecated)
     , protocolVersion : Maybe ProtocolVersion -- 14
     , minUtxoValue : Maybe Natural -- 15 (deprecated)
-    , minPoolCost : Maybe Int -- 16
-    , adaPerUtxoByte : Maybe Int -- 17
+    , minPoolCost : Maybe Natural -- 16
+    , adaPerUtxoByte : Maybe Natural -- 17
     , costModelsForScriptLanguages : Maybe CostModels -- 18
     , executionCosts : Maybe ExUnitPrices -- 19
     , maxTxExUnits : Maybe ExUnits -- 20
@@ -668,8 +668,8 @@ encodeProtocolParamUpdate =
             >> E.optionalField 10 encodeRationalNumber .expansionRate
             >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
             >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
-            >> E.optionalField 16 E.int .minPoolCost
-            >> E.optionalField 17 E.int .adaPerUtxoByte
+            >> E.optionalField 16 E.natural .minPoolCost
+            >> E.optionalField 17 E.natural .adaPerUtxoByte
             >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
             >> E.optionalField 19 encodeExUnitPrices .executionCosts
             >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
@@ -1048,6 +1048,7 @@ decodeUpdate =
 
 decodeProtocolParamUpdate : D.Decoder ProtocolParamUpdate
 decodeProtocolParamUpdate =
+    -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
     D.record D.int ProtocolParamUpdate <|
         D.fields
             -- ? 0:  uint               ; minfee A
@@ -1074,23 +1075,32 @@ decodeProtocolParamUpdate =
             >> D.optionalField 10 decodeRational
             -- ? 11: unit_interval      ; treasury growth rate
             >> D.optionalField 11 decodeRational
-            -- ? 12: unit_interval      ; d. decentralization constant
+            -- ? 12: unit_interval      ; d. decentralization constant (deprecated)
             >> D.optionalField 12 decodeRational
-            -- ? 13: $nonce             ; extra entropy
+            -- ? 13: $nonce             ; extra entropy (deprecated)
             >> D.optionalField 13 decodeExtraEntropy
             -- ? 14: [protocol_version] ; protocol version
             >> D.optionalField 14 decodeProtocolVersion
-            -- ? 15: coin               ; min utxo value
+            -- ? 15: coin               ; min utxo value (deprecated)
             >> D.optionalField 15 D.natural
-            >> D.optionalField 16 (D.failWith "minPoolCost")
-            >> D.optionalField 17 (D.failWith "adaPerUtxoByte")
-            >> D.optionalField 18 (D.failWith "costModelsForScriptLanguages")
-            >> D.optionalField 19 (D.failWith "executionCosts")
-            >> D.optionalField 20 (D.failWith "maxTxExUnits")
-            >> D.optionalField 21 (D.failWith "maxBlockExUnits")
-            >> D.optionalField 22 (D.failWith "maxValueSize")
-            >> D.optionalField 23 (D.failWith "collateralPercentage")
-            >> D.optionalField 24 (D.failWith "maxCollateralInputs")
+            -- ? 16: coin                ; min pool cost
+            >> D.optionalField 16 D.natural
+            -- ? 17: coin                ; ada per utxo byte
+            >> D.optionalField 17 D.natural
+            -- ? 18: costmdls            ; cost models for script languages
+            >> D.optionalField 18 decodeCostModels
+            -- ? 19: ex_unit_prices      ; execution costs
+            >> D.optionalField 19 decodeExecutionCosts
+            -- ? 20: ex_units            ; max tx ex units
+            >> D.optionalField 20 Redeemer.exUnitsFromCbor
+            -- ? 21: ex_units            ; max block ex units
+            >> D.optionalField 21 Redeemer.exUnitsFromCbor
+            -- ? 22: uint                ; max value size
+            >> D.optionalField 22 D.int
+            -- ? 23: uint                ; collateral percentage
+            >> D.optionalField 23 D.int
+            -- ? 24: uint                ; max collateral inputs
+            >> D.optionalField 24 D.int
 
 
 decodeExtraEntropy : D.Decoder Nonce
@@ -1123,28 +1133,48 @@ decodeProtocolVersion =
             >> D.elem D.int
 
 
+decodeCostModels : D.Decoder CostModels
+decodeCostModels =
+    -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
+    D.record D.int (\v1costs v2costs -> { plutusV1 = v1costs, plutusV2 = v2costs }) <|
+        D.fields
+            -- plutusV1
+            >> D.optionalField 0 (D.list D.int)
+            -- plutusV2
+            >> D.optionalField 1 (D.list D.int)
+
+
+decodeExecutionCosts : D.Decoder ExUnitPrices
+decodeExecutionCosts =
+    D.tuple ExUnitPrices <|
+        D.elems
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+
+
 
 -- Decode witness
 
 
 decodeWitness : D.Decoder WitnessSet
 decodeWitness =
-    let
-        witnessBuilder vkeywitness multisigScript bootstrapWitness =
-            { newWitnessSet
-                | vkeywitness = vkeywitness
-                , nativeScripts = multisigScript
-                , bootstrapWitness = bootstrapWitness
-            }
-    in
-    D.record D.int witnessBuilder <|
+    -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
+    D.record D.int WitnessSet <|
         D.fields
             -- vkeywitness
             >> D.optionalField 0 (D.oneOf [ D.list decodeVKeyWitness, D.failWith "Failed to decode KVeyWitness list" ])
             -- multisig_script
             >> D.optionalField 1 (D.oneOf [ D.list Script.decodeNativeScript, D.failWith "Failed to decode NativeScript list" ])
             -- bootstrap_witness
-            >> D.optionalField 2 (D.list decodeBootstrapWitness)
+            >> D.optionalField 2 (D.oneOf [ D.list decodeBootstrapWitness, D.failWith "Failed to decode bootstrap witness" ])
+            -- plutus_v1_script
+            >> D.optionalField 3 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus v1 script" ])
+            -- plutus_data
+            >> D.optionalField 4 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus data" ])
+            -- redeemer
+            >> D.optionalField 5 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode redeemer" ])
+            -- plutus_v2_script
+            >> D.optionalField 6 (D.oneOf [ D.list D.fail, D.failWith "Failed to decode plutus v2 script" ])
 
 
 decodeVKeyWitness : D.Decoder VKeyWitness

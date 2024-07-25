@@ -1,16 +1,19 @@
 module Cardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
     , encode, encodeTag, encodeExUnits
+    , exUnitsFromCbor
     )
 
 {-| Redeemer
 
 @docs Redeemer, RedeemerTag, ExUnits
 @docs encode, encodeTag, encodeExUnits
+@docs exUnitsFromCbor
 
 -}
 
 import Cardano.Data as Data exposing (Data)
+import Cbor.Decode as D
 import Cbor.Encode as E
 
 
@@ -80,3 +83,13 @@ encodeExUnits =
         E.elems
             >> E.elem E.int .mem
             >> E.elem E.int .steps
+
+
+{-| CBOR decoder for [ExUnits].
+-}
+exUnitsFromCbor : D.Decoder ExUnits
+exUnitsFromCbor =
+    D.tuple ExUnits <|
+        D.elems
+            >> D.elem D.int
+            >> D.elem D.int
