@@ -7,7 +7,7 @@ module Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCb
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
+import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
