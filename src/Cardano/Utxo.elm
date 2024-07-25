@@ -91,8 +91,6 @@ type alias Output =
     { address : Address
     , amount : Value
     , datumOption : Maybe DatumOption
-
-    -- TODO: this is wrong, only script_ref here, not the full script
     , referenceScript : Maybe Script
     }
 
@@ -194,18 +192,52 @@ encodeDatumOption datumOption =
 decodeOutput : D.Decoder Output
 decodeOutput =
     let
-        outputBuilder address amount optionalDatum =
+        preBabbageBuilder address amount optionalDatum =
             { address = address
             , amount = amount
-            , datumOption = Maybe.map DatumHash optionalDatum
+            , datumOption = optionalDatum
             , referenceScript = Nothing
             }
+
+        preBabbage =
+            D.tuple preBabbageBuilder <|
+                D.elems
+                    -- Address
+                    >> D.elem Address.decode
+                    -- Coin value (lovelace)
+                    >> D.elem Value.fromCbor
+                    -- ? datum_hash : $hash32
+                    >> D.optionalElem (D.map (DatumHash << Bytes.fromBytes) D.bytes)
+
+        postBabbage =
+            D.record D.int Output <|
+                D.fields
+                    -- Address
+                    >> D.field 0 Address.decode
+                    -- Coin value (lovelace)
+                    >> D.field 1 Value.fromCbor
+                    -- ? datum_hash : $hash32
+                    >> D.optionalField 2 (D.map (DatumHash << Bytes.fromBytes) D.bytes)
+                    -- ? 3 : script_ref   ; New; script reference
+                    >> D.optionalField 3 decodeScriptRef
     in
-    D.tuple outputBuilder <|
-        D.elems
-            -- Address
-            >> D.elem Address.decode
-            -- Coin value (lovelace)
-            >> D.elem Value.fromCbor
-            -- ? datum_hash : $hash32
-            >> D.optionalElem (D.map Bytes.fromBytes D.bytes)
+    D.oneOf [ preBabbage, postBabbage ]
+
+
+{-| Decode a doubly CBOR encoded script for the output `script_ref` field.
+
+    script_ref = #6.24(bytes .cbor script)
+
+-}
+decodeScriptRef : D.Decoder Script
+decodeScriptRef =
+    D.tagged Tag.Cbor D.bytes
+        |> D.andThen
+            (\( _, scriptCbor ) ->
+                case D.decode Script.fromCbor scriptCbor of
+                    Just script ->
+                        D.succeed script
+
+                    Nothing ->
+                        D.fail
+            )

@@ -1,7 +1,7 @@
 module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
     , encodeScript, encodeNativeScript, encodePlutusScript
-    , decodeNativeScript
+    , fromCbor, decodeNativeScript
     )
 
 {-| Script
@@ -16,7 +16,7 @@ module Cardano.Script exposing
 
 ## Decoders
 
-@docs decodeNativeScript
+@docs fromCbor, decodeNativeScript
 
 -}
 
@@ -158,6 +158,33 @@ encodePlutusVersion version =
 
 
 -- Decoders
+
+
+{-| CBOR decoder for [Script].
+
+This does not contain the double CBOR decoding of the `script_ref` UTxO field.
+That part has to be handled in the UTxO decoder.
+
+-}
+fromCbor : D.Decoder Script
+fromCbor =
+    D.length
+        |> D.ignoreThen D.int
+        |> D.andThen
+            (\v ->
+                case v of
+                    0 ->
+                        D.map Native decodeNativeScript
+
+                    1 ->
+                        D.map (\s -> Plutus { version = PlutusV1, script = Bytes.fromBytes s }) D.bytes
+
+                    2 ->
+                        D.map (\s -> Plutus { version = PlutusV2, script = Bytes.fromBytes s }) D.bytes
+
+                    _ ->
+                        D.failWith ("Unknown script version: " ++ String.fromInt v)
+            )
 
 
 {-| Decode NativeScript from CBOR.
