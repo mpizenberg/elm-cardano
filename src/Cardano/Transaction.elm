@@ -2,7 +2,7 @@ module Cardano.Transaction exposing
     ( Transaction
     , TransactionBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet
-    , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion
+    , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion, noParamUpdate
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
@@ -20,7 +20,7 @@ module Cardano.Transaction exposing
 
 @docs WitnessSet
 
-@docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion
+@docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion, noParamUpdate
 
 @docs ScriptContext, ScriptPurpose
 
@@ -246,6 +246,38 @@ Bytes of this type can be of any length.
 -}
 type BootstrapWitnessAttributes
     = BootstrapWitnessAttributes Never
+
+
+{-| Default (no update) for [ProtocolParamUpdate].
+-}
+noParamUpdate : ProtocolParamUpdate
+noParamUpdate =
+    { minFeeA = Nothing -- 0
+    , minFeeB = Nothing -- 1
+    , maxBlockBodySize = Nothing -- 2
+    , maxTransactionSize = Nothing -- 3
+    , maxBlockHeaderSize = Nothing -- 4
+    , keyDeposit = Nothing -- 5
+    , poolDeposit = Nothing -- 6
+    , maximumEpoch = Nothing -- 7
+    , desiredNumberOfStakePools = Nothing -- 8
+    , poolPledgeInfluence = Nothing -- 9
+    , expansionRate = Nothing -- 10
+    , treasuryGrowthRate = Nothing -- 11
+    , decentralizationConstant = Nothing -- 12 (deprecated)
+    , extraEntropy = Nothing -- 13 (deprecated)
+    , protocolVersion = Nothing -- 14
+    , minUtxoValue = Nothing -- 15 (deprecated)
+    , minPoolCost = Nothing -- 16
+    , adaPerUtxoByte = Nothing -- 17
+    , costModelsForScriptLanguages = Nothing -- 18
+    , executionCosts = Nothing -- 19
+    , maxTxExUnits = Nothing -- 20
+    , maxBlockExUnits = Nothing -- 21
+    , maxValueSize = Nothing -- 22
+    , collateralPercentage = Nothing -- 23
+    , maxCollateralInputs = Nothing -- 24
+    }
 
 
 

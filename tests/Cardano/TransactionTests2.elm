@@ -6,7 +6,7 @@ import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, noParamUpdate)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
@@ -131,7 +131,97 @@ decodebf095309 =
         \_ ->
             Bytes.fromStringUnchecked "84a6008182582003b02cff29a5f2dfc827e00345eaab8b29a3d740e9878aa6e5dd2b52da0763c5000d80018182581d61d80fe69ded1ff90f41e526d0332a2ff98ba8a0d85ceb8941b51784201a05633249021a00033a9d0682a7581c162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82a2021a0001200014821a00aba9501b00000002540be400581c2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6a2021a0001200014821a00aba9501b00000002540be400581c268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819ba2021a0001200014821a00aba9501b00000002540be400581c60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1a2021a0001200014821a00aba9501b00000002540be400581cad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950ca2021a0001200014821a00aba9501b00000002540be400581cb9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497a2021a0001200014821a00aba9501b00000002540be400581cf7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757a2021a0001200014821a00aba9501b00000002540be4001901310e80a1008882582061261a95b7613ee6bf2067dad77b70349729b0c50d57bc1cf30de0db4a1e73a85840c65d631ecb286668eeef3537c279fb0c5c5d54bb7ab71a6d0c795f48f6093e664f9e923fd590e3373dd9e054eb622724cb107673a83ad201f503622cdcdae6038258209180d818e69cd997e34663c418a648c076f2e19cd4194e486e159d8580bc6cda584030f64d310d2cc64178fd86681013ba0960d76f5c404d434833238ed2f73a7336fb271027239f0ad0c99436852c023ee95b68d99f02b9956db5776abc8379320a82582089c29f8c4af27b7accbe589747820134ebbaa1caf3ce949270a3d0c7dcfd541b5840fe9cafe18e8fe6c31c2c88012aede78b220857d854a6f488f49aa993aef14d891548c3fd1c2c6c8edfb749c999be26f716991447ae2c0461fa6d7a8d573b0a02825820f14f712dc600d793052d4842d50cefa4e65884ea6cf83707079eb8ce302efc85584001b76c22a07514dfd86182e350e94789c04ff868fc0351a7c74fb58ca6642a658ea1e56c373fa2de85fd1a47bad40f25a62f2caee709d40368ffc14a223171018258208b53207629f9a30e4b2015044f337c01735abe67243c19470c9dae8c7b7327985840fa2b5fc33a08f863c47a67bc5f6fc649b83f0b650ec7ed9329b11db77c562262bd15d5fc97ee71efd4b2df98db9ea133a05aa7f04955d4b21a0c086acc0479018258205fddeedade2714d6db2f9e1104743d2d8d818ecddc306e176108db14caadd4415840ee63870c4c1f27866073b05b5dd418f21712667739d289997c01fbbf28ff0cb3987629588cb13a5459844066d526ce0cde89dc26af5b8108654b0514f7578f0a825820cbc6b506e94fbefe442eecee376f3b3ebaf89415ef5cd2efb666e06ddae483935840a2da7ce96693480cd49e256819b4d7a565f3a973864fdc8e4225e8a3338605aab18d6c1e7099129671fb479a8ee38aa67dde383f012741fcec02afbc82a0f903825820e8c03a03c0b2ddbea4195caf39f41e669f7d251ecf221fbb2f275c0a5d7e05d158402086186c201f064e685ca7fd50f4b313fc1f86b0e0a68cc8db2e4548cb42e2e47ffbdf07c80352484a06332f4e9a180ff8846d3cadd92d0b6717a57482127a08f5f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = bodybf095309
+                        , witnessSet = witnessSetbf095309
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+bodybf095309 : TransactionBody
+bodybf095309 =
+    { newTxBody
+        | fee = Just (N.fromSafeInt 211613)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "03b02cff29a5f2dfc827e00345eaab8b29a3d740e9878aa6e5dd2b52da0763c5" } ]
+        , outputs =
+            [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "d80fe69ded1ff90f41e526d0332a2ff98ba8a0d85ceb8941b5178420"), stakeCredential = Nothing }
+              , amount = Value.onlyLovelace (bigNat [ 23278153, 1 ])
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , update =
+            Just
+                { epoch = N.fromSafeInt 305
+                , proposedProtocolParameterUpdates =
+                    bytesMap
+                        (Dict.fromList
+                            [ ( "162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819b"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "ad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950c"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "b9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            , ( "f7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757"
+                              , { noParamUpdate
+                                    | maxBlockBodySize = Just 73728
+                                    , maxTxExUnits = Just { mem = 11250000, steps = 10000000000 }
+                                }
+                              )
+                            ]
+                        )
+                }
+    }
+
+
+witnessSetbf095309 : WitnessSet
+witnessSetbf095309 =
+    { newTxWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "c65d631ecb286668eeef3537c279fb0c5c5d54bb7ab71a6d0c795f48f6093e664f9e923fd590e3373dd9e054eb622724cb107673a83ad201f503622cdcdae603", vkey = Bytes.fromStringUnchecked "61261a95b7613ee6bf2067dad77b70349729b0c50d57bc1cf30de0db4a1e73a8" }
+                , { signature = Bytes.fromStringUnchecked "30f64d310d2cc64178fd86681013ba0960d76f5c404d434833238ed2f73a7336fb271027239f0ad0c99436852c023ee95b68d99f02b9956db5776abc8379320a", vkey = Bytes.fromStringUnchecked "9180d818e69cd997e34663c418a648c076f2e19cd4194e486e159d8580bc6cda" }
+                , { signature = Bytes.fromStringUnchecked "fe9cafe18e8fe6c31c2c88012aede78b220857d854a6f488f49aa993aef14d891548c3fd1c2c6c8edfb749c999be26f716991447ae2c0461fa6d7a8d573b0a02", vkey = Bytes.fromStringUnchecked "89c29f8c4af27b7accbe589747820134ebbaa1caf3ce949270a3d0c7dcfd541b" }
+                , { signature = Bytes.fromStringUnchecked "01b76c22a07514dfd86182e350e94789c04ff868fc0351a7c74fb58ca6642a658ea1e56c373fa2de85fd1a47bad40f25a62f2caee709d40368ffc14a22317101", vkey = Bytes.fromStringUnchecked "f14f712dc600d793052d4842d50cefa4e65884ea6cf83707079eb8ce302efc85" }
+                , { signature = Bytes.fromStringUnchecked "fa2b5fc33a08f863c47a67bc5f6fc649b83f0b650ec7ed9329b11db77c562262bd15d5fc97ee71efd4b2df98db9ea133a05aa7f04955d4b21a0c086acc047901", vkey = Bytes.fromStringUnchecked "8b53207629f9a30e4b2015044f337c01735abe67243c19470c9dae8c7b732798" }
+                , { signature = Bytes.fromStringUnchecked "ee63870c4c1f27866073b05b5dd418f21712667739d289997c01fbbf28ff0cb3987629588cb13a5459844066d526ce0cde89dc26af5b8108654b0514f7578f0a", vkey = Bytes.fromStringUnchecked "5fddeedade2714d6db2f9e1104743d2d8d818ecddc306e176108db14caadd441" }
+                , { signature = Bytes.fromStringUnchecked "a2da7ce96693480cd49e256819b4d7a565f3a973864fdc8e4225e8a3338605aab18d6c1e7099129671fb479a8ee38aa67dde383f012741fcec02afbc82a0f903", vkey = Bytes.fromStringUnchecked "cbc6b506e94fbefe442eecee376f3b3ebaf89415ef5cd2efb666e06ddae48393" }
+                , { signature = Bytes.fromStringUnchecked "2086186c201f064e685ca7fd50f4b313fc1f86b0e0a68cc8db2e4548cb42e2e47ffbdf07c80352484a06332f4e9a180ff8846d3cadd92d0b6717a57482127a08", vkey = Bytes.fromStringUnchecked "e8c03a03c0b2ddbea4195caf39f41e669f7d251ecf221fbb2f275c0a5d7e05d1" }
+                ]
+    }
 
 
 
