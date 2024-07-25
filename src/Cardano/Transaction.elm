@@ -40,7 +40,7 @@ module Cardano.Transaction exposing
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Bytes.Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId, StakeAddress)
+import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
@@ -732,37 +732,113 @@ decodeTransaction =
 
 decodeBody : D.Decoder TransactionBody
 decodeBody =
-    let
-        bodyBuilder inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash =
-            { newBody
-                | inputs = inputs
-                , outputs = outputs
-                , fee = Just fee
-                , ttl = ttl
-                , certificates = Maybe.withDefault [] certificates
-                , withdrawals = Maybe.withDefault [] withdrawals
-                , update = update
-                , auxiliaryDataHash = auxiliaryDataHash
-            }
-    in
-    D.record D.int bodyBuilder <|
-        D.fields
-            -- inputs
-            >> D.field 0 (D.oneOf [ D.list Utxo.decodeOutputReference, D.failWith "Failed to decode inputs" ])
-            -- outputs
-            >> D.field 1 (D.oneOf [ D.list Utxo.decodeOutput, D.failWith "Failed to decode outputs" ])
-            -- fee
-            >> D.field 2 (D.oneOf [ D.natural, D.failWith "Failed to decode fee" ])
-            -- ttl
-            >> D.optionalField 3 (D.oneOf [ D.natural, D.failWith "Failed to decode TTL" ])
-            -- certificates
-            >> D.optionalField 4 (D.oneOf [ D.list decodeCertificate, D.failWith "Failed to decode certificate" ])
-            -- withdrawals
-            >> D.optionalField 5 (D.oneOf [ decodeWithdrawals, D.failWith "Failed to decode withdrawals" ])
-            -- update
-            >> D.optionalField 6 (D.oneOf [ decodeUpdate, D.failWith "Failed to decode protocol update" ])
-            -- metadata hash
-            >> D.optionalField 7 (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode metadata hash" ])
+    D.fold D.int
+        (\k ->
+            case k of
+                -- inputs
+                0 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setInputs
+                        , D.failWith "Failed to decode inputs (0)"
+                        ]
+
+                -- outputs
+                1 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutput |> D.map setOutputs
+                        , D.failWith "Failed to decode outputs (1)"
+                        ]
+
+                -- fee
+                2 ->
+                    D.oneOf [ D.natural |> D.map setFee, D.failWith "Failed to decode fee (2)" ]
+
+                -- ttl
+                3 ->
+                    D.oneOf [ D.natural |> D.map setTtl, D.failWith "Failed to decode TTL (3)" ]
+
+                -- certificates
+                4 ->
+                    D.oneOf
+                        [ D.list decodeCertificate |> D.map setCertificates
+                        , D.failWith "Failed to decode certificate (4)"
+                        ]
+
+                -- withdrawals
+                5 ->
+                    D.oneOf [ decodeWithdrawals |> D.map setWithdrawals, D.failWith "Failed to decode withdrawals (5)" ]
+
+                -- update
+                6 ->
+                    D.oneOf [ decodeUpdate |> D.map setUpdate, D.failWith "Failed to decode protocol update (6)" ]
+
+                -- auxiliary data hash
+                7 ->
+                    D.oneOf
+                        [ D.map Bytes.fromBytes D.bytes |> D.map setAuxiliaryDataHash
+                        , D.failWith "Failed to decode auxiliary data hash (7)"
+                        ]
+
+                -- validity interval start
+                8 ->
+                    D.oneOf [ D.int |> D.map setValidityIntervalStart, D.failWith "Failed to decode validity interval start (8)" ]
+
+                -- mint
+                9 ->
+                    D.oneOf [ MultiAsset.mintFromCbor |> D.map setMint, D.failWith "Failed to decode mint (9)" ]
+
+                -- (DEPRECATED) expansion rate
+                10 ->
+                    D.succeed identity
+
+                -- script data hash
+                11 ->
+                    D.oneOf
+                        [ D.map Bytes.fromBytes D.bytes |> D.map setScriptDataHash
+                        , D.failWith "Failed to decode script data hash (11)"
+                        ]
+
+                -- (DEPRECATED) decentralization constant
+                12 ->
+                    D.succeed identity
+
+                -- collateral
+                13 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setCollateral
+                        , D.failWith "Failed to decode collateral (13)"
+                        ]
+
+                -- required signers
+                14 ->
+                    D.oneOf
+                        [ D.list (D.map Bytes.fromBytes D.bytes) |> D.map setRequiredSigners
+                        , D.failWith "Failed to decode required signers (14)"
+                        ]
+
+                -- network ID
+                15 ->
+                    D.oneOf [ decodeNetworkId |> D.map setNetworkId, D.failWith "Failed to decode network id (15)" ]
+
+                -- collateral return
+                16 ->
+                    D.oneOf [ Utxo.decodeOutput |> D.map setCollateralReturn, D.failWith "Failed to decode collateral return (16)" ]
+
+                -- total collateral
+                17 ->
+                    D.oneOf [ D.int |> D.map setTotalCollateral, D.failWith "Failed to decode total collateral (17)" ]
+
+                -- reference inputs
+                18 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setReferenceInputs
+                        , D.failWith "Failed to decode reference inputs (18)"
+                        ]
+
+                _ ->
+                    D.failWith ("Unknown tx body tag: " ++ String.fromInt k)
+        )
+        newBody
 
 
 decodeCertificate : D.Decoder Certificate
@@ -1103,6 +1179,23 @@ decodeBootstrapWitness =
             >> D.elem D.bytes
 
 
+decodeNetworkId : D.Decoder NetworkId
+decodeNetworkId =
+    D.int
+        |> D.andThen
+            (\id ->
+                case id of
+                    0 ->
+                        D.succeed Testnet
+
+                    1 ->
+                        D.succeed Mainnet
+
+                    _ ->
+                        D.failWith ("Uknown network id: " ++ String.fromInt id)
+            )
+
+
 
 -- Helper definitions
 
@@ -1139,3 +1232,88 @@ newWitnessSet =
     , redeemer = Nothing
     , plutusV2Script = Nothing
     }
+
+
+setInputs : List OutputReference -> TransactionBody -> TransactionBody
+setInputs inputs body =
+    { body | inputs = inputs }
+
+
+setOutputs : List Output -> TransactionBody -> TransactionBody
+setOutputs outputs body =
+    { body | outputs = outputs }
+
+
+setFee : Natural -> TransactionBody -> TransactionBody
+setFee fee body =
+    { body | fee = Just fee }
+
+
+setTtl : Natural -> TransactionBody -> TransactionBody
+setTtl ttl body =
+    { body | ttl = Just ttl }
+
+
+setCertificates : List Certificate -> TransactionBody -> TransactionBody
+setCertificates certificates body =
+    { body | certificates = certificates }
+
+
+setWithdrawals : List ( StakeAddress, Natural ) -> TransactionBody -> TransactionBody
+setWithdrawals withdrawals body =
+    { body | withdrawals = withdrawals }
+
+
+setUpdate : Update -> TransactionBody -> TransactionBody
+setUpdate update body =
+    { body | update = Just update }
+
+
+setAuxiliaryDataHash : Bytes AuxiliaryDataHash -> TransactionBody -> TransactionBody
+setAuxiliaryDataHash hash body =
+    { body | auxiliaryDataHash = Just hash }
+
+
+setValidityIntervalStart : Int -> TransactionBody -> TransactionBody
+setValidityIntervalStart start body =
+    { body | validityIntervalStart = Just start }
+
+
+setMint : MultiAsset Integer -> TransactionBody -> TransactionBody
+setMint mint body =
+    { body | mint = mint }
+
+
+setScriptDataHash : Bytes ScriptDataHash -> TransactionBody -> TransactionBody
+setScriptDataHash hash body =
+    { body | scriptDataHash = Just hash }
+
+
+setCollateral : List OutputReference -> TransactionBody -> TransactionBody
+setCollateral collateral body =
+    { body | collateral = collateral }
+
+
+setRequiredSigners : List (Bytes CredentialHash) -> TransactionBody -> TransactionBody
+setRequiredSigners signers body =
+    { body | requiredSigners = signers }
+
+
+setNetworkId : NetworkId -> TransactionBody -> TransactionBody
+setNetworkId networkId body =
+    { body | networkId = Just networkId }
+
+
+setCollateralReturn : Output -> TransactionBody -> TransactionBody
+setCollateralReturn collateralReturn body =
+    { body | collateralReturn = Just collateralReturn }
+
+
+setTotalCollateral : Int -> TransactionBody -> TransactionBody
+setTotalCollateral totalCollateral body =
+    { body | totalCollateral = Just totalCollateral }
+
+
+setReferenceInputs : List OutputReference -> TransactionBody -> TransactionBody
+setReferenceInputs refInputs body =
+    { body | referenceInputs = refInputs }

@@ -77,6 +77,7 @@ body8a8f8dfe =
             , { outputIndex = 2, transactionId = Bytes.fromStringUnchecked "41b2bf9badec879f09dc9154c582da12f0c5a7970cd3f922ed34baf83e19e2e1" }
             , { outputIndex = 3, transactionId = Bytes.fromStringUnchecked "41b2bf9badec879f09dc9154c582da12f0c5a7970cd3f922ed34baf83e19e2e1" }
             ]
+        , collateral = [ { outputIndex = 3, transactionId = Bytes.fromStringUnchecked "41b2bf9badec879f09dc9154c582da12f0c5a7970cd3f922ed34baf83e19e2e1" } ]
         , outputs =
             [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "08f30ea42a1e844e389e7e0483e69376dc8babd01ad91ab536c8b889"), stakeCredential = Nothing }
               , amount = Value.onlyLovelace (N.fromSafeInt 44094088)

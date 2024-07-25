@@ -1673,6 +1673,7 @@ txBodye252be4c =
               , referenceScript = Nothing
               }
             ]
+        , mint = bytesMap (Dict.fromList [ ( "00000002df633853f6a47465c9496721d2d5b1291b8398016c0e87ae", bytesMap (Dict.fromList [ ( "6e7574636f696e", Integer.fromNatural (N.fromSafeInt 1) ) ]) ) ])
         , ttl = Just (N.fromSafeInt 24285375)
     }
 
