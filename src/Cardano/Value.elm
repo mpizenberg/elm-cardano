@@ -19,7 +19,8 @@ import Natural exposing (Natural)
 This type maintains some invariants by construction.
 In particular, a Value will never contain a zero quantity of a particular token.
 
-TODO: make sure the previous statement stays true?
+TODO: make sure the previous statement stays true by construction.
+That would require an opaque type.
 
 -}
 type alias Value =

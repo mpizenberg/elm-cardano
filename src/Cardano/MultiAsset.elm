@@ -20,6 +20,13 @@ import Natural exposing (Natural)
 
 
 {-| Type alias for handling multi-asset values.
+
+This type should maintain some invariants by construction.
+In particular, it should never contain a zero quantity of a particular token.
+
+TODO: make sure the previous statement stays true by construction.
+This would require an opaque type for MultiAsset.
+
 -}
 type alias MultiAsset int =
     BytesMap PolicyId (BytesMap AssetName int)
