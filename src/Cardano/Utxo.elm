@@ -222,7 +222,7 @@ decodeOutput =
                     -- ? 3 : script_ref   ; New; script reference
                     >> D.optionalField 3 decodeScriptRef
     in
-    D.oneOf [ preBabbage, postBabbage ]
+    D.oneOf [ D.oneOf [ preBabbage, D.failWith "prebabbage" ], D.oneOf [ postBabbage, D.failWith "postbabbage" ] ]
 
 
 {-| Decode a doubly CBOR encoded script for the output `script_ref` field.
@@ -255,8 +255,27 @@ datumOptionFromCbor =
                         D.map (DatumHash << Bytes.fromBytes) D.bytes
 
                     1 ->
-                        D.map Datum Data.fromCbor
+                        D.map Datum decodeOutputDatum
 
                     _ ->
                         D.failWith ("Unknown datum option tag: " ++ String.fromInt tag)
+            )
+
+
+{-| Decode a doubly CBOR encoded plutus data for the output datum.
+
+    data = #6.24(bytes .cbor plutus_data)
+
+-}
+decodeOutputDatum : D.Decoder Data
+decodeOutputDatum =
+    D.tagged Tag.Cbor D.bytes
+        |> D.andThen
+            (\( _, datumCbor ) ->
+                case D.decode Data.fromCbor datumCbor of
+                    Just data ->
+                        D.succeed data
+
+                    Nothing ->
+                        D.fail
             )
