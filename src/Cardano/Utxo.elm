@@ -222,7 +222,7 @@ decodeOutput =
                     -- ? 3 : script_ref   ; New; script reference
                     >> D.optionalField 3 decodeScriptRef
     in
-    D.oneOf [ D.oneOf [ preBabbage, D.failWith "prebabbage" ], D.oneOf [ postBabbage, D.failWith "postbabbage" ] ]
+    D.oneOf [ preBabbage, postBabbage, D.failWith "Fail to decode output" ]
 
 
 {-| Decode a doubly CBOR encoded script for the output `script_ref` field.
