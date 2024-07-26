@@ -3,7 +3,7 @@ module Cardano.TransactionTests2 exposing (suite)
 import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
-import Cardano.Data exposing (Data(..))
+import Cardano.Data as Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, noParamUpdate)
@@ -29,6 +29,9 @@ suite =
             [ decode8a8f8dfe
             , decodebf095309
             , decode5fb50416
+
+            -- Babbage transactions
+            , decode9c91bdbb
             ]
         , decodeInputs
         , decodeOutputs
@@ -228,10 +231,6 @@ witnessSetbf095309 =
     }
 
 
-
---
-
-
 {-| Next Alonzo failure.
 
 Tx id: 5fb50416bbdb0b81ec30d68ecf969fb7a3ee03b07f25f01c327ae4ee9d6371d6
@@ -269,6 +268,102 @@ decodeOutputs =
                 |> Bytes.toBytes
                 |> D.decode (D.list Utxo.decodeOutput)
                 |> Expect.notEqual Nothing
+
+
+{-| First Babbage failure.
+
+Tx id: 9c91bdbbface40d0f6f9099a5888635bfe9ba72873e8d21e3bbc541fb53159b4
+Block height: 7791724
+Previous block intersection:
+
+  - slot: 72317291
+  - id: 5ee70ef716d4a3bb8bdb1164ef49d9b499a600bc7309f4f8df13ba01ac400e67
+
+-}
+decode9c91bdbb : Test
+decode9c91bdbb =
+    test "Tx id 9c91bdbbface40d0f6f9099a5888635bfe9ba72873e8d21e3bbc541fb53159b4" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a70082825820f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa26100825820f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261010d81825820f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261000182a200581d610a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07011a02e94d2ba300581d716a9391d6aa51af28dd876ebb5565b69d1e83e5ac7861506bd29b56b001821a002dc6c0a1581c8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338da1434d3442030282005820605635647b7fa1f331978bdf5aeed389bdb3369274482ead60c6b86c389cf020021a00037c9d0e81581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e070b582074dc5b362d2bf0c2e1d9c3d1e9e4e5f21539a2095323880b8d0ca86d9d3b7af707582091ebd602815a977fff9028bbebbe7bfb7f8ae703c65a684e5c85f380f5249e24a20081825820669ed15b1bc5e97ec45af8951e9cbcbd33a3b5878943704d054a1a3ec46be2825840b18cd30d60e5e8635a3fbaf118b1caef5f8d781e385be23a1d271a0a3680fbcdc39fe9c26614ad4b84547023c19fa5b4ad5a4fd7d65471cb6b0e7de9a8bb8d0d0481d8799fd8799f40ffd8799fa2d8799fd8799fd87a80d8799fd8799f581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07ffd87a80ffffd8799f4040ffff1a002dc6c0d8799fd8799fd87a80d8799fd8799f581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07ffd87a80ffffd8799f581c8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d434d3442ffff03a0a000ffd87c9f9fd8799fd87b9fd87d9fd9050180d87a9f1b000001836721a9f8ffffffd87a9fd8799fd87a80d8799fd8799f581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07ffd87a80ffffd87a9fd8799fd87a80d8799fd8799f581c9205b71f3561fd659782172c34517bc859e3ea6312bace7f7143e570ffd8799fd8799fd8799f581c009dda942712dd276cad4aef90709b214d6b5e331631b2cdfea745cbffffffffffffd8799f581c8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d434d3442ffd87a9f01ffd87a9fd8799fd87a80d8799fd8799f581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07ffd87a80ffffd87a9fd8799fd87a80d8799fd8799f581ce19d61fddd5d2484c87370b2a97c44b2d4f012f7859c2d665ae54d29ffd8799fd8799fd8799f581cec6cd8fff4cfddf7bef15a985c0457cd1b5c0b71ef850efabcb26391ffffffffffffd8799f581c8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d434d3442ffd87a9f01ffd87a9fd8799fd87a80d8799fd8799f581c0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07ffd87a80ffffd87a9fd8799fd87a80d8799fd8799f581c2bbbdfab8c28a5703f472f6b28c61cdd066a99790d62cc839d2917daffd8799fd8799fd8799f581c0cff2d99c693c4a7c787995a69262d796d8597a9b4b24e57d81cbe9fffffffffffffd8799f581c8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d434d3442ffd87a9f01ffd87980ffffffffff1b00000183b4610df8d87980fffff5d90103a100a11902a2a1636d736781782557656c636f6d652c204d61726c6f77652c20746f2074686520426162626167652045726121"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body9c91bdbb
+                        , witnessSet = witnessSet9c91bdbb
+                        , isValid = True
+                        , auxiliaryData = Just auxiliaryData9c91bdbb
+                        }
+                    )
+
+
+auxiliaryData9c91bdbb : AuxiliaryData
+auxiliaryData9c91bdbb =
+    { labels = [ ( N.fromSafeInt 674, Metadatum.Map [ ( Metadatum.String "msg", Metadatum.List [ Metadatum.String "Welcome, Marlowe, to the Babbage Era!" ] ) ] ) ]
+    , nativeScripts = []
+    , plutusV1Scripts = []
+    , plutusV2Scripts = []
+    }
+
+
+body9c91bdbb : TransactionBody
+body9c91bdbb =
+    { newTxBody
+        | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "91ebd602815a977fff9028bbebbe7bfb7f8ae703c65a684e5c85f380f5249e24")
+        , collateral = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" } ]
+        , fee = Just (N.fromSafeInt 228509)
+        , inputs =
+            [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" }
+            , { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" }
+            ]
+        , outputs =
+            [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07"), stakeCredential = Nothing }
+              , amount = Value.onlyLovelace (N.fromSafeInt 48844075)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            , { address = Address.Shelley { networkId = Mainnet, paymentCredential = ScriptHash (Bytes.fromStringUnchecked "6a9391d6aa51af28dd876ebb5565b69d1e83e5ac7861506bd29b56b0"), stakeCredential = Nothing }
+              , amount = { assets = bytesMap (Dict.fromList [ ( "8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d", bytesMap (Dict.fromList [ ( "4d3442", N.fromSafeInt 3 ) ]) ) ]), lovelace = N.fromSafeInt 3000000 }
+              , datumOption = Just (DatumHash (Bytes.fromStringUnchecked "605635647b7fa1f331978bdf5aeed389bdb3369274482ead60c6b86c389cf020"))
+              , referenceScript = Nothing
+              }
+            ]
+        , requiredSigners = [ Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07" ]
+        , scriptDataHash = Just (Bytes.fromStringUnchecked "74dc5b362d2bf0c2e1d9c3d1e9e4e5f21539a2095323880b8d0ca86d9d3b7af7")
+    }
+
+
+witnessSet9c91bdbb : WitnessSet
+witnessSet9c91bdbb =
+    { newTxWitnessSet
+        | plutusData =
+            Just
+                [ Data.Constr (N.fromSafeInt 0)
+                    [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "") ]
+                    , Data.Constr (N.fromSafeInt 0)
+                        [ Data.Map
+                            [ ( Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07") ], Data.Constr (N.fromSafeInt 1) [] ] ], Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked ""), Data.Bytes (Bytes.fromStringUnchecked "") ] ], Data.Int (Integer.fromNatural (N.fromSafeInt 3000000)) )
+                            , ( Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07") ], Data.Constr (N.fromSafeInt 1) [] ] ], Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d"), Data.Bytes (Bytes.fromStringUnchecked "4d3442") ] ], Data.Int (Integer.fromNatural (N.fromSafeInt 3)) )
+                            ]
+                        , Data.Map []
+                        , Data.Map []
+                        , Data.Int (Integer.fromSafeInt 0)
+                        ]
+                    , Data.Constr (N.fromSafeInt 3)
+                        [ Data.List
+                            [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 2) [ Data.Constr (N.fromSafeInt 4) [ Data.Constr (N.fromSafeInt 8) [], Data.Constr (N.fromSafeInt 1) [ Data.Int (Integer.fromNatural (bigNat [ 52537848, 24793 ])) ] ] ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07") ], Data.Constr (N.fromSafeInt 1) [] ] ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "9205b71f3561fd659782172c34517bc859e3ea6312bace7f7143e570") ], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "009dda942712dd276cad4aef90709b214d6b5e331631b2cdfea745cb") ] ] ] ] ] ], Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d"), Data.Bytes (Bytes.fromStringUnchecked "4d3442") ], Data.Constr (N.fromSafeInt 1) [ Data.Int (Integer.fromNatural (N.fromSafeInt 1)) ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07") ], Data.Constr (N.fromSafeInt 1) [] ] ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "e19d61fddd5d2484c87370b2a97c44b2d4f012f7859c2d665ae54d29") ], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "ec6cd8fff4cfddf7bef15a985c0457cd1b5c0b71ef850efabcb26391") ] ] ] ] ] ], Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d"), Data.Bytes (Bytes.fromStringUnchecked "4d3442") ], Data.Constr (N.fromSafeInt 1) [ Data.Int (Integer.fromNatural (N.fromSafeInt 1)) ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0a11b0c7e25dc5d9c63171bdf39d9741b901dc903e12b4e162348e07") ], Data.Constr (N.fromSafeInt 1) [] ] ], Data.Constr (N.fromSafeInt 1) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 1) [], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "2bbbdfab8c28a5703f472f6b28c61cdd066a99790d62cc839d2917da") ], Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "0cff2d99c693c4a7c787995a69262d796d8597a9b4b24e57d81cbe9f") ] ] ] ] ] ], Data.Constr (N.fromSafeInt 0) [ Data.Bytes (Bytes.fromStringUnchecked "8bb3b343d8e404472337966a722150048c768d0a92a9813596c5338d"), Data.Bytes (Bytes.fromStringUnchecked "4d3442") ], Data.Constr (N.fromSafeInt 1) [ Data.Int (Integer.fromNatural (N.fromSafeInt 1)) ], Data.Constr (N.fromSafeInt 0) [] ] ] ] ]
+                            ]
+                        , Data.Int (Integer.fromNatural (bigNat [ 6360568, 24813 ]))
+                        , Data.Constr (N.fromSafeInt 0) []
+                        ]
+                    ]
+                ]
+        , vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "b18cd30d60e5e8635a3fbaf118b1caef5f8d781e385be23a1d271a0a3680fbcdc39fe9c26614ad4b84547023c19fa5b4ad5a4fd7d65471cb6b0e7de9a8bb8d0d"
+                  , vkey = Bytes.fromStringUnchecked "669ed15b1bc5e97ec45af8951e9cbcbd33a3b5878943704d054a1a3ec46be282"
+                  }
+                ]
+    }
 
 
 

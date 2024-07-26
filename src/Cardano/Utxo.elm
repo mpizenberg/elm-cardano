@@ -44,6 +44,7 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.Script as Script exposing (Script)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
+import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
@@ -217,7 +218,7 @@ decodeOutput =
                     -- Coin value (lovelace)
                     >> D.field 1 Value.fromCbor
                     -- ? datum_hash : $hash32
-                    >> D.optionalField 2 (D.map (DatumHash << Bytes.fromBytes) D.bytes)
+                    >> D.optionalField 2 datumOptionFromCbor
                     -- ? 3 : script_ref   ; New; script reference
                     >> D.optionalField 3 decodeScriptRef
     in
@@ -240,4 +241,22 @@ decodeScriptRef =
 
                     Nothing ->
                         D.fail
+            )
+
+
+datumOptionFromCbor : D.Decoder DatumOption
+datumOptionFromCbor =
+    D.length
+        |> D.ignoreThen D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.map (DatumHash << Bytes.fromBytes) D.bytes
+
+                    1 ->
+                        D.map Datum Data.fromCbor
+
+                    _ ->
+                        D.failWith ("Unknown datum option tag: " ++ String.fromInt tag)
             )
