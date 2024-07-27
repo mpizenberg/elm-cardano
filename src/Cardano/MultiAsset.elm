@@ -1,15 +1,18 @@
 module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
-    , empty, isEmpty, coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
+    , empty, isEmpty, onlyToken
+    , coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
     )
 
 {-| Handling multi-asset values.
 
 @docs MultiAsset, PolicyId, AssetName
-@docs empty, isEmpty, coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
+@docs empty, isEmpty, onlyToken
+@docs coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
 
 -}
 
+import Bytes.Comparable exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
@@ -58,6 +61,13 @@ empty =
 isEmpty : MultiAsset a -> Bool
 isEmpty =
     Bytes.Map.isEmpty
+
+
+{-| Create a singleton [MultiAsset].
+-}
+onlyToken : Bytes PolicyId -> Bytes AssetName -> int -> MultiAsset int
+onlyToken policy name amount =
+    Bytes.Map.singleton policy (Bytes.Map.singleton name amount)
 
 
 {-| CBOR encoder for [MultiAsset] coins.

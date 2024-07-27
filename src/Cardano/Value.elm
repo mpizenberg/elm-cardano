@@ -1,12 +1,13 @@
-module Cardano.Value exposing (Value, onlyLovelace, encode, fromCbor)
+module Cardano.Value exposing (Value, onlyLovelace, onlyToken, encode, fromCbor)
 
 {-| Handling Cardano values.
 
-@docs Value, onlyLovelace, encode, fromCbor
+@docs Value, onlyLovelace, onlyToken, encode, fromCbor
 
 -}
 
-import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Bytes.Comparable exposing (Bytes)
+import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
@@ -32,6 +33,15 @@ type alias Value =
 onlyLovelace : Natural -> Value
 onlyLovelace lovelace =
     { lovelace = lovelace, assets = MultiAsset.empty }
+
+
+{-| Create a [Value] just from some token amount.
+-}
+onlyToken : Bytes PolicyId -> Bytes AssetName -> Natural -> Value
+onlyToken policy name amount =
+    { lovelace = Natural.zero
+    , assets = MultiAsset.onlyToken policy name amount
+    }
 
 
 {-| CBOR encoder for [Value].

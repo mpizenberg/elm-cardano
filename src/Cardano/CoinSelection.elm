@@ -1,5 +1,5 @@
 module Cardano.CoinSelection exposing
-    ( Context, Error(..), Selection
+    ( Context, Error(..), Selection, Algorithm
     , largestFirst
     )
 
@@ -11,7 +11,7 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 
 # Types
 
-@docs Context, Error, Selection
+@docs Context, Error, Selection, Algorithm
 
 
 # Strategies
@@ -33,6 +33,9 @@ type Error
 
 
 {-| Represents the result of a successful coin selection.
+
+TODO: Also keep OutputReference around because we’ll need it.
+
 -}
 type alias Selection =
     { selectedOutputs : List Output
@@ -41,12 +44,21 @@ type alias Selection =
 
 
 {-| Holds the arguments necessary for performing coin selection.
+
+TODO: Also keep OutputReference around because we’ll need it.
+
 -}
 type alias Context =
     { availableOutputs : List Output
     , alreadySelectedOutputs : List Output
     , targetAmount : Natural
     }
+
+
+{-| Alias for the function signature of a utxo selection algorithm.
+-}
+type alias Algorithm =
+    Int -> Context -> Result Error Selection
 
 
 {-| Implements the Largest-First coin selection algorithm as described in CIP2.
@@ -57,7 +69,7 @@ representing the maximum number of inputs allowed. Returns either a
 `Error` or a `Selection`. See <https://cips.cardano.org/cips/cip2/#largestfirst>
 
 -}
-largestFirst : Int -> Context -> Result Error Selection
+largestFirst : Algorithm
 largestFirst maxInputCount context =
     let
         sortedAvailableUtxo =
