@@ -1,5 +1,5 @@
 module Cardano exposing
-    ( Tx, Intent, SourceOwner(..), DestinationOwner(..), from, to
+    ( Tx, Intent, SourceOwner(..), DestinationOwner, from, to
     , BasicUtxoSelection(..), simpleTransfer, transfer
     , mintAndBurnViaNativeScript, spendFromNativeScript, sendToNativeScript
     , mintAndBurnViaPlutusScript, ScriptUtxoSelection(..), spendFromPlutusScript, sendToPlutusScript, withdrawViaPlutusScript
@@ -33,7 +33,7 @@ For this, we’ll use a framework composed of 4 points:
       - Collateral: for plutus scripts
       - Signatures: for consuming inputs and scripts requirements
 
-This API revolves around composing intents, then adding metadata and requirements,
+This API revolves around composing intents, then adding metadata and constraints,
 and finally trying to validate it and auto-populate all requirements.
 That’s enough theory, let’s get more concrete.
 
@@ -78,7 +78,11 @@ Here is a simple way to send 1 Ada to someone else.
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
-More control is possible if we want to have multiple senders and receivers.
+We need two additional steps after specifying the transfer intention.
+The finalization step validates the Tx, compute the fees and add other required fields.
+Finally, we need to sign the transaction.
+
+More control on the transfer is possible if we want to have multiple senders and receivers.
 Here is an example where me and you both contribute 1 Ada.
 
     inputs =
@@ -100,29 +104,97 @@ Here is an example where me and you both contribute 1 Ada.
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
+As you can see there are two additional steps here compared to the previous example.
+An initialization step, and a change handling step.
+Indeed, the `sendToSomeone` shortcut functions does both with some defaults.
+This removes a bit of verbosity but isn’t composable with other building blocks.
+To use all other building blocks, we need to call ourself these two steps.
+
 To mint or burn via a native script, here is what we can do.
 
-    dogPolicy =
-        hashOfDogNativeScript
+    dogScriptSource =
+        ReferencedNativeScript
+            { outputRef = dogOutputRef
+            , scriptHash = dogPolicyId
+            }
 
-    catPolicy =
-        hashOfCatNativeScript
+    catScriptSource =
+        ReferencedNativeScript
+            { outputRef = catOutputRef
+            , scriptHash = catPolicyId
+            }
+
+    autoSelectFromMe assets =
+        { source = fromMe, utxoSelection = AutoUtxoSelection, assets = assets }
+
+    backToMe assets =
+        { destination = toMe, assets = assets }
 
     mintDogAndBurnCatTx =
         initTx
-            -- minting amounts are of type Integer: unbounded positive or negative integers
-            |> mintAndBurnViaNativeScript dogPolicy [ { asset = dogAssetName, amount = Integer.one } ]
-            |> mintAndBurnViaNativeScript catPolicy [ { asset = catAssetName, amount = Integer.negate Integer.one } ]
+            -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
+            |> mintAndBurnViaNativeScript dogScriptSource [ { asset = dogAssetName, amount = Integer.one } ]
+            -- burning 1 cat
+            |> mintAndBurnViaNativeScript catScriptSource [ { asset = catAssetName, amount = Integer.negate Integer.one } ]
+            -- balancing the mint and burn
             |> transfer
-                [ { source = fromMe
-                  , utxoSelection = AutoUtxoSelection
-                  , assets = Value.onlyToken catPolicy catAssetName Natural.one
-                  }
-                ]
-                [ { destination = toMe
-                  , assets = Value.onlyToken dogPolicy dogAssetName Natural.one
-                  }
-                ]
+                [ autoSelectFromMe (Value.onlyToken catPolicyId catAssetName Natural.one) ]
+                [ backToMe (Value.onlyToken dogPolicyId dogAssetName Natural.one) ]
+            |> handleChange changeBackToSource
+            |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+            |> signTx
+
+As you can see, we cannot simply use the mint and burn steps,
+and must also add some transfer step to the transaction.
+This is because transactions must conserve a balanced ledger.
+So in order to be able to validate that your transaction is correct in the finalization step,
+we must know what to do with the mint tokens and where are the burned tokens coming from.
+We could have added parameters to the mint and burn functions but it would have degraded
+Cardano composability capabilities, especially when calling different contracts in the same Tx.
+
+Let’s show how to use a native script to lock some tokens,
+that can only be retrieved with our signature.
+
+    lockScript =
+        EmbeddedNativeScript (ScriptPubkey myPubkeyHash)
+
+    lockScriptHash =
+        -- Will be provided by the Elm library
+        computeNativeScriptHash lockScript
+
+    myStakeCredential =
+        toMe.stakeCred
+
+    lockTx =
+        initTx
+            |> transfer [ autoSelectFromMe twoAda ] []
+            |> sendToNativeScript lockScriptHash myStakeCredential twoAda
+            |> handleChange changeBackToSource
+            |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+            |> signTx
+
+As you can see, we could even keep our stake credential
+while locking our ada into the script address,
+meaning the locked ada will still be counted in our stake for the rewards.
+This is because Cardano addresses have two parts.
+The native script logic only affects the first part of the address.
+
+Ok, now let’s show an example how to spend utxos from a native script.
+Imagine we have a script where we had locked some ada,
+only retrievable with our signature.
+Now we want to retrieve 1 ada from it.
+
+    TODO =
+        TODO
+
+    lockScriptHash =
+        retrievedFromBlueprint
+
+    unlockTx =
+        initTx
+            |> spendFromNativeScript lockScriptHash AutoUtxoSelection oneAda
+            |> transfer [] [ { destination = toMe, assets = oneAda } ]
+            |> handleChange changeBackToSource
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
@@ -157,6 +229,7 @@ import Cardano.CoinSelection as CoinSelection
 import Cardano.Data exposing (Data)
 import Cardano.MultiAsset exposing (AssetName, PolicyId)
 import Cardano.Redeemer exposing (Redeemer)
+import Cardano.Script exposing (NativeScript)
 import Cardano.Transaction exposing (CostModels, Transaction)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Utxo exposing (Output, OutputReference)
@@ -166,7 +239,7 @@ import Natural exposing (Natural)
 
 
 {-| -}
-type Tx
+type Tx state
     = Tx
 
 
@@ -179,13 +252,13 @@ type
 
 {-| -}
 type SourceOwner
-    = FromCredentialAddress { paymentKey : Bytes CredentialHash, stakeKey : Maybe (Bytes CredentialHash) }
+    = FromCredentialAddress { paymentKey : Bytes CredentialHash, stakeCred : Maybe StakeCredential }
     | FromRewardAddress { stakeKey : Bytes CredentialHash }
 
 
 {-| -}
-type DestinationOwner
-    = ToCredentialAddress { paymentKey : Bytes CredentialHash, stakeKey : Maybe (Bytes CredentialHash) }
+type alias DestinationOwner =
+    { paymentKey : Bytes CredentialHash, stakeCred : Maybe StakeCredential }
 
 
 {-| -}
@@ -204,6 +277,21 @@ to address =
 -- No script involved
 
 
+initTx : Tx { build | needsHandleChange : () }
+initTx =
+    Debug.todo "init Tx"
+
+
+{-| -}
+simpleTransfer :
+    SourceOwner
+    -> DestinationOwner
+    -> Value
+    -> Tx { build | hasHandleChange : () }
+simpleTransfer source destination assets =
+    Debug.todo "transfer to someone"
+
+
 {-| -}
 type BasicUtxoSelection
     = AutoUtxoSelection
@@ -211,14 +299,12 @@ type BasicUtxoSelection
 
 
 {-| -}
-simpleTransfer : SourceOwner -> DestinationOwner -> Value -> Intent
-simpleTransfer source destination assets =
-    Debug.todo "transfer to someone"
-
-
-{-| -}
-transfer : List { source : SourceOwner, utxoSelection : BasicUtxoSelection, assets : Value } -> List { destination : DestinationOwner, assets : Value } -> Intent
-transfer sources destinations =
+transfer :
+    List { source : SourceOwner, utxoSelection : BasicUtxoSelection, assets : Value }
+    -> List { destination : DestinationOwner, assets : Value }
+    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | needsHandleChange : () }
+transfer sources destinations tx =
     Debug.todo "transfer"
 
 
@@ -227,21 +313,43 @@ transfer sources destinations =
 
 
 {-| -}
-mintAndBurnViaNativeScript : Bytes PolicyId -> List { asset : Bytes AssetName, amount : Integer } -> Intent
-mintAndBurnViaNativeScript policy amounts =
+type NativeScriptSource
+    = EmbeddedNativeScript NativeScript
+    | ReferencedNativeScript
+        { outputRef : OutputReference
+        , scriptHash : Bytes CredentialHash
+        }
+
+
+{-| -}
+mintAndBurnViaNativeScript :
+    NativeScriptSource
+    -> List { asset : Bytes AssetName, amount : Integer }
+    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | needsHandleChange : () }
+mintAndBurnViaNativeScript scriptSource amounts tx =
     Debug.todo "native mint / burn"
 
 
 {-| -}
-spendFromNativeScript : Bytes CredentialHash -> BasicUtxoSelection -> Value -> Intent
-spendFromNativeScript scriptHash utxoSelection assets =
-    Debug.todo "spendFromNativeScript"
+sendToNativeScript :
+    Bytes CredentialHash
+    -> Maybe StakeCredential
+    -> Value
+    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | needsHandleChange : () }
+sendToNativeScript scriptHash maybeStakeCredential assets =
+    Debug.todo "sendToNativeScript"
 
 
 {-| -}
-sendToNativeScript : Bytes CredentialHash -> Maybe StakeCredential -> Value -> Intent
-sendToNativeScript scriptHash maybeStakeCredential assets =
-    Debug.todo "sendToNativeScript"
+spendFromNativeScript :
+    NativeScriptSource -- Bytes CredentialHash
+    -> BasicUtxoSelection
+    -> Value
+    -> Intent
+spendFromNativeScript scriptHash utxoSelection assets =
+    Debug.todo "spendFromNativeScript"
 
 
 
@@ -291,7 +399,10 @@ type alias ChangeReallocation =
 
 
 {-| -}
-handleChange : (List ( Output, Value ) -> ChangeReallocation) -> Intent
+handleChange :
+    (List ( Output, Value ) -> ChangeReallocation)
+    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | hasHandleChange : (), needsFinalize : () }
 handleChange reallocateChange =
     Debug.todo "handle change"
 
@@ -364,6 +475,12 @@ Analyze all intents and perform the following actions:
   - Compute Tx fee
 
 -}
-finalizeTx : NetworkId -> CostModels -> LocalState -> CoinSelection.Algorithm -> List Intent -> Result String Tx
-finalizeTx networkId costModels localState selectionAlgo intents =
+finalizeTx :
+    NetworkId
+    -> CostModels
+    -> LocalState
+    -> CoinSelection.Algorithm
+    -> Tx { build | needsFinalize : () }
+    -> Result String (Tx a)
+finalizeTx networkId costModels localState selectionAlgo tx =
     Debug.todo "finalize tx"

@@ -2,6 +2,7 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
+    , extractStakeCredential
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -13,6 +14,8 @@ module Cardano.Address exposing
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
 @docs enterprise, script, base, pointer
+
+@docs extractStakeCredential
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -91,8 +94,11 @@ type alias StakeCredentialPointer =
     { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
 
 
-{-| Phantom type for 28-bytes credential hashes.
+{-| Phantom type for 28-bytes credential hashes,
+corresponding either to VKey hashes or script hashes.
+
 This is a Blake2b-224 hash.
+
 -}
 type CredentialHash
     = CredentialHash Never
@@ -140,6 +146,18 @@ pointer networkId paymentCredential p =
         , paymentCredential = paymentCredential
         , stakeCredential = Just <| PointerCredential p
         }
+
+
+{-| Extract the stake credential part of a Shelley address.
+-}
+extractStakeCredential : Address -> Maybe StakeCredential
+extractStakeCredential address =
+    case address of
+        Shelley { stakeCredential } ->
+            stakeCredential
+
+        _ ->
+            Nothing
 
 
 {-| Encode an [Address] to CBOR.

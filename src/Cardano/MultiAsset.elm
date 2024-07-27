@@ -14,6 +14,7 @@ module Cardano.MultiAsset exposing
 
 import Bytes.Comparable exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
+import Cardano.Address exposing (CredentialHash)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
@@ -38,8 +39,8 @@ type alias MultiAsset int =
 {-| Phantom type for 28-bytes policy id.
 This is a Blacke2b-224 hash.
 -}
-type PolicyId
-    = PolicyId Never
+type alias PolicyId =
+    CredentialHash
 
 
 {-| Phantom type for asset names.
