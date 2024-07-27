@@ -1,9 +1,41 @@
-module Cardano exposing (..)
+module Cardano exposing
+    ( Tx, Intent, SourceOwner(..), DestinationOwner(..), from, to
+    , BasicUtxoSelection(..), simpleTransfer, transfer
+    , mintAndBurnViaNativeScript, spendFromNativeScript, sendToNativeScript
+    , mintAndBurnViaPlutusScript, ScriptUtxoSelection(..), spendFromPlutusScript, sendToPlutusScript, withdrawViaPlutusScript
+    , ChangeReallocation, handleChange, changeBackToSource, changeBackTo
+    , addMetadata
+    , constrainTimeValidity
+    , addRequiredSigners
+    , setFeesManually
+    , LocalState, finalizeTx
+    )
 
 {-| Cardano stuff
 
 
-# Transaction Building
+# Transaction Building Overview
+
+In order to provide elegant transaction building blocks, we must understand what transactions are.
+For this, we’ll use a framework composed of 4 points:
+
+1.  Intent: what we want to achieve with this transaction
+      - Transfer: send some tokens from somewhere (including rewards) to somewhere else
+      - Mint and burn: create and destroy tokens
+      - Use a script: provide/spend tokens and data to/from a script
+      - Stake management: delegations and pool registrations
+2.  Metadata: additional information
+3.  Constraints: what additional constraints do we want to set
+      - Temporal validity range: first/last slots when the Tx is valid
+4.  Requirements: what is imposed by the protocol
+      - Tx fee: depends on size/mem/cpu
+      - Hashes: for metadata and script data
+      - Collateral: for plutus scripts
+      - Signatures: for consuming inputs and scripts requirements
+
+This API revolves around composing intents, then adding metadata and requirements,
+and finally trying to validate it and auto-populate all requirements.
+That’s enough theory, let’s get more concrete.
 
 Let’s first define some addresses we are going to be using.
 
@@ -94,29 +126,30 @@ To mint or burn via a native script, here is what we can do.
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
--}
 
--- # Intent
---
--- - Transfer: send some tokens from somewhere (including rewards) to somewhere else
--- - Mint and burn: create and destroy tokens
--- - Use a script: provide/spend tokens and data to/from a script
--- - Stake management: delegations and pool registrations
---
--- # Metadata
---
--- - Metadata: additional information
---
--- # Constraints
---
--- - Temporal validity range: first/last slots when the Tx is valid
---
--- # Requirements
---
--- - Tx fee: depends on size/mem/cpu
--- - Hashes: for metadata and script data
--- - Collateral: for plutus scripts
--- - Signatures: for consuming inputs and scripts requirements
+## Code Documentation
+
+@docs Tx, Intent, SourceOwner, DestinationOwner, from, to
+
+@docs BasicUtxoSelection, simpleTransfer, transfer
+
+@docs mintAndBurnViaNativeScript, spendFromNativeScript, sendToNativeScript
+
+@docs mintAndBurnViaPlutusScript, ScriptUtxoSelection, spendFromPlutusScript, sendToPlutusScript, withdrawViaPlutusScript
+
+@docs ChangeReallocation, handleChange, changeBackToSource, changeBackTo
+
+@docs addMetadata
+
+@docs constrainTimeValidity
+
+@docs addRequiredSigners
+
+@docs setFeesManually
+
+@docs LocalState, finalizeTx
+
+-}
 
 import Bytes.Comparable exposing (Bytes)
 import Cardano.Address exposing (Address, CredentialHash, NetworkId, StakeCredential)
@@ -132,30 +165,36 @@ import Integer exposing (Integer)
 import Natural exposing (Natural)
 
 
+{-| -}
 type Tx
     = Tx
 
 
+{-| -}
 type
     Intent
     -- or Action?
     = Intent
 
 
+{-| -}
 type SourceOwner
     = FromCredentialAddress { paymentKey : Bytes CredentialHash, stakeKey : Maybe (Bytes CredentialHash) }
     | FromRewardAddress { stakeKey : Bytes CredentialHash }
 
 
+{-| -}
 type DestinationOwner
     = ToCredentialAddress { paymentKey : Bytes CredentialHash, stakeKey : Maybe (Bytes CredentialHash) }
 
 
+{-| -}
 from : Address -> Maybe SourceOwner
 from address =
     Debug.todo "from"
 
 
+{-| -}
 to : Address -> Maybe DestinationOwner
 to address =
     Debug.todo "to"
@@ -165,16 +204,19 @@ to address =
 -- No script involved
 
 
+{-| -}
 type BasicUtxoSelection
     = AutoUtxoSelection
     | ManualUtxoSelection (List OutputReference)
 
 
+{-| -}
 simpleTransfer : SourceOwner -> DestinationOwner -> Value -> Intent
 simpleTransfer source destination assets =
     Debug.todo "transfer to someone"
 
 
+{-| -}
 transfer : List { source : SourceOwner, utxoSelection : BasicUtxoSelection, assets : Value } -> List { destination : DestinationOwner, assets : Value } -> Intent
 transfer sources destinations =
     Debug.todo "transfer"
@@ -184,16 +226,19 @@ transfer sources destinations =
 -- Native Script
 
 
+{-| -}
 mintAndBurnViaNativeScript : Bytes PolicyId -> List { asset : Bytes AssetName, amount : Integer } -> Intent
 mintAndBurnViaNativeScript policy amounts =
     Debug.todo "native mint / burn"
 
 
+{-| -}
 spendFromNativeScript : Bytes CredentialHash -> BasicUtxoSelection -> Value -> Intent
 spendFromNativeScript scriptHash utxoSelection assets =
     Debug.todo "spendFromNativeScript"
 
 
+{-| -}
 sendToNativeScript : Bytes CredentialHash -> Maybe StakeCredential -> Value -> Intent
 sendToNativeScript scriptHash maybeStakeCredential assets =
     Debug.todo "sendToNativeScript"
@@ -203,26 +248,31 @@ sendToNativeScript scriptHash maybeStakeCredential assets =
 -- Plutus Script
 
 
+{-| -}
 mintAndBurnViaPlutusScript : Bytes PolicyId -> Data -> List { asset : Bytes AssetName, amount : Integer } -> Intent
 mintAndBurnViaPlutusScript policy redeemerData amounts =
     Debug.todo "plutus mint / burn"
 
 
+{-| -}
 type ScriptUtxoSelection
     = AutoScriptUtxoSelection ({ ref : OutputReference, utxo : Output } -> Maybe { redeemer : Data })
     | ManualScriptUtxoSelection (List { ref : OutputReference, redeemer : Data })
 
 
+{-| -}
 spendFromPlutusScript : Bytes CredentialHash -> ScriptUtxoSelection -> Value -> Intent
 spendFromPlutusScript scriptHash utxoSelection totalSpent =
     Debug.todo "spend from plutus script"
 
 
+{-| -}
 sendToPlutusScript : Bytes CredentialHash -> Maybe StakeCredential -> Data -> Value -> Intent
 sendToPlutusScript scriptHash maybeStakeCredential datum assets =
     Debug.todo "send to plutus script"
 
 
+{-| -}
 withdrawViaPlutusScript : Bytes CredentialHash -> Natural -> Intent
 withdrawViaPlutusScript scriptHash adaLovelaces =
     Debug.todo "withdraw via plutus script"
@@ -232,6 +282,7 @@ withdrawViaPlutusScript scriptHash adaLovelaces =
 -- Handling change for non-allocated values from spent utxos
 
 
+{-| -}
 type alias ChangeReallocation =
     { toOwners : List ( DestinationOwner, Value )
     , toNativeScripts : List { scripthHash : Bytes CredentialHash, stakeCredential : Maybe StakeCredential, assets : Value }
@@ -239,16 +290,19 @@ type alias ChangeReallocation =
     }
 
 
+{-| -}
 handleChange : (List ( Output, Value ) -> ChangeReallocation) -> Intent
 handleChange reallocateChange =
     Debug.todo "handle change"
 
 
+{-| -}
 changeBackToSource : List ( Output, Value ) -> ChangeReallocation
 changeBackToSource change =
     Debug.todo "change back to source"
 
 
+{-| -}
 changeBackTo : DestinationOwner -> List ( Output, Value ) -> ChangeReallocation
 changeBackTo destination change =
     Debug.todo "change back to"
@@ -258,6 +312,7 @@ changeBackTo destination change =
 -- Metadata
 
 
+{-| -}
 addMetadata : List ( Natural, Metadatum ) -> Intent
 addMetadata metadata =
     Debug.todo "add metadata"
@@ -267,11 +322,13 @@ addMetadata metadata =
 -- Constraints
 
 
-constrainTimeValidity : { start : Maybe Int, end : Maybe Natural } -> Intent
+{-| -}
+constrainTimeValidity : { start : Int, end : Natural } -> Intent
 constrainTimeValidity { start, end } =
     Debug.todo "time validity"
 
 
+{-| -}
 addRequiredSigners : List (Bytes CredentialHash) -> Intent
 addRequiredSigners signers =
     Debug.todo "required signers"
@@ -281,6 +338,7 @@ addRequiredSigners signers =
 -- Requirements
 
 
+{-| -}
 setFeesManually : Natural -> Intent
 setFeesManually adaLovelaces =
     Debug.todo "manual fees"
@@ -291,6 +349,7 @@ setFeesManually adaLovelaces =
 -- = AutoScriptUtxoSelection ({ ref : OutputReference, utxo : Output } -> Maybe { redeemer : Data })
 
 
+{-| -}
 type alias LocalState =
     { utxos : List ( OutputReference, Output ) }
 

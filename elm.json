@@ -8,6 +8,7 @@
         "Bytes.Comparable",
         "Bytes.Crc8",
         "Bytes.Map",
+        "Cardano",
         "Cardano.Address",
         "Cardano.Cip30",
         "Cardano.Cip67",
