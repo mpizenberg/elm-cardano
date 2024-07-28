@@ -716,44 +716,99 @@ finalizeTx networkId costModels localState selectionAlgo tx =
 
 
 -- EXAMPLES ##########################################################
---
---
--- EXAMPLE 1: Simple transfer
 
 
-example1 _ =
+addressTriplet : a -> ( Address, SourceOwner, DestinationOwner )
+addressTriplet _ =
     let
         me : Address
         me =
             Debug.todo "me address"
 
-        someone : Address
-        someone =
-            Debug.todo "someone address"
-
         fromMe =
             from me
                 |> Maybe.withDefault (Debug.todo "shouldNotErrorIfIsAnActualVKeyCredential")
 
-        toSomeone =
-            to someone
+        toMe =
+            to me
                 |> Maybe.withDefault (Debug.todo "shouldNotErrorIfIsAnActualVKeyCredential")
+    in
+    ( me, fromMe, toMe )
 
-        oneAda =
-            -- Asset amounts are typed with unbounded Natural numbers
-            Value.onlyLovelace (Natural.fromSafeString "1000000")
 
-        localState =
-            -- We already previously retrieved a list of our UTxOs
-            { utxos = Debug.todo "myUtxos" }
+oneAda =
+    -- Asset amounts are typed with unbounded Natural numbers
+    Value.onlyLovelace (Natural.fromSafeString "1000000")
 
-        costModels : CostModels
-        costModels =
-            Debug.todo "cost models"
 
-        defaultSelectionAlgo : CoinSelection.Algorithm
-        defaultSelectionAlgo =
-            Debug.todo "default selection algo"
+twoAda =
+    -- Asset amounts are typed with unbounded Natural numbers
+    Value.onlyLovelace (Natural.fromSafeString "2000000")
+
+
+
+-- EXAMPLE 1: Simple transfer
+
+
+example1 _ =
+    let
+        ( me, fromMe, _ ) =
+            addressTriplet ()
+
+        ( someone, _, toSomeone ) =
+            addressTriplet ()
+
+        ( costModels, localState, defaultSelectionAlgo ) =
+            Debug.todo "finalize config"
     in
     simpleTransfer fromMe toSomeone oneAda
+        |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+
+
+
+-- EXAMPLE 2: mint/burn with native script
+
+
+example2 _ =
+    let
+        ( dogOutputRef, dogPolicyId, dogAssetName ) =
+            Debug.todo "dog info is provided"
+
+        ( catOutputRef, catPolicyId, catAssetName ) =
+            Debug.todo "cat info is provided"
+
+        dogScriptSource =
+            ReferencedNativeScript
+                { outputRef = dogOutputRef
+                , scriptHash = dogPolicyId
+                }
+
+        catScriptSource =
+            ReferencedNativeScript
+                { outputRef = catOutputRef
+                , scriptHash = catPolicyId
+                }
+
+        ( _, fromMe, toMe ) =
+            addressTriplet ()
+
+        autoSelectFromMe assets =
+            { source = fromMe, utxoSelection = AutoUtxoSelection, assets = assets }
+
+        backToMe assets =
+            { destination = toMe, assets = assets }
+
+        ( costModels, localState, defaultSelectionAlgo ) =
+            Debug.todo "finalize config"
+    in
+    initTx
+        -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
+        |> mintAndBurnViaNativeScript dogScriptSource [ { asset = dogAssetName, amount = Integer.one } ]
+        -- burning 1 cat
+        |> mintAndBurnViaNativeScript catScriptSource [ { asset = catAssetName, amount = Integer.negate Integer.one } ]
+        -- balancing the mint and burn
+        |> transfer
+            [ autoSelectFromMe (Value.onlyToken catPolicyId catAssetName Natural.one) ]
+            [ backToMe (Value.onlyToken dogPolicyId dogAssetName Natural.one) ]
+        |> handleChange changeBackToSource
         |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
