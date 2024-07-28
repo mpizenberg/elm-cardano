@@ -106,7 +106,10 @@ Here is an example where me and you both contribute 1 Ada.
 
 As you can see there are two additional steps here compared to the previous example.
 An initialization step, and a change handling step.
-Indeed, the `sendToSomeone` shortcut functions does both with some defaults.
+In cardano, you cannot modify UTxOs.
+You have to spend them entirely and decide what to do with the unused change.
+
+The `sendToSomeone` shortcut function does both with some defaults.
 This removes a bit of verbosity but isn’t composable with other building blocks.
 To use all other building blocks, we need to call ourself these two steps.
 
@@ -156,10 +159,10 @@ Let’s show how to use a native script to lock some tokens,
 that can only be retrieved with our signature.
 
     lockScript =
-        EmbeddedNativeScript (ScriptPubkey myPubkeyHash)
+        ScriptPubkey myPubkeyHash
 
     lockScriptHash =
-        -- Will be provided by the Elm library
+        -- will be provided by the Elm library
         computeNativeScriptHash lockScript
 
     myStakeCredential =
@@ -182,18 +185,21 @@ The native script logic only affects the first part of the address.
 Ok, now let’s show an example how to spend utxos from a native script.
 Imagine we have a script where we had locked some ada,
 only retrievable with our signature.
-Now we want to retrieve 1 ada from it.
+Now we want to retrieve 1 ada from it, and keep the other ada locked.
 
-    TODO =
-        TODO
+    lockScriptSource =
+        EmbeddedNativeScript { script = lockScript, scriptHash = lockScriptHash }
 
-    lockScriptHash =
-        retrievedFromBlueprint
+    localState =
+        -- We already updated a list of our UTxOs
+        { utxos = myUtxos ++ scriptUtxos }
 
     unlockTx =
         initTx
-            |> spendFromNativeScript lockScriptHash AutoUtxoSelection oneAda
+            |> spendFromNativeScript lockScriptSource AutoUtxoSelection oneAda
+            |> addRequiredSigners [ toMe.paymentKey ]
             |> transfer [] [ { destination = toMe, assets = oneAda } ]
+            -- changeBackToSource will send the 1 ada change back to the contract address
             |> handleChange changeBackToSource
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
@@ -277,7 +283,15 @@ to address =
 -- No script involved
 
 
-initTx : Tx { build | needsHandleChange : () }
+type Needs
+    = Needs Never
+
+
+type HasOrNoNeed
+    = HasOrNoNeed Never
+
+
+initTx : Tx { handleChange : Needs }
 initTx =
     Debug.todo "init Tx"
 
@@ -287,7 +301,7 @@ simpleTransfer :
     SourceOwner
     -> DestinationOwner
     -> Value
-    -> Tx { build | hasHandleChange : () }
+    -> Tx { handleChange : HasOrNoNeed }
 simpleTransfer source destination assets =
     Debug.todo "transfer to someone"
 
@@ -302,8 +316,8 @@ type BasicUtxoSelection
 transfer :
     List { source : SourceOwner, utxoSelection : BasicUtxoSelection, assets : Value }
     -> List { destination : DestinationOwner, assets : Value }
-    -> Tx { build | needsHandleChange : () }
-    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
 transfer sources destinations tx =
     Debug.todo "transfer"
 
@@ -314,7 +328,10 @@ transfer sources destinations tx =
 
 {-| -}
 type NativeScriptSource
-    = EmbeddedNativeScript NativeScript
+    = EmbeddedNativeScript
+        { script : NativeScript
+        , scriptHash : Bytes CredentialHash
+        }
     | ReferencedNativeScript
         { outputRef : OutputReference
         , scriptHash : Bytes CredentialHash
@@ -325,8 +342,8 @@ type NativeScriptSource
 mintAndBurnViaNativeScript :
     NativeScriptSource
     -> List { asset : Bytes AssetName, amount : Integer }
-    -> Tx { build | needsHandleChange : () }
-    -> Tx { build | needsHandleChange : () }
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
 mintAndBurnViaNativeScript scriptSource amounts tx =
     Debug.todo "native mint / burn"
 
@@ -336,19 +353,20 @@ sendToNativeScript :
     Bytes CredentialHash
     -> Maybe StakeCredential
     -> Value
-    -> Tx { build | needsHandleChange : () }
-    -> Tx { build | needsHandleChange : () }
-sendToNativeScript scriptHash maybeStakeCredential assets =
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
+sendToNativeScript scriptHash maybeStakeCredential assets tx =
     Debug.todo "sendToNativeScript"
 
 
 {-| -}
 spendFromNativeScript :
-    NativeScriptSource -- Bytes CredentialHash
+    NativeScriptSource
     -> BasicUtxoSelection
     -> Value
-    -> Intent
-spendFromNativeScript scriptHash utxoSelection assets =
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
+spendFromNativeScript scriptHash utxoSelection assets tx =
     Debug.todo "spendFromNativeScript"
 
 
@@ -393,16 +411,16 @@ withdrawViaPlutusScript scriptHash adaLovelaces =
 {-| -}
 type alias ChangeReallocation =
     { toOwners : List ( DestinationOwner, Value )
-    , toNativeScripts : List { scripthHash : Bytes CredentialHash, stakeCredential : Maybe StakeCredential, assets : Value }
-    , toPlutusScripts : List { scripthHash : Bytes CredentialHash, stakeCredential : Maybe StakeCredential, datum : Data, assets : Value }
+    , toNativeScripts : List { scripthHash : Bytes CredentialHash, stakeCred : Maybe StakeCredential, assets : Value }
+    , toPlutusScripts : List { scripthHash : Bytes CredentialHash, stakeCred : Maybe StakeCredential, datum : Data, assets : Value }
     }
 
 
 {-| -}
 handleChange :
     (List ( Output, Value ) -> ChangeReallocation)
-    -> Tx { build | needsHandleChange : () }
-    -> Tx { build | hasHandleChange : (), needsFinalize : () }
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : HasOrNoNeed }
 handleChange reallocateChange =
     Debug.todo "handle change"
 
@@ -480,7 +498,7 @@ finalizeTx :
     -> CostModels
     -> LocalState
     -> CoinSelection.Algorithm
-    -> Tx { build | needsFinalize : () }
-    -> Result String (Tx a)
+    -> Tx { build | handleChange : HasOrNoNeed }
+    -> Result String (Tx { build | final : () })
 finalizeTx networkId costModels localState selectionAlgo tx =
     Debug.todo "finalize tx"
