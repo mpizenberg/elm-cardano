@@ -1,13 +1,10 @@
 module Cardano exposing
-    ( Tx, Intent, SourceOwner(..), DestinationOwner, from, to
-    , BasicUtxoSelection(..), simpleTransfer, transfer
-    , mintAndBurnViaNativeScript, spendFromNativeScript, sendToNativeScript
-    , mintAndBurnViaPlutusScript, ScriptUtxoSelection(..), spendFromPlutusScript, sendToPlutusScript, withdrawViaPlutusScript
+    ( Tx, SourceOwner(..), DestinationOwner, from, to
+    , BasicUtxoSelection(..), simpleTransfer, transfer, createOutput
+    , mintAndBurnViaNativeScript, sendToNativeScript, spendFromNativeScript
+    , mintAndBurnViaPlutusScript, ScriptUtxoSelection(..), sendToPlutusScript, spendFromPlutusScript, addRequiredSigners, withdrawViaPlutusScript
     , ChangeReallocation, handleChange, changeBackToSource, changeBackTo
-    , addMetadata
-    , constrainTimeValidity
-    , addRequiredSigners
-    , setFeesManually
+    , setMetadata, setTimeValidity, payFeesWithAccount
     , LocalState, finalizeTx
     )
 
@@ -362,23 +359,17 @@ The default behavior tries to just use lovelaces from some of the spent UTxOs.
 
 ## Code Documentation
 
-@docs Tx, Intent, SourceOwner, DestinationOwner, from, to
+@docs Tx, WIP, AlmostReady, SourceOwner, DestinationOwner, from, to
 
-@docs BasicUtxoSelection, simpleTransfer, transfer
+@docs BasicUtxoSelection, simpleTransfer, transfer, createOutput
 
-@docs mintAndBurnViaNativeScript, spendFromNativeScript, sendToNativeScript
+@docs mintAndBurnViaNativeScript, sendToNativeScript, spendFromNativeScript
 
-@docs mintAndBurnViaPlutusScript, ScriptUtxoSelection, spendFromPlutusScript, sendToPlutusScript, withdrawViaPlutusScript
+@docs mintAndBurnViaPlutusScript, ScriptUtxoSelection, sendToPlutusScript, spendFromPlutusScript, addRequiredSigners, withdrawViaPlutusScript
 
 @docs ChangeReallocation, handleChange, changeBackToSource, changeBackTo
 
-@docs addMetadata
-
-@docs constrainTimeValidity
-
-@docs addRequiredSigners
-
-@docs setFeesManually
+@docs setMetadata, setTimeValidity, payFeesWithAccount
 
 @docs LocalState, finalizeTx
 
@@ -405,10 +396,13 @@ type Tx state
 
 
 {-| -}
-type
-    Intent
-    -- or Action?
-    = Intent
+type WIP
+    = WIP Never
+
+
+{-| -}
+type AlmostReady
+    = AlmostReady Never
 
 
 {-| -}
@@ -438,15 +432,7 @@ to address =
 -- No script involved
 
 
-type Needs
-    = Needs Never
-
-
-type HasOrNoNeed
-    = HasOrNoNeed Never
-
-
-initTx : Tx { handleChange : Needs }
+initTx : Tx WIP
 initTx =
     Debug.todo "init Tx"
 
@@ -456,7 +442,7 @@ simpleTransfer :
     SourceOwner
     -> DestinationOwner
     -> Value
-    -> Tx { handleChange : HasOrNoNeed }
+    -> Tx AlmostReady
 simpleTransfer source destination assets =
     Debug.todo "transfer to someone"
 
@@ -474,15 +460,15 @@ type BasicUtxoSelection
 transfer :
     List { source : SourceOwner, utxoSelection : BasicUtxoSelection, assets : Value }
     -> List { destination : DestinationOwner, assets : Value }
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 transfer sources destinations tx =
     Debug.todo "transfer"
 
 
 {-| Custom construct for specific needs involving a datum or reference script.
 -}
-createOutput : Output -> Tx a -> Tx a
+createOutput : Output -> Tx WIP -> Tx WIP
 createOutput output tx =
     Debug.todo "create output"
 
@@ -507,8 +493,8 @@ type NativeScriptSource
 mintAndBurnViaNativeScript :
     NativeScriptSource
     -> List { asset : Bytes AssetName, amount : Integer }
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 mintAndBurnViaNativeScript scriptSource amounts tx =
     Debug.todo "native mint / burn"
 
@@ -518,8 +504,8 @@ sendToNativeScript :
     Bytes CredentialHash
     -> Maybe StakeCredential
     -> Value
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 sendToNativeScript scriptHash maybeStakeCredential assets tx =
     Debug.todo "sendToNativeScript"
 
@@ -529,8 +515,8 @@ spendFromNativeScript :
     NativeScriptSource
     -> BasicUtxoSelection
     -> Value
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 spendFromNativeScript scriptHash utxoSelection assets tx =
     Debug.todo "spendFromNativeScript"
 
@@ -556,8 +542,8 @@ mintAndBurnViaPlutusScript :
     PlutusScriptSource
     -> Data
     -> List { asset : Bytes AssetName, amount : Integer }
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 mintAndBurnViaPlutusScript scriptSource redeemer amounts tx =
     Debug.todo "plutus mint / burn"
 
@@ -568,8 +554,8 @@ sendToPlutusScript :
     -> Maybe StakeCredential
     -> Data
     -> Value
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 sendToPlutusScript scriptHash maybeStakeCredential datum assets tx =
     Debug.todo "send to plutus script"
 
@@ -595,42 +581,27 @@ spendFromPlutusScript :
     PlutusScriptSource
     -> ScriptUtxoSelection
     -> Value
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : Needs }
+    -> Tx WIP
+    -> Tx WIP
 spendFromPlutusScript scriptHash utxoSelection totalSpent =
     Debug.todo "spend from plutus script"
 
 
 {-| -}
-withdrawViaPlutusScript : Bytes CredentialHash -> Data -> Natural -> Intent
-withdrawViaPlutusScript scriptHash redeemer adaLovelaces =
-    Debug.todo "withdraw via plutus script"
-
-
-
--- Metadata
-
-
-{-| -}
-addMetadata : List ( Natural, Metadatum ) -> Intent
-addMetadata metadata =
-    Debug.todo "add metadata"
-
-
-
--- Constraints
-
-
-{-| -}
-constrainTimeValidity : { start : Int, end : Natural } -> Intent
-constrainTimeValidity { start, end } =
-    Debug.todo "time validity"
-
-
-{-| -}
-addRequiredSigners : List (Bytes CredentialHash) -> Intent
-addRequiredSigners signers =
+addRequiredSigners : List (Bytes CredentialHash) -> Tx WIP -> Tx WIP
+addRequiredSigners signers tx =
     Debug.todo "required signers"
+
+
+{-| -}
+withdrawViaPlutusScript :
+    Bytes CredentialHash
+    -> Data
+    -> Natural
+    -> Tx WIP
+    -> Tx WIP
+withdrawViaPlutusScript scriptHash redeemer adaLovelaces tx =
+    Debug.todo "withdraw via plutus script"
 
 
 
@@ -659,9 +630,9 @@ type alias ChangeReallocation =
 {-| -}
 handleChange :
     (List ( Output, Value ) -> ChangeReallocation)
-    -> Tx { a | handleChange : Needs }
-    -> Tx { a | handleChange : HasOrNoNeed }
-handleChange reallocateChange =
+    -> Tx WIP
+    -> Tx AlmostReady
+handleChange reallocateChange tx =
     Debug.todo "handle change"
 
 
@@ -678,7 +649,27 @@ changeBackTo destination change =
 
 
 
--- Requirements
+-- Metadata
+
+
+{-| -}
+setMetadata : List ( Natural, Metadatum ) -> Tx AlmostReady -> Tx AlmostReady
+setMetadata metadata tx =
+    Debug.todo "add metadata"
+
+
+
+-- Constraints
+
+
+{-| -}
+setTimeValidity : { start : Int, end : Natural } -> Tx AlmostReady -> Tx AlmostReady
+setTimeValidity { start, end } tx =
+    Debug.todo "time validity"
+
+
+
+-- Fees
 
 
 {-| -}
@@ -688,11 +679,7 @@ type FeeStrat
 
 
 {-| -}
-payFeesWithAccount :
-    SourceOwner
-    -> FeeStrat
-    -> Tx { a | handleChange : HasOrNoNeed }
-    -> Tx { a | handleChange : HasOrNoNeed }
+payFeesWithAccount : SourceOwner -> FeeStrat -> Tx AlmostReady -> Tx AlmostReady
 payFeesWithAccount source strat tx =
     Debug.todo "manual fees"
 
@@ -721,7 +708,7 @@ finalizeTx :
     -> CostModels
     -> LocalState
     -> CoinSelection.Algorithm
-    -> Tx { a | handleChange : HasOrNoNeed }
-    -> Result String (Tx { a | final : () })
+    -> Tx AlmostReady
+    -> Result String Transaction
 finalizeTx networkId costModels localState selectionAlgo tx =
     Debug.todo "finalize tx"
