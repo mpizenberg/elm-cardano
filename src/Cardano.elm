@@ -280,7 +280,7 @@ But the blueprint of the contract, with its hash is available.
 
 For such a tiny contract, which just tests if our signature is present,
 no need to put it in a reference UTxO first.
-We can embed it directly in the transaction.
+We can embed it directly in the transaction if we want to spend its UTxOs.
 
     lockScriptSource =
         -- script and scriptHash are coming from the blueprint
@@ -323,7 +323,7 @@ We can embed it directly in the transaction.
                 oneAda
 
             restOfChange =
-                Value.diff accumulatedChange backToScript
+                Value.substract accumulatedChange backToScript
         in
         { toOwners = [ ( toMe, restOfChange ) ]
         , toNativeScripts = []
@@ -375,10 +375,10 @@ The default behavior tries to just use lovelaces from some of the spent UTxOs.
 
 -}
 
-import Bytes.Comparable exposing (Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address exposing (Address, CredentialHash, NetworkId(..), StakeCredential)
 import Cardano.CoinSelection as CoinSelection
-import Cardano.Data exposing (Data)
+import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset exposing (AssetName, PolicyId)
 import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script exposing (NativeScript, PlutusScript)
@@ -613,13 +613,13 @@ type alias ChangeReallocation =
     { toOwners : List ( DestinationOwner, Value )
     , toNativeScripts :
         List
-            { scripthHash : Bytes CredentialHash
+            { scriptHash : Bytes CredentialHash
             , stakeCred : Maybe StakeCredential
             , assets : Value
             }
     , toPlutusScripts :
         List
-            { scripthHash : Bytes CredentialHash
+            { scriptHash : Bytes CredentialHash
             , stakeCred : Maybe StakeCredential
             , datum : Data
             , assets : Value
@@ -811,4 +811,67 @@ example2 _ =
             [ autoSelectFromMe (Value.onlyToken catPolicyId catAssetName Natural.one) ]
             [ backToMe (Value.onlyToken dogPolicyId dogAssetName Natural.one) ]
         |> handleChange changeBackToSource
+        |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+
+
+
+-- EXAMPLE 3: spend from a Plutus script
+
+
+example3 _ =
+    let
+        ( me, fromMe, toMe ) =
+            addressTriplet ()
+
+        ( lockScript, lockScriptHash ) =
+            Debug.todo "coming from the blueprint"
+
+        lockScriptSource =
+            EmbeddedPlutusScript { script = lockScript, scriptHash = lockScriptHash }
+
+        -- We manually identify the locked UTxO we want to consume
+        -- in order to retrieve 1 ada from it.
+        lockedUtxoSelection =
+            ManualScriptUtxoSelection
+                [ { ref = Debug.todo "theKnownOutputRef"
+                  , utxo = Debug.todo "theKnownUtxo"
+                  , redeemer = Data.Int Integer.zero -- unused here anyway
+                  }
+                ]
+
+        -- Send back 1 ada to the lock script.
+        -- Retrieve the rest back to me.
+        manualChangeReallocation allChange =
+            let
+                accumulatedChange =
+                    Value.sum (List.map Tuple.second allChange)
+
+                backToScript =
+                    oneAda
+
+                restOfChange =
+                    Value.substract accumulatedChange backToScript
+            in
+            { toOwners = [ ( toMe, restOfChange ) ]
+            , toNativeScripts = []
+            , toPlutusScripts =
+                [ { scriptHash = lockScriptHash
+                  , stakeCred = toMe.stakeCred
+                  , datum = Data.Bytes (Bytes.toAny toMe.paymentKey)
+                  , assets = backToScript
+                  }
+                ]
+            }
+
+        ( costModels, localState, defaultSelectionAlgo ) =
+            Debug.todo "finalize config"
+    in
+    initTx
+        |> spendFromPlutusScript lockScriptSource lockedUtxoSelection oneAda
+        -- required signature for the plutus script to check
+        |> addRequiredSigners [ toMe.paymentKey ]
+        |> transfer [] [ { destination = toMe, assets = oneAda } ]
+        -- need a manual handling of the change this time
+        |> handleChange manualChangeReallocation
+        |> payFeesWithAccount fromMe AutoComputeFees
         |> finalizeTx Mainnet costModels localState defaultSelectionAlgo

@@ -1,8 +1,16 @@
-module Cardano.Value exposing (Value, onlyLovelace, onlyToken, encode, fromCbor)
+module Cardano.Value exposing
+    ( Value, onlyLovelace, onlyToken
+    , add, substract, sum
+    , encode, fromCbor
+    )
 
 {-| Handling Cardano values.
 
-@docs Value, onlyLovelace, onlyToken, encode, fromCbor
+@docs Value, onlyLovelace, onlyToken
+
+@docs add, substract, sum
+
+@docs encode, fromCbor
 
 -}
 
@@ -21,7 +29,7 @@ This type maintains some invariants by construction.
 In particular, a Value will never contain a zero quantity of a particular token.
 
 TODO: make sure the previous statement stays true by construction.
-That would require an opaque type.
+That would require an opaque type and some property tests.
 
 -}
 type alias Value =
@@ -42,6 +50,27 @@ onlyToken policy name amount =
     { lovelace = Natural.zero
     , assets = MultiAsset.onlyToken policy name amount
     }
+
+
+{-| Add the values of two UTxOs together.
+-}
+add : Value -> Value -> Value
+add v1 v2 =
+    Debug.todo "Value.add"
+
+
+{-| Substract the second value from the first one: (v1 - v2).
+-}
+substract : Value -> Value -> Value
+substract v1 v2 =
+    Debug.todo "Value.substract"
+
+
+{-| Sum the values of all tokens.
+-}
+sum : List Value -> Value
+sum allValues =
+    Debug.todo "Value.sum"
 
 
 {-| CBOR encoder for [Value].
