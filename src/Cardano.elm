@@ -256,6 +256,36 @@ Ok, let’s start with the minting and burning example.
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
+Ok now let’s show how sending to a Plutus script would be done.
+As before, we’ll use the simple example of a lock script.
+But this time, we don’t write it directly (as in the NativeScript example),
+instead we suppose the contract was written in another language (Aiken, plu-ts, Opshin, ...).
+But the blueprint of the contract, with its hash is available.
+
+    lockScriptHash =
+        extractedFromBlueprint
+
+    -- why not keep it staked while we are at it :)
+    myStakeCredential =
+        toMe.stakeCred
+
+    -- put the unlocking pubkey in the datum of the funds we lock
+    datum =
+        Data.Bytes (Bytes.toAny toMe.paymentKey)
+
+    lockTx =
+        initTx
+            |> transfer [ autoSelectFromMe twoAda ] []
+            -- notice the "datum" that’s new here
+            |> sendToPlutusScript lockScriptHash myStakeCredential datum twoAda
+            |> handleChange changeBackToSource
+            |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+            |> signTx
+
+For such a tiny contract, which just tests if our signature is present,
+no need to put it in a reference UTxO first.
+We can embed it directly in the transaction.
+
 
 ## Code Documentation
 
@@ -450,6 +480,18 @@ mintAndBurnViaPlutusScript scriptSource redeemer amounts tx =
 
 
 {-| -}
+sendToPlutusScript :
+    Bytes CredentialHash
+    -> Maybe StakeCredential
+    -> Data
+    -> Value
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
+sendToPlutusScript scriptHash maybeStakeCredential datum assets tx =
+    Debug.todo "send to plutus script"
+
+
+{-| -}
 type ScriptUtxoSelection
     = AutoScriptUtxoSelection ({ ref : OutputReference, utxo : Output } -> Maybe { redeemer : Data })
     | ManualScriptUtxoSelection (List { ref : OutputReference, redeemer : Data })
@@ -459,12 +501,6 @@ type ScriptUtxoSelection
 spendFromPlutusScript : Bytes CredentialHash -> ScriptUtxoSelection -> Value -> Intent
 spendFromPlutusScript scriptHash utxoSelection totalSpent =
     Debug.todo "spend from plutus script"
-
-
-{-| -}
-sendToPlutusScript : Bytes CredentialHash -> Maybe StakeCredential -> Data -> Value -> Intent
-sendToPlutusScript scriptHash maybeStakeCredential datum assets =
-    Debug.todo "send to plutus script"
 
 
 {-| -}
