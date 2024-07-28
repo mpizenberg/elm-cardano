@@ -204,6 +204,58 @@ Now we want to retrieve 1 ada from it, and keep the other ada locked.
             |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
             |> signTx
 
+Alright, how about doing all those things with Plutus scripts now?
+The main difference with native scripts is that UTxOs sent to Plutus script custody
+"should" (and after Chang HF, "can") contain additional metadata, also called "Datum".
+This datum is then one input of the Plutus script when trying to spend that UTxO.
+In addition to the datum, fixed when sending the UTxO to the script address,
+we also need to add a "redeemer" when invoking the Plutus script.
+This is another piece of data, always provided for all types of Plutus script invocations.
+Ok, let’s start with the minting and burning example.
+
+    dogScriptSource =
+        ReferencedPlutusScript
+            { outputRef = dogOutputRef
+            , scriptHash = dogPolicyId
+            }
+
+    dogRedeemer =
+        buildRedeemerAccordingToDogScriptBlueprint
+
+    catScriptSource =
+        ReferencedPlutusScript
+            { outputRef = catOutputRef
+            , scriptHash = catPolicyId
+            }
+
+    catRedeemer =
+        buildRedeemerAccordingToCatScriptBlueprint
+
+    autoSelectFromMe assets =
+        { source = fromMe, utxoSelection = AutoUtxoSelection, assets = assets }
+
+    backToMe assets =
+        { destination = toMe, assets = assets }
+
+    mintDogAndBurnCatTx =
+        initTx
+            -- notice we pass a redeemer for each mint/burn, that will be used by the script execution
+            |> mintAndBurnViaPlutusScript
+                dogScriptSource
+                dogRedeemer
+                [ { asset = dogAssetName, amount = Integer.one } ]
+            |> mintAndBurnViaPlutusScript
+                catScriptSource
+                catRedeemer
+                [ { asset = catAssetName, amount = Integer.negate Integer.one } ]
+            -- balancing the mint and burn
+            |> transfer
+                [ autoSelectFromMe (Value.onlyToken catPolicyId catAssetName Natural.one) ]
+                [ backToMe (Value.onlyToken dogPolicyId dogAssetName Natural.one) ]
+            |> handleChange changeBackToSource
+            |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
+            |> signTx
+
 
 ## Code Documentation
 
@@ -235,7 +287,7 @@ import Cardano.CoinSelection as CoinSelection
 import Cardano.Data exposing (Data)
 import Cardano.MultiAsset exposing (AssetName, PolicyId)
 import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script exposing (NativeScript)
+import Cardano.Script exposing (NativeScript, PlutusScript)
 import Cardano.Transaction exposing (CostModels, Transaction)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Utxo exposing (Output, OutputReference)
@@ -375,8 +427,25 @@ spendFromNativeScript scriptHash utxoSelection assets tx =
 
 
 {-| -}
-mintAndBurnViaPlutusScript : Bytes PolicyId -> Data -> List { asset : Bytes AssetName, amount : Integer } -> Intent
-mintAndBurnViaPlutusScript policy redeemerData amounts =
+type PlutusScriptSource
+    = EmbeddedPlutusScript
+        { script : PlutusScript
+        , scriptHash : Bytes CredentialHash
+        }
+    | ReferencedPlutusScript
+        { outputRef : OutputReference
+        , scriptHash : Bytes CredentialHash
+        }
+
+
+{-| -}
+mintAndBurnViaPlutusScript :
+    PlutusScriptSource
+    -> Data
+    -> List { asset : Bytes AssetName, amount : Integer }
+    -> Tx { build | handleChange : Needs }
+    -> Tx { build | handleChange : Needs }
+mintAndBurnViaPlutusScript scriptSource redeemer amounts tx =
     Debug.todo "plutus mint / burn"
 
 
@@ -399,8 +468,8 @@ sendToPlutusScript scriptHash maybeStakeCredential datum assets =
 
 
 {-| -}
-withdrawViaPlutusScript : Bytes CredentialHash -> Natural -> Intent
-withdrawViaPlutusScript scriptHash adaLovelaces =
+withdrawViaPlutusScript : Bytes CredentialHash -> Data -> Natural -> Intent
+withdrawViaPlutusScript scriptHash redeemer adaLovelaces =
     Debug.todo "withdraw via plutus script"
 
 
