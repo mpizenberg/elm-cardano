@@ -376,7 +376,7 @@ The default behavior tries to just use lovelaces from some of the spent UTxOs.
 -}
 
 import Bytes.Comparable exposing (Bytes)
-import Cardano.Address exposing (Address, CredentialHash, NetworkId, StakeCredential)
+import Cardano.Address exposing (Address, CredentialHash, NetworkId(..), StakeCredential)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data exposing (Data)
 import Cardano.MultiAsset exposing (AssetName, PolicyId)
@@ -385,7 +385,7 @@ import Cardano.Script exposing (NativeScript, PlutusScript)
 import Cardano.Transaction exposing (CostModels, Transaction)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Utxo exposing (Output, OutputReference)
-import Cardano.Value exposing (Value)
+import Cardano.Value as Value exposing (Value)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 
@@ -712,3 +712,48 @@ finalizeTx :
     -> Result String Transaction
 finalizeTx networkId costModels localState selectionAlgo tx =
     Debug.todo "finalize tx"
+
+
+
+-- EXAMPLES ##########################################################
+--
+--
+-- EXAMPLE 1: Simple transfer
+
+
+example1 _ =
+    let
+        me : Address
+        me =
+            Debug.todo "me address"
+
+        someone : Address
+        someone =
+            Debug.todo "someone address"
+
+        fromMe =
+            from me
+                |> Maybe.withDefault (Debug.todo "shouldNotErrorIfIsAnActualVKeyCredential")
+
+        toSomeone =
+            to someone
+                |> Maybe.withDefault (Debug.todo "shouldNotErrorIfIsAnActualVKeyCredential")
+
+        oneAda =
+            -- Asset amounts are typed with unbounded Natural numbers
+            Value.onlyLovelace (Natural.fromSafeString "1000000")
+
+        localState =
+            -- We already previously retrieved a list of our UTxOs
+            { utxos = Debug.todo "myUtxos" }
+
+        costModels : CostModels
+        costModels =
+            Debug.todo "cost models"
+
+        defaultSelectionAlgo : CoinSelection.Algorithm
+        defaultSelectionAlgo =
+            Debug.todo "default selection algo"
+    in
+    simpleTransfer fromMe toSomeone oneAda
+        |> finalizeTx Mainnet costModels localState defaultSelectionAlgo
