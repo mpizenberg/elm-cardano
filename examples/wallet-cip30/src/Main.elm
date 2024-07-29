@@ -3,6 +3,7 @@ port module Main exposing (..)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
+import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
 import Cardano.Value as ECValue
 import Dict exposing (Dict)
@@ -52,7 +53,7 @@ type Msg
 type alias Model =
     { availableWallets : List Cip30.WalletDescriptor
     , connectedWallets : Dict String Cip30.Wallet
-    , rewardAddress : Maybe { walletId : String, address : String }
+    , rewardAddress : Maybe { walletId : String, address : Address }
     , lastApiResponse : String
     , lastError : String
     }
@@ -94,7 +95,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.NetworkId networkId)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ Debug.toString networkId
                         , lastError = ""
                       }
                     , Cmd.none
@@ -146,7 +147,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.UsedAddresses usedAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" (List.map Debug.toString usedAddresses)
                         , lastError = ""
                       }
                     , Cmd.none
@@ -154,7 +155,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.UnusedAddresses unusedAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" (List.map Debug.toString unusedAddresses)
                         , lastError = ""
                       }
                     , Cmd.none
@@ -162,7 +163,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress changeAddress)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ Debug.toString changeAddress
                         , lastError = ""
                       }
                     , Cmd.none
@@ -170,7 +171,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.RewardAddresses rewardAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" (List.map Debug.toString rewardAddresses)
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
                         , lastError = ""
                       }
@@ -259,7 +260,7 @@ update msg model =
                         , toWallet <|
                             Cip30.encodeRequest <|
                                 Cip30.signData wallet
-                                    { addr = address
+                                    { addr = Address.toBytes address |> Bytes.toString
                                     , payload = Bytes.fromBytes <| Bytes.Encode.encode (Bytes.Encode.unsignedInt8 42)
                                     }
                         )

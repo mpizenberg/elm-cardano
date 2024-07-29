@@ -27,6 +27,8 @@ module Cardano.Cip30 exposing
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Address as Address exposing (Address, NetworkId)
+import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Cbor exposing (CborItem)
 import Cbor.Decode
@@ -274,22 +276,22 @@ type Response
 -}
 type ApiResponse
     = Extensions (List Int)
-    | NetworkId Int
+    | NetworkId NetworkId
     | WalletUtxos (Maybe (List Utxo))
     | Collateral (Maybe (List Utxo))
-    | WalletBalance CborItem
-    | UsedAddresses (List String)
-    | UnusedAddresses (List String)
-    | ChangeAddress String
-    | RewardAddresses (List String)
+    | WalletBalance ECValue.Value
+    | UsedAddresses (List Address)
+    | UnusedAddresses (List Address)
+    | ChangeAddress Address
+    | RewardAddresses (List Address)
     | SignedData DataSignature
 
 
 {-| UTxO type holding the reference and actual output.
 -}
 type alias Utxo =
-    { outputReference : CborItem -- Transaction.Input
-    , output : CborItem -- Transaction.Output
+    { outputReference : Utxo.OutputReference -- Transaction.Input
+    , output : Utxo.Output -- Transaction.Output
     }
 
 
@@ -386,7 +388,7 @@ apiDecoder method walletId =
 
         "getNetworkId" ->
             JDecode.map (\n -> ApiResponse { walletId = walletId } (NetworkId n))
-                (JDecode.field "response" JDecode.int)
+                (JDecode.field "response" networkIdDecoder)
 
         "getUtxos" ->
             JDecode.list utxoDecoder
@@ -402,23 +404,23 @@ apiDecoder method walletId =
 
         "getBalance" ->
             JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance b))
-                (JDecode.field "response" <| hexCborDecoder Cbor.Decode.any)
+                (JDecode.field "response" <| hexCborDecoder ECValue.fromCbor)
 
         "getUsedAddresses" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (UsedAddresses r))
-                (JDecode.field "response" <| JDecode.list JDecode.string)
+                (JDecode.field "response" <| JDecode.list addressDecoder)
 
         "getUnusedAddresses" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (UnusedAddresses r))
-                (JDecode.field "response" <| JDecode.list JDecode.string)
+                (JDecode.field "response" <| JDecode.list addressDecoder)
 
         "getChangeAddress" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (ChangeAddress r))
-                (JDecode.field "response" JDecode.string)
+                (JDecode.field "response" addressDecoder)
 
         "getRewardAddresses" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (RewardAddresses r))
-                (JDecode.field "response" <| JDecode.list JDecode.string)
+                (JDecode.field "response" <| JDecode.list addressDecoder)
 
         "signData" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData r))
@@ -438,8 +440,28 @@ utxoDecoder =
     hexCborDecoder <|
         Cbor.Decode.tuple Utxo <|
             Cbor.Decode.elems
-                >> Cbor.Decode.elem Cbor.Decode.any
-                >> Cbor.Decode.elem Cbor.Decode.any
+                >> Cbor.Decode.elem Utxo.decodeOutputReference
+                >> Cbor.Decode.elem Utxo.decodeOutput
+
+
+networkIdDecoder : Decoder NetworkId
+networkIdDecoder =
+    JDecode.map Address.networkIdFromInt JDecode.int
+        |> JDecode.andThen (Maybe.map JDecode.succeed >> Maybe.withDefault (JDecode.fail "unknown network id"))
+
+
+addressDecoder : Decoder Address
+addressDecoder =
+    JDecode.string
+        |> JDecode.andThen
+            (\str ->
+                case Maybe.andThen Address.fromBytes (Bytes.fromString str) of
+                    Just address ->
+                        JDecode.succeed address
+
+                    _ ->
+                        JDecode.fail ("Invalid address: " ++ str)
+            )
 
 
 dataSignatureDecoder : Decoder DataSignature
