@@ -1,7 +1,9 @@
 module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
-    , enterprise, script, base, pointer
+    , enterprise, script, base, pointer, fromBytes
+    , networkIdFromInt
+    , toBytes, stakeAddressToBytes
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -12,7 +14,11 @@ module Cardano.Address exposing
 
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
-@docs enterprise, script, base, pointer
+@docs enterprise, script, base, pointer, fromBytes
+
+@docs networkIdFromInt
+
+@docs toBytes, stakeAddressToBytes
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -143,6 +149,13 @@ pointer networkId paymentCredential p =
 
 
 {-| Encode an [Address] to CBOR.
+-}
+toCbor : Address -> E.Encoder
+toCbor address =
+    Bytes.toCbor (toBytes address)
+
+
+{-| Convert an [Address] to its underlying [Bytes] representation.
 
 Byron addresses are left untouched as we don't plan to have full support of Byron era.
 
@@ -171,66 +184,76 @@ Stake address description from CIP-0019:
     (15) 1111....           ScriptHash
 
 -}
-toCbor : Address -> E.Encoder
-toCbor address =
+toBytes : Address -> Bytes Address
+toBytes address =
     case address of
         Byron bytes ->
-            Bytes.toCbor bytes
+            Bytes.fromStringUnchecked (Bytes.toString bytes)
 
         Shelley { networkId, paymentCredential, stakeCredential } ->
             case ( paymentCredential, stakeCredential ) of
                 -- (0) 0000.... PaymentKeyHash StakeKeyHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    encodeAddress networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
+                    toBytesHelper networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
 
                 -- (1) 0001.... ScriptHash StakeKeyHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    encodeAddress networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
+                    toBytesHelper networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
 
                 -- (2) 0010.... PaymentKeyHash ScriptHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    encodeAddress networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
+                    toBytesHelper networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
 
                 -- (3) 0011.... ScriptHash ScriptHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    encodeAddress networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
+                    toBytesHelper networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
 
                 -- (4) 0100.... PaymentKeyHash Pointer
                 ( VKeyHash paymentKeyHash, Just (PointerCredential _) ) ->
-                    encodeAddress networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
+                    toBytesHelper networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
 
                 -- (5) 0101.... ScriptHash Pointer
                 ( ScriptHash paymentScriptHash, Just (PointerCredential _) ) ->
-                    encodeAddress networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
+                    toBytesHelper networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
 
                 -- (6) 0110.... PaymentKeyHash ø
                 ( VKeyHash paymentKeyHash, Nothing ) ->
-                    encodeAddress networkId "6" (Bytes.toString paymentKeyHash)
+                    toBytesHelper networkId "6" (Bytes.toString paymentKeyHash)
 
                 -- (7) 0111.... ScriptHash ø
                 ( ScriptHash paymentScriptHash, Nothing ) ->
-                    encodeAddress networkId "7" (Bytes.toString paymentScriptHash)
+                    toBytesHelper networkId "7" (Bytes.toString paymentScriptHash)
 
         Reward stakeAddress ->
-            stakeAddressToCbor stakeAddress
+            stakeAddressToBytes stakeAddress
+                -- Just to convert the phantom type
+                |> Bytes.toString
+                |> Bytes.fromStringUnchecked
 
 
 {-| CBOR encoder for a stake address.
 -}
 stakeAddressToCbor : StakeAddress -> E.Encoder
-stakeAddressToCbor { networkId, stakeCredential } =
+stakeAddressToCbor stakeAddress =
+    Bytes.toCbor (stakeAddressToBytes stakeAddress)
+
+
+{-| Convert a stake address to its bytes representation.
+-}
+stakeAddressToBytes : StakeAddress -> Bytes StakeAddress
+stakeAddressToBytes { networkId, stakeCredential } =
     case stakeCredential of
         -- (14) 1110.... StakeKeyHash
         VKeyHash stakeKeyHash ->
-            encodeAddress networkId "e" (Bytes.toString stakeKeyHash)
+            toBytesHelper networkId "e" (Bytes.toString stakeKeyHash)
 
         -- (15) 1111.... ScriptHash
         ScriptHash stakeScriptHash ->
-            encodeAddress networkId "f" (Bytes.toString stakeScriptHash)
+            toBytesHelper networkId "f" (Bytes.toString stakeScriptHash)
 
 
-encodeAddress : NetworkId -> String -> String -> E.Encoder
-encodeAddress networkId headerType payload =
+toBytesHelper : NetworkId -> String -> String -> Bytes a
+toBytesHelper networkId headerType payload =
     let
         network =
             case networkId of
@@ -242,7 +265,6 @@ encodeAddress networkId headerType payload =
     in
     (headerType ++ network ++ payload)
         |> Bytes.fromStringUnchecked
-        |> Bytes.toCbor
 
 
 {-| CBOR encoder for a [Credential], be it for payment or for stake.
@@ -314,6 +336,17 @@ decodeReward =
                     _ ->
                         D.fail
             )
+
+
+{-| Convert an [Address] from its [Bytes] representation.
+-}
+fromBytes : Bytes a -> Maybe Address
+fromBytes bytes =
+    let
+        actualBytes =
+            Bytes.toBytes bytes
+    in
+    BD.decode (decodeBytes actualBytes) actualBytes
 
 
 {-| Address decoder from raw bytes. Internal use only.
@@ -417,3 +450,18 @@ networkIdFromHeader header =
 
         n ->
             Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
+
+
+{-| Convert to [NetworkId] from its integer representation.
+-}
+networkIdFromInt : Int -> Maybe NetworkId
+networkIdFromInt n =
+    case n of
+        0 ->
+            Just Testnet
+
+        1 ->
+            Just Mainnet
+
+        _ ->
+            Nothing
