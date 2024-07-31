@@ -376,6 +376,7 @@ The default behavior tries to just use lovelaces from some of the spent UTxOs.
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Bytes.Map exposing (BytesMap)
 import Cardano.Address exposing (Address, CredentialHash, NetworkId(..), StakeCredential)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
@@ -388,6 +389,91 @@ import Cardano.Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
+
+
+type Todo
+    = Todo
+
+
+
+--
+
+
+type TxIntent
+    = SendToAutoCreate Address Value
+    | SendToOutput (InputsOutputs -> Output)
+      -- Spending assets from somewhere
+    | SpendFromAutoSelect Address Value
+    | SpendFromUtxo
+        { input : OutputReference
+        , spendWitness : SpendWitness
+        }
+      -- Minting / burning assets
+    | MintBurn
+        { policyId : Bytes CredentialHash
+        , assets : BytesMap AssetName Integer
+        , credentialWitness : CredentialWitness
+        }
+      -- Issuing certificates
+    | IssueCertificate Todo
+      -- Withdrawing rewards
+    | WithdrawRewards Todo
+
+
+type alias InputsOutputs =
+    { referenceInputs : List OutputReference
+    , spentInputs : List OutputReference
+    , createdOutputs : List Output
+    }
+
+
+{-| Provide evidence to perform operations on behalf of a credential, which include:
+
+  - Minting
+  - Certificate witnessing
+  - Rewards withdrawal
+
+Unlike `OutputWitness`, it does not include a `DatumWitness`, because
+minting policies and stake scripts do not have a datum.
+
+-}
+type CredentialWitness
+    = NativeScriptCredential (ScriptWitness NativeScript)
+    | PlutusScriptCredential
+        { scriptWitness : ScriptWitness PlutusScript
+        , redeemerData : InputsOutputs -> Data
+        , requiredSigners : List (Bytes CredentialHash)
+        }
+
+
+
+-- Spend intent
+
+
+type SpendWitness
+    = NoSpendWitness
+    | NativeWitness (ScriptWitness NativeScript)
+    | PlutusWitness
+        { scriptWitness : ScriptWitness PlutusScript
+        , datumWitness : Maybe DatumWitness
+        , redeemerData : InputsOutputs -> Data
+        , requiredSigners : List (Bytes CredentialHash)
+        }
+
+
+type ScriptWitness a
+    = ScriptValue a
+    | ScriptReference OutputReference
+
+
+type DatumWitness
+    = DatumValue Data
+    | DatumReference OutputReference
+
+
+
+-- Other useful data
+--
 
 
 {-| -}
