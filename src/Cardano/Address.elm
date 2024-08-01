@@ -2,7 +2,7 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
-    , extractStakeCredential
+    , extractPubKeyHash, extractStakeCredential
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -15,7 +15,7 @@ module Cardano.Address exposing
 
 @docs enterprise, script, base, pointer
 
-@docs extractStakeCredential
+@docs extractPubKeyHash, extractStakeCredential
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -146,6 +146,23 @@ pointer networkId paymentCredential p =
         , paymentCredential = paymentCredential
         , stakeCredential = Just <| PointerCredential p
         }
+
+
+{-| Extract the pubkey hash of a Shelley wallet address.
+-}
+extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
+extractPubKeyHash address =
+    case address of
+        Shelley { paymentCredential } ->
+            case paymentCredential of
+                VKeyHash bytes ->
+                    Just bytes
+
+                ScriptHash _ ->
+                    Nothing
+
+        _ ->
+            Nothing
 
 
 {-| Extract the stake credential part of a Shelley address.
