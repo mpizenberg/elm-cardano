@@ -298,7 +298,7 @@ We can embed it directly in the transaction witness.
                 , plutusScriptWitness =
                     { script = WitnessValue lockScript -- script passed by value
                     , redeemerData = \_ -> dummyRedeemer -- unused
-                    , requiredSigners = [ myCredential ]
+                    , requiredSigners = [ myKeyCred ]
                     }
                 }
         , SendTo me oneAda
@@ -522,7 +522,7 @@ makeScriptAddress scriptHash maybeStakeCredential =
 
 example3 _ =
     let
-        ( me, myCredential, myStakeCred ) =
+        ( me, myKeyCred, myStakeCred ) =
             ( makeWalletAddress "me"
             , makeWalletAddress "me"
                 |> Address.extractPubKeyHash
@@ -550,7 +550,7 @@ example3 _ =
             , plutusScriptWitness =
                 { script = WitnessValue lockScript
                 , redeemerData = \_ -> dummyRedeemer
-                , requiredSigners = [ myCredential ]
+                , requiredSigners = [ myKeyCred ]
                 }
             }
     , SendTo me oneAda
@@ -563,7 +563,7 @@ example3 _ =
             , amount = oneAda
 
             -- Add our pubkey credential to the datum of the newly locked utxo
-            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myCredential))
+            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
             , referenceScript = Nothing
             }
         )
