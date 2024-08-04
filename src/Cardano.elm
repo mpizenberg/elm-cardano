@@ -1,4 +1,8 @@
-module Cardano exposing (TxIntent(..), ScriptWitness(..), WitnessSource(..), InputsOutputs, TxOtherInfo(..), finalize)
+module Cardano exposing
+    ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
+    , TxOtherInfo(..)
+    , finalize
+    )
 
 {-| Cardano stuff
 
@@ -314,7 +318,9 @@ We can embed it directly in the transaction witness.
 
 ## Code Documentation
 
-@docs TxIntent, ScriptWitness, WitnessSource, InputsOutputs, TxOtherInfo, finalize
+@docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
+@docs TxOtherInfo
+@docs finalize
 
 -}
 
@@ -338,6 +344,7 @@ type Todo
     = Todo
 
 
+{-| -}
 type TxIntent
     = SendTo Address Value
     | SendToOutput (InputsOutputs -> Output)
@@ -359,6 +366,7 @@ type TxIntent
         }
 
 
+{-| -}
 type SpendSource
     = From Address Value
     | FromWalletUtxo OutputReference
@@ -373,6 +381,7 @@ type SpendSource
         }
 
 
+{-| -}
 type alias InputsOutputs =
     { referenceInputs : List OutputReference
     , spentInputs : List OutputReference
@@ -380,11 +389,13 @@ type alias InputsOutputs =
     }
 
 
+{-| -}
 type ScriptWitness
     = NativeWitness (WitnessSource NativeScript)
     | PlutusWitness PlutusScriptWitness
 
 
+{-| -}
 type alias PlutusScriptWitness =
     { script : WitnessSource PlutusScript
     , redeemerData : InputsOutputs -> Data
@@ -392,11 +403,13 @@ type alias PlutusScriptWitness =
     }
 
 
+{-| -}
 type WitnessSource a
     = WitnessValue a
     | WitnessReference OutputReference
 
 
+{-| -}
 type TxOtherInfo
     = TxReferenceInput OutputReference
     | TxMetadata { tag : Natural, metadata : Metadatum }
