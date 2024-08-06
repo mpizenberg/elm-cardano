@@ -1,14 +1,14 @@
 module Cardano.Value exposing
-    ( Value, onlyLovelace, onlyToken
-    , add, substract, sum
+    ( Value, zero, onlyLovelace, onlyToken
+    , add, addTokens, substract, sum
     , encode, fromCbor
     )
 
 {-| Handling Cardano values.
 
-@docs Value, onlyLovelace, onlyToken
+@docs Value, zero, onlyLovelace, onlyToken
 
-@docs add, substract, sum
+@docs add, addTokens, substract, sum
 
 @docs encode, fromCbor
 
@@ -36,6 +36,13 @@ type alias Value =
     { lovelace : Natural, assets : MultiAsset Natural }
 
 
+{-| Empty [Value] with 0 ada and no token.
+-}
+zero : Value
+zero =
+    { lovelace = Natural.zero, assets = MultiAsset.empty }
+
+
 {-| Create a [Value] just containing Ada lovelaces.
 -}
 onlyLovelace : Natural -> Value
@@ -56,6 +63,13 @@ onlyToken policy name amount =
 -}
 add : Value -> Value -> Value
 add v1 v2 =
+    Debug.todo "Value.add"
+
+
+{-| Add some tokens to another [Value].
+-}
+addTokens : MultiAsset Natural -> Value -> Value
+addTokens tokens v =
     Debug.todo "Value.add"
 
 

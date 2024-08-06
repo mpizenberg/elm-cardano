@@ -329,13 +329,14 @@ import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.MultiAsset exposing (AssetName, PolicyId)
+import Cardano.MultiAsset as MultiAsset exposing (AssetName, PolicyId)
 import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script exposing (NativeScript, PlutusScript)
 import Cardano.Transaction exposing (CostModels, Transaction)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
+import Dict exposing (Dict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 
@@ -436,7 +437,98 @@ finalize :
     -> List TxIntent
     -> Result String Transaction
 finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntents =
+    -- TODO: Check that localStateUtxos does not contain duplicate refs with different outputs
+    -- TODO: Check that all spent referenced inputs are present in the local state
+    let
+        -- Initialize InputsOutputs
+        -- TODO: better initalization
+        inputsOutputs =
+            { referenceInputs = []
+            , spentInputs = []
+            , createdOutputs = []
+            }
+
+        -- TODO: Check that the Tx is balanced
+        balance =
+            computeBalance localStateUtxos inputsOutputs txIntents
+    in
     Debug.todo "finalize"
+
+
+computeBalance : List ( OutputReference, Output ) -> InputsOutputs -> List TxIntent -> { input : Value, output : Value }
+computeBalance localStateUtxos inputsOutputs txIntents =
+    let
+        comparableOutputRef : OutputReference -> ( String, Int )
+        comparableOutputRef ref =
+            ( Bytes.toString ref.transactionId, ref.outputIndex )
+
+        -- Build a dict with local state utxos
+        utxoRefDict : Dict ( String, Int ) Output
+        utxoRefDict =
+            localStateUtxos
+                |> List.map (Tuple.mapFirst comparableOutputRef)
+                |> Dict.fromList
+
+        -- Retrieve the ada and tokens amount at a given output reference
+        getValueFromRef : OutputReference -> Value
+        getValueFromRef ref =
+            Dict.get (comparableOutputRef ref) utxoRefDict
+                |> Maybe.map .amount
+                |> Maybe.withDefault Value.zero
+
+        -- Step function that increases balance for each TxIntent
+        addToBalance : TxIntent -> { input : Value, output : Value } -> { input : Value, output : Value }
+        addToBalance txIntent ({ input, output } as balance) =
+            case txIntent of
+                SendTo _ v ->
+                    { input = input
+                    , output = Value.add output v
+                    }
+
+                SendToOutput f ->
+                    { input = input
+                    , output = Value.add output (.amount <| f inputsOutputs)
+                    }
+
+                Spend (From _ v) ->
+                    { input = Value.add input v
+                    , output = output
+                    }
+
+                Spend (FromWalletUtxo ref) ->
+                    { input = Value.add input (getValueFromRef ref)
+                    , output = output
+                    }
+
+                Spend (FromNativeScript { spentInput }) ->
+                    { input = Value.add input (getValueFromRef spentInput)
+                    , output = output
+                    }
+
+                Spend (FromPlutusScript { spentInput }) ->
+                    { input = Value.add input (getValueFromRef spentInput)
+                    , output = output
+                    }
+
+                MintBurn { policyId, assets } ->
+                    let
+                        { minted, burned } =
+                            MultiAsset.balance assets
+                    in
+                    { input = Value.addTokens (Map.singleton policyId minted) input
+                    , output = Value.addTokens (Map.singleton policyId burned) output
+                    }
+
+                WithdrawRewards { amount } ->
+                    { input = Value.add input (Value.onlyLovelace amount)
+                    , output = output
+                    }
+
+                _ ->
+                    balance
+    in
+    -- TODO: remove 0 amounts in balance
+    List.foldl addToBalance { input = Value.zero, output = Value.zero } txIntents
 
 
 

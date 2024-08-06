@@ -1,6 +1,7 @@
 module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
     , empty, isEmpty, onlyToken
+    , balance
     , coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
     )
 
@@ -8,6 +9,7 @@ module Cardano.MultiAsset exposing
 
 @docs MultiAsset, PolicyId, AssetName
 @docs empty, isEmpty, onlyToken
+@docs balance
 @docs coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
 
 -}
@@ -69,6 +71,35 @@ isEmpty =
 onlyToken : Bytes PolicyId -> Bytes AssetName -> int -> MultiAsset int
 onlyToken policy name amount =
     Bytes.Map.singleton policy (Bytes.Map.singleton name amount)
+
+
+{-| Compute a mint balance.
+-}
+balance :
+    BytesMap AssetName Integer
+    -> { minted : BytesMap AssetName Natural, burned : BytesMap AssetName Natural }
+balance assets =
+    let
+        initBalance =
+            { minted = Bytes.Map.empty, burned = Bytes.Map.empty }
+
+        increase amount maybePreviousAmount =
+            Maybe.withDefault Natural.zero maybePreviousAmount
+                |> Natural.add amount
+                |> Just
+
+        processAsset name amount { minted, burned } =
+            if Integer.isNonNegative amount then
+                { minted = Bytes.Map.update name (increase <| Integer.toNatural amount) minted
+                , burned = burned
+                }
+
+            else
+                { minted = minted
+                , burned = Bytes.Map.update name (increase <| Integer.toNatural amount) burned
+                }
+    in
+    Bytes.Map.foldlWithKeys processAsset initBalance assets
 
 
 {-| CBOR encoder for [MultiAsset] coins.
