@@ -3,6 +3,7 @@ module Cardano.Utxo exposing
     , fromLovelace
     , lovelace, totalLovelace
     , sortByAscendingLovelace, sortByDescendingLovelace
+    , minAda
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
     )
@@ -28,6 +29,11 @@ module Cardano.Utxo exposing
 ## Transform
 
 @docs sortByAscendingLovelace, sortByDescendingLovelace
+
+
+## Compute
+
+@docs minAda
 
 
 ## Convert
@@ -140,6 +146,21 @@ lovelace output =
 totalLovelace : List Output -> Natural
 totalLovelace =
     List.foldr (\output total -> N.add (lovelace output) total) N.zero
+
+
+{-| Compute minimum Ada lovelace for a given [Output].
+
+The formula is given by CIP 55,
+with current value of `4310` for `coinsPerUTxOByte`.
+
+TODO: provide `coinsPerUTxOByte` in function arguments?
+
+-}
+minAda : Output -> Natural
+minAda output =
+    E.encode (encodeOutput output)
+        |> (Bytes.fromBytes >> Bytes.width)
+        |> (\w -> N.fromSafeInt ((160 + w) * 4310))
 
 
 {-| CBOR encoder for [Output].

@@ -327,6 +327,7 @@ We can embed it directly in the transaction witness.
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
+import Cardano.Cip30 exposing (Utxo)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, PolicyId)
@@ -334,7 +335,7 @@ import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script exposing (NativeScript, PlutusScript)
 import Cardano.Transaction exposing (CostModels, Transaction)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
-import Cardano.Utxo exposing (DatumOption(..), Output, OutputReference)
+import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Dict exposing (Dict)
 import Integer exposing (Integer)
@@ -448,14 +449,73 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             , createdOutputs = []
             }
 
-        -- TODO: Check that the Tx is balanced
         balance =
             computeBalance localStateUtxos inputsOutputs txIntents
+
+        totalInput =
+            Value.add balance.preSelectedInput balance.freeInput
+
+        totalOutput =
+            Value.add balance.preCreatedOutput balance.freeOutput
     in
-    Debug.todo "finalize"
+    if totalInput == totalOutput then
+        -- check that pre-created outputs have correct min ada
+        validMinAdaPerOutput inputsOutputs txIntents
+            -- TODO: UTxO selection and creation
+            |> Result.andThen (Debug.todo "finalize")
+
+    else
+        Err ("Tx is not balanced.\n" ++ Debug.toString balance)
 
 
-computeBalance : List ( OutputReference, Output ) -> InputsOutputs -> List TxIntent -> { input : Value, output : Value }
+validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
+validMinAdaPerOutput inputsOutputs txIntents =
+    case txIntents of
+        [] ->
+            Ok ()
+
+        first :: others ->
+            case first of
+                SendToOutput f ->
+                    let
+                        output =
+                            f inputsOutputs
+
+                        outputMinAda =
+                            Utxo.minAda output
+                    in
+                    if Utxo.lovelace output |> Natural.isGreaterThanOrEqual outputMinAda then
+                        validMinAdaPerOutput inputsOutputs others
+
+                    else
+                        Err ("Output has less ada than its required min ada (" ++ Natural.toString outputMinAda ++ "):\n" ++ Debug.toString output)
+
+                _ ->
+                    validMinAdaPerOutput inputsOutputs others
+
+
+type alias Balance =
+    { preSelectedInput : Value
+    , freeInput : Value
+    , preCreatedOutput : Value
+    , freeOutput : Value
+    }
+
+
+zeroBalance : Balance
+zeroBalance =
+    { preSelectedInput = Value.zero
+    , freeInput = Value.zero
+    , preCreatedOutput = Value.zero
+    , freeOutput = Value.zero
+    }
+
+
+computeBalance :
+    List ( OutputReference, Output )
+    -> InputsOutputs
+    -> List TxIntent
+    -> Balance
 computeBalance localStateUtxos inputsOutputs txIntents =
     let
         comparableOutputRef : OutputReference -> ( String, Int )
@@ -477,58 +537,44 @@ computeBalance localStateUtxos inputsOutputs txIntents =
                 |> Maybe.withDefault Value.zero
 
         -- Step function that increases balance for each TxIntent
-        addToBalance : TxIntent -> { input : Value, output : Value } -> { input : Value, output : Value }
-        addToBalance txIntent ({ input, output } as balance) =
+        addToBalance : TxIntent -> Balance -> Balance
+        addToBalance txIntent balance =
             case txIntent of
                 SendTo _ v ->
-                    { input = input
-                    , output = Value.add output v
-                    }
+                    { balance | freeOutput = Value.add v balance.freeOutput }
 
                 SendToOutput f ->
-                    { input = input
-                    , output = Value.add output (.amount <| f inputsOutputs)
-                    }
+                    { balance | preCreatedOutput = Value.add balance.preCreatedOutput (.amount <| f inputsOutputs) }
 
                 Spend (From _ v) ->
-                    { input = Value.add input v
-                    , output = output
-                    }
+                    { balance | freeInput = Value.add v balance.freeInput }
 
                 Spend (FromWalletUtxo ref) ->
-                    { input = Value.add input (getValueFromRef ref)
-                    , output = output
-                    }
+                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef ref) }
 
                 Spend (FromNativeScript { spentInput }) ->
-                    { input = Value.add input (getValueFromRef spentInput)
-                    , output = output
-                    }
+                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef spentInput) }
 
                 Spend (FromPlutusScript { spentInput }) ->
-                    { input = Value.add input (getValueFromRef spentInput)
-                    , output = output
-                    }
+                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef spentInput) }
 
                 MintBurn { policyId, assets } ->
                     let
                         { minted, burned } =
                             MultiAsset.balance assets
                     in
-                    { input = Value.addTokens (Map.singleton policyId minted) input
-                    , output = Value.addTokens (Map.singleton policyId burned) output
+                    { balance
+                        | preSelectedInput = Value.addTokens (Map.singleton policyId minted) balance.preSelectedInput
+                        , preCreatedOutput = Value.addTokens (Map.singleton policyId burned) balance.preCreatedOutput
                     }
 
                 WithdrawRewards { amount } ->
-                    { input = Value.add input (Value.onlyLovelace amount)
-                    , output = output
-                    }
+                    { balance | preSelectedInput = Value.add (Value.onlyLovelace amount) balance.preSelectedInput }
 
                 _ ->
                     balance
     in
-    -- TODO: remove 0 amounts in balance
-    List.foldl addToBalance { input = Value.zero, output = Value.zero } txIntents
+    List.foldl addToBalance zeroBalance txIntents
 
 
 
