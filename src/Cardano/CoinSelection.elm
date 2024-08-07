@@ -33,9 +33,6 @@ type Error
 
 
 {-| Represents the result of a successful coin selection.
-
-TODO: Also keep OutputReference around because we’ll need it.
-
 -}
 type alias Selection =
     { selectedOutputs : List ( OutputReference, Output )
@@ -44,9 +41,6 @@ type alias Selection =
 
 
 {-| Holds the arguments necessary for performing coin selection.
-
-TODO: Also keep OutputReference around because we’ll need it.
-
 -}
 type alias Context =
     { availableOutputs : List ( OutputReference, Output )
