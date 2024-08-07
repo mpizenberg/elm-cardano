@@ -47,12 +47,12 @@ basicScenarioTest : a -> Expectation
 basicScenarioTest _ =
     let
         context =
-            { availableOutputs =
+            { availableUtxos =
                 [ output "1" 50
                 , output "2" 30
                 , output "3" 20
                 ]
-            , alreadySelectedOutputs = []
+            , alreadySelectedUtxos = []
             , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
@@ -61,7 +61,7 @@ basicScenarioTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = [ output "1" 50 ]
+                { selectedUtxos = [ output "1" 50 ]
                 , change = Just <| onlyLovelace (N.fromSafeInt 20)
                 }
     in
@@ -73,8 +73,8 @@ noOutputsTest : a -> Expectation
 noOutputsTest _ =
     let
         context =
-            { availableOutputs = []
-            , alreadySelectedOutputs = []
+            { availableUtxos = []
+            , alreadySelectedUtxos = []
             , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
@@ -94,8 +94,8 @@ insufficientFundsTest _ =
             ]
 
         context =
-            { availableOutputs = availableOutputs
-            , alreadySelectedOutputs = []
+            { availableUtxos = availableOutputs
+            , alreadySelectedUtxos = []
             , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
@@ -109,8 +109,8 @@ singleUtxoSingleOutputEqualValueTest : a -> Expectation
 singleUtxoSingleOutputEqualValueTest _ =
     let
         context =
-            { availableOutputs = [ output "1" 10 ]
-            , alreadySelectedOutputs = []
+            { availableUtxos = [ output "1" 10 ]
+            , alreadySelectedUtxos = []
             , targetAmount = onlyLovelace <| N.fromSafeInt 10
             }
 
@@ -119,7 +119,7 @@ singleUtxoSingleOutputEqualValueTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = context.availableOutputs
+                { selectedUtxos = context.availableUtxos
                 , change = Nothing
                 }
     in
@@ -131,8 +131,8 @@ targetZeroAlreadySelectedOutputTest : a -> Expectation
 targetZeroAlreadySelectedOutputTest _ =
     let
         context =
-            { availableOutputs = []
-            , alreadySelectedOutputs = [ output "1" 1 ]
+            { availableUtxos = []
+            , alreadySelectedUtxos = [ output "1" 1 ]
             , targetAmount = Value.zero
             }
 
@@ -141,7 +141,7 @@ targetZeroAlreadySelectedOutputTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = [ output "1" 1 ]
+                { selectedUtxos = [ output "1" 1 ]
                 , change = Just <| onlyLovelace (N.fromSafeInt 1)
                 }
     in
@@ -216,11 +216,11 @@ contextDistribution maxInputCount =
           )
         , ( Distribution.atLeast 80
           , "no already selected outputs"
-          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty
+          , \ctx -> ctx.alreadySelectedUtxos |> List.isEmpty
           )
         , ( Distribution.atLeast 5
           , "already selected outputs"
-          , \ctx -> ctx.alreadySelectedOutputs |> List.isEmpty |> not
+          , \ctx -> ctx.alreadySelectedUtxos |> List.isEmpty |> not
           )
         ]
 
@@ -235,8 +235,8 @@ propCoverageOfPayment maxInputCount context =
         Err _ ->
             Expect.pass
 
-        Ok { selectedOutputs } ->
-            Value.sum (List.map (Tuple.second >> .amount) selectedOutputs)
+        Ok { selectedUtxos } ->
+            Value.sum (List.map (Tuple.second >> .amount) selectedUtxos)
                 -- |> Expect.atLeast context.targetAmount
                 |> Value.atLeast context.targetAmount
                 |> Expect.equal True
@@ -248,12 +248,12 @@ propCorrectnessOfChange maxInputCount context =
         Err _ ->
             Expect.pass
 
-        Ok { selectedOutputs, change } ->
+        Ok { selectedUtxos, change } ->
             let
                 changeAmount =
                     Maybe.withDefault Value.zero change
             in
-            Value.sum (List.map (Tuple.second >> .amount) selectedOutputs)
+            Value.sum (List.map (Tuple.second >> .amount) selectedUtxos)
                 |> Expect.equal (Value.add changeAmount context.targetAmount)
 
 
@@ -265,13 +265,13 @@ basicScenarioMultiAssetTest : a -> Expectation
 basicScenarioMultiAssetTest _ =
     let
         context =
-            { availableOutputs =
+            { availableUtxos =
                 [ asset "1" "policy" "name" 30
                 , asset "2" "policy" "name" 20
                 , asset "3" "policy" "name" 70
                 , asset "4" "policy" "name" 10
                 ]
-            , alreadySelectedOutputs = []
+            , alreadySelectedUtxos = []
             , targetAmount = token "policy" "name" 30
             }
 
@@ -280,7 +280,7 @@ basicScenarioMultiAssetTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = [ asset "3" "policy" "name" 70 ]
+                { selectedUtxos = [ asset "3" "policy" "name" 70 ]
                 , change = Just (token "policy" "name" 40)
                 }
     in
@@ -292,8 +292,8 @@ noOutputsMultiAssetTest : a -> Expectation
 noOutputsMultiAssetTest _ =
     let
         context =
-            { availableOutputs = []
-            , alreadySelectedOutputs = []
+            { availableUtxos = []
+            , alreadySelectedUtxos = []
             , targetAmount = token "policy" "name" 30
             }
 
@@ -313,8 +313,8 @@ insufficientFundsMultiAssetTest _ =
             ]
 
         context =
-            { availableOutputs = availableOutputs
-            , alreadySelectedOutputs = []
+            { availableUtxos = availableOutputs
+            , alreadySelectedUtxos = []
             , targetAmount = token "policy" "name" 30
             }
 
@@ -328,8 +328,8 @@ singleUtxoSingleOutputEqualValueMultiAssetTest : a -> Expectation
 singleUtxoSingleOutputEqualValueMultiAssetTest _ =
     let
         context =
-            { availableOutputs = [ asset "1" "policy" "name" 10 ]
-            , alreadySelectedOutputs = []
+            { availableUtxos = [ asset "1" "policy" "name" 10 ]
+            , alreadySelectedUtxos = []
             , targetAmount = token "policy" "name" 10
             }
 
@@ -338,7 +338,7 @@ singleUtxoSingleOutputEqualValueMultiAssetTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = context.availableOutputs
+                { selectedUtxos = context.availableUtxos
                 , change = Nothing
                 }
     in
@@ -350,8 +350,8 @@ targetZeroAlreadySelectedOutputMultiAssetTest : a -> Expectation
 targetZeroAlreadySelectedOutputMultiAssetTest _ =
     let
         context =
-            { availableOutputs = []
-            , alreadySelectedOutputs = [ asset "1" "policy" "name" 1 ]
+            { availableUtxos = []
+            , alreadySelectedUtxos = [ asset "1" "policy" "name" 1 ]
             , targetAmount = Value.zero
             }
 
@@ -360,7 +360,7 @@ targetZeroAlreadySelectedOutputMultiAssetTest _ =
 
         expectedResult =
             Ok
-                { selectedOutputs = [ asset "1" "policy" "name" 1 ]
+                { selectedUtxos = [ asset "1" "policy" "name" 1 ]
                 , change = Just <| token "policy" "name" 1
                 }
     in

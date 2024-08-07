@@ -453,16 +453,46 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             computeBalance localStateUtxos inputsOutputs txIntents
 
         totalInput =
-            Value.add balance.preSelectedInput balance.freeInput
+            Value.add balance.preSelected.sum balance.freeInputSum
 
         totalOutput =
-            Value.add balance.preCreatedOutput balance.freeOutput
+            Value.add balance.preCreated.sum balance.freeOutputSum
     in
     if totalInput == totalOutput then
         -- check that pre-created outputs have correct min ada
         validMinAdaPerOutput inputsOutputs txIntents
-            -- TODO: UTxO selection and creation
-            |> Result.andThen (Debug.todo "finalize")
+            -- UTxO selection
+            |> Result.andThen
+                (\_ ->
+                    let
+                        localStateInputs =
+                            Utxo.refSetFromList (List.map Tuple.first localStateUtxos)
+
+                        preSelectedInputs =
+                            Utxo.refSetFromList balance.preSelected.inputs
+
+                        availableInputs =
+                            Utxo.refSetDiff localStateInputs preSelectedInputs
+
+                        isAvailable ( ref, _ ) =
+                            Utxo.hasRef ref availableInputs
+
+                        context =
+                            { alreadySelectedUtxos = []
+                            , targetAmount = balance.freeInputSum
+                            , availableUtxos = List.filter isAvailable localStateUtxos
+                            }
+
+                        maxInputCount =
+                            10
+                    in
+                    coinSelectionAlgo maxInputCount context
+                        |> Result.mapError Debug.toString
+                )
+            |> Result.andThen
+                (\{ selectedUtxos, change } ->
+                    Debug.todo "finalize"
+                )
 
     else
         Err ("Tx is not balanced.\n" ++ Debug.toString balance)
@@ -495,19 +525,19 @@ validMinAdaPerOutput inputsOutputs txIntents =
 
 
 type alias Balance =
-    { preSelectedInput : Value
-    , freeInput : Value
-    , preCreatedOutput : Value
-    , freeOutput : Value
+    { preSelected : { sum : Value, inputs : List OutputReference }
+    , freeInputSum : Value
+    , preCreated : { sum : Value, outputs : List Output }
+    , freeOutputSum : Value
     }
 
 
 zeroBalance : Balance
 zeroBalance =
-    { preSelectedInput = Value.zero
-    , freeInput = Value.zero
-    , preCreatedOutput = Value.zero
-    , freeOutput = Value.zero
+    { preSelected = { sum = Value.zero, inputs = [] }
+    , freeInputSum = Value.zero
+    , preCreated = { sum = Value.zero, outputs = [] }
+    , freeOutputSum = Value.zero
     }
 
 
@@ -541,22 +571,31 @@ computeBalance localStateUtxos inputsOutputs txIntents =
         addToBalance txIntent balance =
             case txIntent of
                 SendTo _ v ->
-                    { balance | freeOutput = Value.add v balance.freeOutput }
+                    { balance | freeOutputSum = Value.add v balance.freeOutputSum }
 
                 SendToOutput f ->
-                    { balance | preCreatedOutput = Value.add balance.preCreatedOutput (.amount <| f inputsOutputs) }
+                    let
+                        output =
+                            f inputsOutputs
+                    in
+                    { balance
+                        | preCreated =
+                            { sum = Value.add balance.preCreated.sum output.amount
+                            , outputs = output :: balance.preCreated.outputs
+                            }
+                    }
 
                 Spend (From _ v) ->
-                    { balance | freeInput = Value.add v balance.freeInput }
+                    { balance | freeInputSum = Value.add v balance.freeInputSum }
 
                 Spend (FromWalletUtxo ref) ->
-                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef ref) }
+                    { balance | preSelected = addPreSelectedInput ref (getValueFromRef ref) balance.preSelected }
 
                 Spend (FromNativeScript { spentInput }) ->
-                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef spentInput) }
+                    { balance | preSelected = addPreSelectedInput spentInput (getValueFromRef spentInput) balance.preSelected }
 
                 Spend (FromPlutusScript { spentInput }) ->
-                    { balance | preSelectedInput = Value.add balance.preSelectedInput (getValueFromRef spentInput) }
+                    { balance | preSelected = addPreSelectedInput spentInput (getValueFromRef spentInput) balance.preSelected }
 
                 MintBurn { policyId, assets } ->
                     let
@@ -564,12 +603,23 @@ computeBalance localStateUtxos inputsOutputs txIntents =
                             MultiAsset.balance assets
                     in
                     { balance
-                        | preSelectedInput = Value.addTokens (Map.singleton policyId minted) balance.preSelectedInput
-                        , preCreatedOutput = Value.addTokens (Map.singleton policyId burned) balance.preCreatedOutput
+                        | preSelected =
+                            { sum = Value.addTokens (Map.singleton policyId minted) balance.preSelected.sum
+                            , inputs = balance.preSelected.inputs
+                            }
+                        , preCreated =
+                            { sum = Value.addTokens (Map.singleton policyId burned) balance.preCreated.sum
+                            , outputs = balance.preCreated.outputs
+                            }
                     }
 
                 WithdrawRewards { amount } ->
-                    { balance | preSelectedInput = Value.add (Value.onlyLovelace amount) balance.preSelectedInput }
+                    { balance
+                        | preSelected =
+                            { sum = Value.add (Value.onlyLovelace amount) balance.preSelected.sum
+                            , inputs = balance.preSelected.inputs
+                            }
+                    }
 
                 _ ->
                     balance
@@ -577,7 +627,21 @@ computeBalance localStateUtxos inputsOutputs txIntents =
     List.foldl addToBalance zeroBalance txIntents
 
 
+{-| Helper function
+-}
+addPreSelectedInput :
+    OutputReference
+    -> Value
+    -> { sum : Value, inputs : List OutputReference }
+    -> { sum : Value, inputs : List OutputReference }
+addPreSelectedInput ref value { sum, inputs } =
+    { sum = Value.add value sum
+    , inputs = ref :: inputs
+    }
 
+
+
+--
 -- EXAMPLES ##########################################################
 
 

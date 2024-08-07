@@ -1,5 +1,6 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
+    , OutputReferenceSet, refSetFromList, refSetToList, hasRef, refSetDiff
     , fromLovelace
     , lovelace, totalLovelace, compareLovelace
     , minAda
@@ -13,6 +14,11 @@ module Cardano.Utxo exposing
 ## Definitions
 
 @docs OutputReference, TransactionId, Output, DatumHash, DatumOption
+
+
+## Output reference set
+
+@docs OutputReferenceSet, refSetFromList, refSetToList, hasRef, refSetDiff
 
 
 ## Build
@@ -49,6 +55,7 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Natural as N exposing (Natural)
+import Set exposing (Set)
 
 
 {-| The reference for a eUTxO.
@@ -64,6 +71,43 @@ This is a Blake2b-256 hash.
 -}
 type TransactionId
     = TransactionId Never
+
+
+{-| Opaque type holding a set of [OutputReference].
+-}
+type OutputReferenceSet
+    = OutputReferenceSet (Set ( String, Int ))
+
+
+{-| Create an [OutputReferenceSet] from a list of [OutputReference].
+-}
+refSetFromList : List OutputReference -> OutputReferenceSet
+refSetFromList refs =
+    List.map (\r -> ( Bytes.toString r.transactionId, r.outputIndex )) refs
+        |> Set.fromList
+        |> OutputReferenceSet
+
+
+{-| Convert an [OutputReferenceSet] into a list of [OutputReference].
+-}
+refSetToList : OutputReferenceSet -> List OutputReference
+refSetToList (OutputReferenceSet set) =
+    Set.toList set
+        |> List.map (\( txId, index ) -> OutputReference (Bytes.fromStringUnchecked txId) index)
+
+
+{-| Check if some [OutputReference] is present if the set.
+-}
+hasRef : OutputReference -> OutputReferenceSet -> Bool
+hasRef { transactionId, outputIndex } (OutputReferenceSet set) =
+    Set.member ( Bytes.toString transactionId, outputIndex ) set
+
+
+{-| Compute set1 \\ set2.
+-}
+refSetDiff : OutputReferenceSet -> OutputReferenceSet -> OutputReferenceSet
+refSetDiff set1 set2 =
+    Debug.todo "refSetDiff"
 
 
 {-| CBOR encoder for [OutputReference].

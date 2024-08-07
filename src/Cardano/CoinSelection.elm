@@ -37,7 +37,7 @@ type Error
 {-| Represents the result of a successful coin selection.
 -}
 type alias Selection =
-    { selectedOutputs : List ( OutputReference, Output )
+    { selectedUtxos : List ( OutputReference, Output )
     , change : Maybe Value
     }
 
@@ -45,8 +45,8 @@ type alias Selection =
 {-| Holds the arguments necessary for performing coin selection.
 -}
 type alias Context =
-    { availableOutputs : List ( OutputReference, Output )
-    , alreadySelectedOutputs : List ( OutputReference, Output )
+    { availableUtxos : List ( OutputReference, Output )
+    , alreadySelectedUtxos : List ( OutputReference, Output )
     , targetAmount : Value
     }
 
@@ -77,22 +77,22 @@ largestFirst maxInputCount context =
             MultiAsset.split context.targetAmount.assets
 
         sortedAvailableUtxoByLovelace =
-            List.sortWith (\( _, o1 ) ( _, o2 ) -> reverseOrder Utxo.compareLovelace o1 o2) context.availableOutputs
+            List.sortWith (\( _, o1 ) ( _, o2 ) -> reverseOrder Utxo.compareLovelace o1 o2) context.availableUtxos
     in
     -- Select for Ada first
     accumOutputsUntilDone
         { maxInputCount = maxInputCount
-        , selectedInputCount = List.length context.alreadySelectedOutputs
-        , accumulatedAmount = Value.sum (List.map (Tuple.second >> .amount) context.alreadySelectedOutputs)
+        , selectedInputCount = List.length context.alreadySelectedUtxos
+        , accumulatedAmount = Value.sum (List.map (Tuple.second >> .amount) context.alreadySelectedUtxos)
         , targetAmount = targetLovelace
         , availableOutputs = sortedAvailableUtxoByLovelace
-        , selectedOutputs = context.alreadySelectedOutputs
+        , selectedOutputs = context.alreadySelectedUtxos
         }
         -- Then select for each token
         |> largestFirstIter targetAssets
         |> Result.map
             (\state ->
-                { selectedOutputs = state.selectedOutputs
+                { selectedUtxos = state.selectedOutputs
                 , change =
                     if state.accumulatedAmount == context.targetAmount then
                         Nothing
