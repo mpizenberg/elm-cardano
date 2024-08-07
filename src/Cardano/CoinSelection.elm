@@ -21,7 +21,7 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 -}
 
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, compareLovelace, lovelace, totalLovelace)
-import Cardano.Value exposing (Value, onlyLovelace)
+import Cardano.Value as Value exposing (Value, onlyLovelace)
 import Natural as N exposing (Natural)
 
 
@@ -51,7 +51,7 @@ TODO: Also keep OutputReference around because we’ll need it.
 type alias Context =
     { availableOutputs : List ( OutputReference, Output )
     , alreadySelectedOutputs : List ( OutputReference, Output )
-    , targetAmount : Natural
+    , targetAmount : Value
     }
 
 
@@ -71,6 +71,8 @@ representing the maximum number of inputs allowed. Returns either a
 -}
 largestFirst : Algorithm
 largestFirst maxInputCount context =
+    -- TODO: This only works well for lovelaces
+    -- TODO: Change this algo with partial selection per token
     let
         sortedAvailableUtxo =
             List.sortWith (\( _, o1 ) ( _, o2 ) -> reverseOrder Utxo.compareLovelace o1 o2) context.availableOutputs
@@ -78,7 +80,7 @@ largestFirst maxInputCount context =
     doLargestFirst
         { maxInputCount = maxInputCount
         , selectedInputCount = List.length context.alreadySelectedOutputs
-        , accumulatedAmount = totalLovelace (List.map Tuple.second context.alreadySelectedOutputs)
+        , accumulatedAmount = Value.sum (List.map (Tuple.second >> .amount) context.alreadySelectedOutputs)
         , targetAmount = context.targetAmount
         , availableOutputs = sortedAvailableUtxo
         , selectedOutputs = context.alreadySelectedOutputs
@@ -90,15 +92,11 @@ reverseOrder f x y =
     f y x
 
 
-
--- doLargestFirst : Int -> Int -> Int -> List Output -> List Output -> Result Error (Bytes -> Selection)
-
-
 doLargestFirst :
     { maxInputCount : Int
     , selectedInputCount : Int
-    , accumulatedAmount : Natural
-    , targetAmount : Natural
+    , accumulatedAmount : Value
+    , targetAmount : Value
     , availableOutputs : List ( OutputReference, Output )
     , selectedOutputs : List ( OutputReference, Output )
     }
@@ -107,7 +105,7 @@ doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmo
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
 
-    else if accumulatedAmount |> N.isLessThan targetAmount then
+    else if Value.normalize (Value.substract targetAmount accumulatedAmount) /= Value.zero then
         case availableOutputs of
             [] ->
                 Err UTxOBalanceInsufficient
@@ -116,7 +114,7 @@ doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmo
                 doLargestFirst
                     { maxInputCount = maxInputCount
                     , selectedInputCount = selectedInputCount + 1
-                    , accumulatedAmount = N.add (lovelace <| Tuple.second utxo) accumulatedAmount
+                    , accumulatedAmount = Value.add (Tuple.second utxo |> .amount) accumulatedAmount
                     , targetAmount = targetAmount
                     , availableOutputs = utxos
                     , selectedOutputs = utxo :: selectedOutputs
@@ -130,5 +128,5 @@ doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmo
                     Nothing
 
                 else
-                    Just (onlyLovelace <| N.sub accumulatedAmount targetAmount)
+                    Just (Value.substract accumulatedAmount targetAmount)
             }

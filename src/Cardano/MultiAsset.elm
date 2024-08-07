@@ -1,15 +1,15 @@
 module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
-    , empty, isEmpty, onlyToken
-    , balance
+    , empty, isEmpty, onlyToken, normalize
+    , balance, map2
     , coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
     )
 
 {-| Handling multi-asset values.
 
 @docs MultiAsset, PolicyId, AssetName
-@docs empty, isEmpty, onlyToken
-@docs balance
+@docs empty, isEmpty, onlyToken, normalize
+@docs balance, map2
 @docs coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
 
 -}
@@ -21,6 +21,7 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
+import Dict
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 
@@ -73,6 +74,15 @@ onlyToken policy name amount =
     Bytes.Map.singleton policy (Bytes.Map.singleton name amount)
 
 
+{-| Remove assets with 0 amounts.
+-}
+normalize : MultiAsset Natural -> MultiAsset Natural
+normalize multiAsset =
+    multiAsset
+        |> Bytes.Map.map (Bytes.Map.filter (not << Natural.isZero))
+        |> Bytes.Map.filter (not << Bytes.Map.isEmpty)
+
+
 {-| Compute a mint balance.
 -}
 balance :
@@ -100,6 +110,48 @@ balance assets =
                 }
     in
     Bytes.Map.foldlWithKeys processAsset initBalance assets
+
+
+{-| Apply a function for each token pair of two [MultiAsset].
+Absent tokens in one [MultiAsset] are replaced by the default value.
+-}
+map2 : (a -> a -> b) -> a -> MultiAsset a -> MultiAsset a -> MultiAsset b
+map2 f default m1 m2 =
+    let
+        whenLeft : Bytes PolicyId -> BytesMap AssetName a -> MultiAsset b -> MultiAsset b
+        whenLeft policyId assets accum =
+            Bytes.Map.insert policyId (map2Assets f default assets Bytes.Map.empty) accum
+
+        whenRight : Bytes PolicyId -> BytesMap AssetName a -> MultiAsset b -> MultiAsset b
+        whenRight policyId assets accum =
+            Bytes.Map.insert policyId (map2Assets f default Bytes.Map.empty assets) accum
+
+        whenBoth : Bytes PolicyId -> BytesMap AssetName a -> BytesMap AssetName a -> MultiAsset b -> MultiAsset b
+        whenBoth policyId a1 a2 accum =
+            Bytes.Map.insert policyId (map2Assets f default a1 a2) accum
+    in
+    Bytes.Map.merge whenLeft whenBoth whenRight m1 m2 empty
+
+
+{-| Apply a function for each token pair of a given policy.
+Absent tokens are replaced by the default value.
+-}
+map2Assets : (a -> a -> b) -> a -> BytesMap AssetName a -> BytesMap AssetName a -> BytesMap AssetName b
+map2Assets f default a1 a2 =
+    let
+        whenLeft : Bytes AssetName -> a -> BytesMap AssetName b -> BytesMap AssetName b
+        whenLeft name amount accum =
+            Bytes.Map.insert name (f amount default) accum
+
+        whenRight : Bytes AssetName -> a -> BytesMap AssetName b -> BytesMap AssetName b
+        whenRight name amount accum =
+            Bytes.Map.insert name (f default amount) accum
+
+        whenBoth : Bytes AssetName -> a -> a -> BytesMap AssetName b -> BytesMap AssetName b
+        whenBoth name amount1 amount2 accum =
+            Bytes.Map.insert name (f amount1 amount2) accum
+    in
+    Bytes.Map.merge whenLeft whenBoth whenRight a1 a2 Bytes.Map.empty
 
 
 {-| CBOR encoder for [MultiAsset] coins.

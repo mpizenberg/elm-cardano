@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (Address, NetworkId(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
 import Cardano.Utxo exposing (Output, OutputReference, fromLovelace, totalLovelace)
-import Cardano.Value exposing (onlyLovelace)
+import Cardano.Value as Value exposing (onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Fuzz.Extra
@@ -39,7 +39,7 @@ basicScenarioTest _ =
                 , output "3" 20
                 ]
             , alreadySelectedOutputs = []
-            , targetAmount = N.fromSafeInt 30
+            , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
         maxInputCount =
@@ -61,7 +61,7 @@ noOutputsTest _ =
         context =
             { availableOutputs = []
             , alreadySelectedOutputs = []
-            , targetAmount = N.fromSafeInt 30
+            , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
         maxInputCount =
@@ -82,7 +82,7 @@ insufficientFundsTest _ =
         context =
             { availableOutputs = availableOutputs
             , alreadySelectedOutputs = []
-            , targetAmount = N.fromSafeInt 30
+            , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
 
         result =
@@ -97,7 +97,7 @@ singleUtxoSingleOutputEqualValueTest _ =
         context =
             { availableOutputs = [ output "1" 10 ]
             , alreadySelectedOutputs = []
-            , targetAmount = N.fromSafeInt 10
+            , targetAmount = onlyLovelace <| N.fromSafeInt 10
             }
 
         maxInputCount =
@@ -119,7 +119,7 @@ targetZeroAlreadySelectedOutputTest _ =
         context =
             { availableOutputs = []
             , alreadySelectedOutputs = [ output "1" 1 ]
-            , targetAmount = N.zero
+            , targetAmount = Value.zero
             }
 
         maxInputCount =
@@ -190,7 +190,7 @@ contextFuzzer maxInputCount =
             , ( 9, Fuzz.constant [] )
             ]
         )
-        Fuzz.Extra.natural
+        (Fuzz.map onlyLovelace Fuzz.Extra.natural)
 
 
 contextDistribution : Int -> Test.Distribution CoinSelection.Context
@@ -222,9 +222,9 @@ propCoverageOfPayment maxInputCount context =
             Expect.pass
 
         Ok { selectedOutputs } ->
-            totalLovelace (List.map Tuple.second selectedOutputs)
+            Value.sum (List.map (Tuple.second >> .amount) selectedOutputs)
                 -- |> Expect.atLeast context.targetAmount
-                |> N.isGreaterThanOrEqual context.targetAmount
+                |> Value.atLeast context.targetAmount
                 |> Expect.equal True
 
 
@@ -237,8 +237,7 @@ propCorrectnessOfChange maxInputCount context =
         Ok { selectedOutputs, change } ->
             let
                 changeAmount =
-                    Maybe.map .lovelace change
-                        |> Maybe.withDefault N.zero
+                    Maybe.withDefault Value.zero change
             in
-            totalLovelace (List.map Tuple.second selectedOutputs)
-                |> Expect.equal (N.add changeAmount context.targetAmount)
+            Value.sum (List.map (Tuple.second >> .amount) selectedOutputs)
+                |> Expect.equal (Value.add changeAmount context.targetAmount)
