@@ -1,8 +1,7 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , fromLovelace
-    , lovelace, totalLovelace
-    , sortByAscendingLovelace, sortByDescendingLovelace
+    , lovelace, totalLovelace, compareLovelace
     , minAda
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
@@ -23,12 +22,7 @@ module Cardano.Utxo exposing
 
 ## Query
 
-@docs lovelace, totalLovelace
-
-
-## Transform
-
-@docs sortByAscendingLovelace, sortByDescendingLovelace
+@docs lovelace, totalLovelace, compareLovelace
 
 
 ## Compute
@@ -109,18 +103,11 @@ type DatumHash
     = DatumHash_ Never
 
 
-{-| Sorts a list of UTXOs in descending order by lovelace value.
+{-| Compare UTxOs by lovelace value.
 -}
-sortByDescendingLovelace : List Output -> List Output
-sortByDescendingLovelace =
-    List.sortWith (\a b -> N.compare (lovelace b) (lovelace a))
-
-
-{-| Sorts a list of UTXOs in ascending order by lovelace value.
--}
-sortByAscendingLovelace : List Output -> List Output
-sortByAscendingLovelace =
-    List.sortWith (\a b -> N.compare (lovelace a) (lovelace b))
+compareLovelace : Output -> Output -> Order
+compareLovelace a b =
+    N.compare (lovelace a) (lovelace b)
 
 
 {-| Construct an `Output` from an `Address` and a lovelace amount

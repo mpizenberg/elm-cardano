@@ -3,7 +3,7 @@ module Cardano.CoinSelectionTests exposing (..)
 import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (Address, NetworkId(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import Cardano.Utxo exposing (Output, fromLovelace, totalLovelace)
+import Cardano.Utxo exposing (Output, OutputReference, fromLovelace, totalLovelace)
 import Cardano.Value exposing (onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
@@ -139,9 +139,11 @@ targetZeroAlreadySelectedOutputTest _ =
 -- Fixtures
 
 
-output : String -> Int -> Output
+output : String -> Int -> ( OutputReference, Output )
 output addrSuffix amount =
-    fromLovelace (address addrSuffix) (N.fromSafeInt amount)
+    ( OutputReference (Bytes.fromStringUnchecked "addrSuffix") 0
+    , fromLovelace (address addrSuffix) (N.fromSafeInt amount)
+    )
 
 
 address : String -> Address
@@ -173,9 +175,9 @@ contextFuzzer : Int -> Fuzzer CoinSelection.Context
 contextFuzzer maxInputCount =
     let
         outputFuzzer =
-            Fuzz.map2 fromLovelace
-                (Fuzz.int |> Fuzz.map (\i -> address <| "_" ++ String.fromInt i))
-                Fuzz.Extra.strictPositiveNatural
+            Fuzz.map2 output
+                (Fuzz.map String.fromInt Fuzz.int)
+                (Fuzz.intAtLeast 1)
     in
     Fuzz.map3 CoinSelection.Context
         (Fuzz.frequency
@@ -220,7 +222,7 @@ propCoverageOfPayment maxInputCount context =
             Expect.pass
 
         Ok { selectedOutputs } ->
-            totalLovelace selectedOutputs
+            totalLovelace (List.map Tuple.second selectedOutputs)
                 -- |> Expect.atLeast context.targetAmount
                 |> N.isGreaterThanOrEqual context.targetAmount
                 |> Expect.equal True
@@ -238,5 +240,5 @@ propCorrectnessOfChange maxInputCount context =
                     Maybe.map .lovelace change
                         |> Maybe.withDefault N.zero
             in
-            totalLovelace selectedOutputs
+            totalLovelace (List.map Tuple.second selectedOutputs)
                 |> Expect.equal (N.add changeAmount context.targetAmount)
