@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (Address, NetworkId(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
 import Cardano.Utxo exposing (Output, OutputReference, fromLovelace, totalLovelace)
-import Cardano.Value as Value exposing (onlyLovelace)
+import Cardano.Value as Value exposing (Value, onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Fuzz.Extra
@@ -17,7 +17,8 @@ import Test.Distribution as Distribution
 suite : Test
 suite =
     describe "CoinSelection"
-        [ describe "largestFirst"
+        -- Ada only tests
+        [ describe "largestFirst ada only"
             [ test "basic scenario" <| basicScenarioTest
             , test "no utxos" <| noOutputsTest
             , test "insufficient funds" <| insufficientFundsTest
@@ -26,7 +27,20 @@ suite =
             , fuzzCoinSelection "coverage of payments" propCoverageOfPayment
             , fuzzCoinSelection "correctness of change" propCorrectnessOfChange
             ]
+
+        -- MultiAsset tests
+        , describe "largestFirst MultiAsset"
+            [ test "basic scenario" <| basicScenarioMultiAssetTest
+            , test "no utxos" <| noOutputsMultiAssetTest
+            , test "insufficient funds" <| insufficientFundsMultiAssetTest
+            , test "single utxo, single output, equal value" <| singleUtxoSingleOutputEqualValueMultiAssetTest
+            , test "target zero, already selected output" <| targetZeroAlreadySelectedOutputMultiAssetTest
+            ]
         ]
+
+
+
+-- Ada only
 
 
 basicScenarioTest : a -> Expectation
@@ -241,3 +255,134 @@ propCorrectnessOfChange maxInputCount context =
             in
             Value.sum (List.map (Tuple.second >> .amount) selectedOutputs)
                 |> Expect.equal (Value.add changeAmount context.targetAmount)
+
+
+
+-- MultiAsset
+
+
+basicScenarioMultiAssetTest : a -> Expectation
+basicScenarioMultiAssetTest _ =
+    let
+        context =
+            { availableOutputs =
+                [ asset "1" "policy" "name" 30
+                , asset "2" "policy" "name" 20
+                , asset "3" "policy" "name" 70
+                , asset "4" "policy" "name" 10
+                ]
+            , alreadySelectedOutputs = []
+            , targetAmount = token "policy" "name" 30
+            }
+
+        maxInputCount =
+            5
+
+        expectedResult =
+            Ok
+                { selectedOutputs = [ asset "3" "policy" "name" 70 ]
+                , change = Just (token "policy" "name" 40)
+                }
+    in
+    largestFirst maxInputCount context
+        |> Expect.equal expectedResult
+
+
+noOutputsMultiAssetTest : a -> Expectation
+noOutputsMultiAssetTest _ =
+    let
+        context =
+            { availableOutputs = []
+            , alreadySelectedOutputs = []
+            , targetAmount = token "policy" "name" 30
+            }
+
+        maxInputCount =
+            5
+    in
+    largestFirst maxInputCount context
+        |> Expect.equal (Err UTxOBalanceInsufficient)
+
+
+insufficientFundsMultiAssetTest : a -> Expectation
+insufficientFundsMultiAssetTest _ =
+    let
+        availableOutputs =
+            [ asset "1" "policy" "name" 5
+            , asset "2" "policy" "name" 10
+            ]
+
+        context =
+            { availableOutputs = availableOutputs
+            , alreadySelectedOutputs = []
+            , targetAmount = token "policy" "name" 30
+            }
+
+        result =
+            largestFirst 5 context
+    in
+    Expect.equal (Err UTxOBalanceInsufficient) result
+
+
+singleUtxoSingleOutputEqualValueMultiAssetTest : a -> Expectation
+singleUtxoSingleOutputEqualValueMultiAssetTest _ =
+    let
+        context =
+            { availableOutputs = [ asset "1" "policy" "name" 10 ]
+            , alreadySelectedOutputs = []
+            , targetAmount = token "policy" "name" 10
+            }
+
+        maxInputCount =
+            5
+
+        expectedResult =
+            Ok
+                { selectedOutputs = context.availableOutputs
+                , change = Nothing
+                }
+    in
+    largestFirst maxInputCount context
+        |> Expect.equal expectedResult
+
+
+targetZeroAlreadySelectedOutputMultiAssetTest : a -> Expectation
+targetZeroAlreadySelectedOutputMultiAssetTest _ =
+    let
+        context =
+            { availableOutputs = []
+            , alreadySelectedOutputs = [ asset "1" "policy" "name" 1 ]
+            , targetAmount = Value.zero
+            }
+
+        maxInputCount =
+            5
+
+        expectedResult =
+            Ok
+                { selectedOutputs = [ asset "1" "policy" "name" 1 ]
+                , change = Just <| token "policy" "name" 1
+                }
+    in
+    largestFirst maxInputCount context
+        |> Expect.equal expectedResult
+
+
+
+-- Helper functions
+
+
+asset : String -> String -> String -> Int -> ( OutputReference, Output )
+asset addrSuffix policyId name amount =
+    ( OutputReference (Bytes.fromStringUnchecked <| "Tx" ++ addrSuffix) 0
+    , { address = address addrSuffix
+      , amount = token policyId name amount
+      , datumOption = Nothing
+      , referenceScript = Nothing
+      }
+    )
+
+
+token : String -> String -> Int -> Value
+token policyId name amount =
+    Value.onlyToken (Bytes.fromStringUnchecked policyId) (Bytes.fromStringUnchecked name) (N.fromSafeInt amount)

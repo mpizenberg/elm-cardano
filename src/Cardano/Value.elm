@@ -1,6 +1,6 @@
 module Cardano.Value exposing
     ( Value, zero, onlyLovelace, onlyToken
-    , add, addTokens, substract, atLeast, sum, normalize
+    , add, addTokens, substract, atLeast, sum, normalize, compare
     , encode, fromCbor
     )
 
@@ -8,7 +8,7 @@ module Cardano.Value exposing
 
 @docs Value, zero, onlyLovelace, onlyToken
 
-@docs add, addTokens, substract, atLeast, sum, normalize
+@docs add, addTokens, substract, atLeast, sum, normalize, compare
 
 @docs encode, fromCbor
 
@@ -118,6 +118,13 @@ normalize v =
     { lovelace = v.lovelace
     , assets = MultiAsset.normalize v.assets
     }
+
+
+{-| Compare by amount of a given token.
+-}
+compare : (Value -> Natural) -> Value -> Value -> Order
+compare withToken a b =
+    Natural.compare (withToken a) (withToken b)
 
 
 {-| CBOR encoder for [Value].

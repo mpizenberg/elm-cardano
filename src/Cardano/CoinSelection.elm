@@ -20,6 +20,8 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 
 -}
 
+import Bytes.Comparable exposing (Bytes)
+import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, compareLovelace, lovelace, totalLovelace)
 import Cardano.Value as Value exposing (Value, onlyLovelace)
 import Natural as N exposing (Natural)
@@ -65,28 +67,43 @@ representing the maximum number of inputs allowed. Returns either a
 -}
 largestFirst : Algorithm
 largestFirst maxInputCount context =
-    -- TODO: This only works well for lovelaces
-    -- TODO: Change this algo with partial selection per token
     let
-        sortedAvailableUtxo =
+        targetLovelace =
+            Value.onlyLovelace context.targetAmount.lovelace
+
+        -- Split targetAmount into individual tokens
+        targetAssets : List ( Bytes PolicyId, Bytes AssetName, Natural )
+        targetAssets =
+            MultiAsset.split context.targetAmount.assets
+
+        sortedAvailableUtxoByLovelace =
             List.sortWith (\( _, o1 ) ( _, o2 ) -> reverseOrder Utxo.compareLovelace o1 o2) context.availableOutputs
     in
-    doLargestFirst
+    -- Select for Ada first
+    accumOutputsUntilDone
         { maxInputCount = maxInputCount
         , selectedInputCount = List.length context.alreadySelectedOutputs
         , accumulatedAmount = Value.sum (List.map (Tuple.second >> .amount) context.alreadySelectedOutputs)
-        , targetAmount = context.targetAmount
-        , availableOutputs = sortedAvailableUtxo
+        , targetAmount = targetLovelace
+        , availableOutputs = sortedAvailableUtxoByLovelace
         , selectedOutputs = context.alreadySelectedOutputs
         }
+        -- Then select for each token
+        |> largestFirstIter targetAssets
+        |> Result.map
+            (\state ->
+                { selectedOutputs = state.selectedOutputs
+                , change =
+                    if state.accumulatedAmount == context.targetAmount then
+                        Nothing
+
+                    else
+                        Just (Value.substract state.accumulatedAmount context.targetAmount)
+                }
+            )
 
 
-reverseOrder : (a -> a -> Order) -> a -> a -> Order
-reverseOrder f x y =
-    f y x
-
-
-doLargestFirst :
+type alias SelectionState =
     { maxInputCount : Int
     , selectedInputCount : Int
     , accumulatedAmount : Value
@@ -94,18 +111,62 @@ doLargestFirst :
     , availableOutputs : List ( OutputReference, Output )
     , selectedOutputs : List ( OutputReference, Output )
     }
-    -> Result Error Selection
-doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmount, availableOutputs, selectedOutputs } =
+
+
+{-| Apply largest-first selection for each token successively.
+-}
+largestFirstIter :
+    List ( Bytes PolicyId, Bytes AssetName, Natural )
+    -> Result Error SelectionState
+    -> Result Error SelectionState
+largestFirstIter targets stateResult =
+    case ( stateResult, targets ) of
+        ( Err _, _ ) ->
+            stateResult
+
+        ( _, [] ) ->
+            stateResult
+
+        ( Ok state, ( policyId, name, amount ) :: others ) ->
+            let
+                getToken value =
+                    MultiAsset.get policyId name value.assets
+                        |> Maybe.withDefault N.zero
+
+                -- Sort UTxOs with largest amounts of the token first
+                -- TODO: remark it’s a bit wasteful to sort if already satisfied
+                -- but let’s leave that optimization for another time
+                -- TODO: remark it’s also wasteful to sort all utxos
+                -- instead of just the ones that contain the token, and append the others
+                sortOrder ( _, o1 ) ( _, o2 ) =
+                    reverseOrder (Value.compare getToken) o1.amount o2.amount
+
+                newState =
+                    { state
+                        | targetAmount = Value.onlyToken policyId name amount
+                        , availableOutputs = List.sortWith sortOrder state.availableOutputs
+                    }
+            in
+            largestFirstIter others (accumOutputsUntilDone newState)
+
+
+reverseOrder : (a -> a -> Order) -> a -> a -> Order
+reverseOrder f x y =
+    f y x
+
+
+accumOutputsUntilDone : SelectionState -> Result Error SelectionState
+accumOutputsUntilDone ({ maxInputCount, selectedInputCount, accumulatedAmount, targetAmount, availableOutputs, selectedOutputs } as state) =
     if selectedInputCount > maxInputCount then
         Err MaximumInputCountExceeded
 
-    else if Value.normalize (Value.substract targetAmount accumulatedAmount) /= Value.zero then
+    else if not (Value.atLeast targetAmount accumulatedAmount) then
         case availableOutputs of
             [] ->
                 Err UTxOBalanceInsufficient
 
             utxo :: utxos ->
-                doLargestFirst
+                accumOutputsUntilDone
                     { maxInputCount = maxInputCount
                     , selectedInputCount = selectedInputCount + 1
                     , accumulatedAmount = Value.add (Tuple.second utxo |> .amount) accumulatedAmount
@@ -115,12 +176,4 @@ doLargestFirst { maxInputCount, selectedInputCount, accumulatedAmount, targetAmo
                     }
 
     else
-        Ok
-            { selectedOutputs = selectedOutputs
-            , change =
-                if accumulatedAmount == targetAmount then
-                    Nothing
-
-                else
-                    Just (Value.substract accumulatedAmount targetAmount)
-            }
+        Ok state

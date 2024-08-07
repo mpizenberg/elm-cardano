@@ -1,15 +1,15 @@
 module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
-    , empty, isEmpty, onlyToken, normalize
-    , balance, map2
+    , isEmpty, get, empty, onlyToken, normalize
+    , balance, map2, split
     , coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
     )
 
 {-| Handling multi-asset values.
 
 @docs MultiAsset, PolicyId, AssetName
-@docs empty, isEmpty, onlyToken, normalize
-@docs balance, map2
+@docs isEmpty, get, empty, onlyToken, normalize
+@docs balance, map2, split
 @docs coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
 
 -}
@@ -53,18 +53,26 @@ type AssetName
     = AssetName Never
 
 
-{-| Create an empty [MultiAsset].
--}
-empty : MultiAsset a
-empty =
-    Bytes.Map.empty
-
-
 {-| Check if the [MultiAsset] contains no token.
 -}
 isEmpty : MultiAsset a -> Bool
 isEmpty =
     Bytes.Map.isEmpty
+
+
+{-| Retrieve the amount of a given token.
+-}
+get : Bytes PolicyId -> Bytes AssetName -> MultiAsset a -> Maybe a
+get policyId name multiAsset =
+    Bytes.Map.get policyId multiAsset
+        |> Maybe.andThen (Bytes.Map.get name)
+
+
+{-| Create an empty [MultiAsset].
+-}
+empty : MultiAsset a
+empty =
+    Bytes.Map.empty
 
 
 {-| Create a singleton [MultiAsset].
@@ -152,6 +160,22 @@ map2Assets f default a1 a2 =
             Bytes.Map.insert name (f amount1 amount2) accum
     in
     Bytes.Map.merge whenLeft whenBoth whenRight a1 a2 Bytes.Map.empty
+
+
+{-| Split a [MultiAsset] into a list of each individual asset `(policyId, assetName, amount)`.
+-}
+split : MultiAsset a -> List ( Bytes PolicyId, Bytes AssetName, a )
+split multiAsset =
+    let
+        processAsset : Bytes PolicyId -> Bytes AssetName -> a -> List ( Bytes PolicyId, Bytes AssetName, a ) -> List ( Bytes PolicyId, Bytes AssetName, a )
+        processAsset policyId asset amount accum =
+            ( policyId, asset, amount ) :: accum
+
+        processPolicyId : Bytes PolicyId -> BytesMap AssetName a -> List ( Bytes PolicyId, Bytes AssetName, a ) -> List ( Bytes PolicyId, Bytes AssetName, a )
+        processPolicyId policyId assets accum =
+            Bytes.Map.foldrWithKeys (processAsset policyId) accum assets
+    in
+    Bytes.Map.foldrWithKeys processPolicyId [] multiAsset
 
 
 {-| CBOR encoder for [MultiAsset] coins.
