@@ -326,7 +326,7 @@ We can embed it directly in the transaction witness.
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
+import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.Cip30 exposing (Utxo)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
@@ -339,6 +339,7 @@ import Cardano.Transaction.Builder exposing (requiredSigner)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Dict exposing (Dict)
+import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 
@@ -372,6 +373,9 @@ type TxIntent
 {-| -}
 type SpendSource
     = From Address Value
+      -- Eventually improve "From Address Value"" with variants like:
+      -- FromAnywhere Value
+      -- FromPaymentKey (Bytes CredentialHash)
     | FromWalletUtxo OutputReference
     | FromNativeScript
         { spentInput : OutputReference
@@ -431,7 +435,7 @@ Analyze all intents and perform the following actions:
 
 -}
 finalize :
-    { localStateUtxos : List ( OutputReference, Output )
+    { localStateUtxos : Utxo.RefDict Output
     , costModels : CostModels
     , coinSelectionAlgo : CoinSelection.Algorithm
     }
@@ -439,7 +443,6 @@ finalize :
     -> List TxIntent
     -> Result String Transaction
 finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntents =
-    -- TODO: Check that localStateUtxos does not contain duplicate refs with different outputs
     -- TODO: Check that all spent referenced inputs are present in the local state
     let
         -- Initialize InputsOutputs
@@ -454,13 +457,17 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             processIntents localStateUtxos txIntents
 
         totalInput =
-            Value.add processedIntents.preSelected.sum processedIntents.freeInputSum
+            Dict.Any.foldl (\_ -> Value.add)
+                processedIntents.preSelected.sum
+                processedIntents.freeInputs
 
         preCreatedOutputs =
             processedIntents.preCreated inputsOutputs
 
         totalOutput =
-            Value.add preCreatedOutputs.sum processedIntents.freeOutputSum
+            Dict.Any.foldl (\_ -> Value.add)
+                preCreatedOutputs.sum
+                processedIntents.freeOutputSum
     in
     if totalInput == totalOutput then
         -- check that pre-created outputs have correct min ada
@@ -469,7 +476,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
             -- TODO: UTxOs creation
             |> Result.andThen
-                (\{ selectedUtxos, change } ->
+                (\selectionPerAddress ->
                     Debug.todo "finalize"
                 )
 
@@ -504,8 +511,9 @@ validMinAdaPerOutput inputsOutputs txIntents =
 
 
 type alias ProcessedIntents =
-    { freeInputSum : Value
-    , freeOutputSum : Value
+    -- https://docs.google.com/spreadsheets/d/1j2rHUx5Nf5auvg5ikzYxbW4e1M9g0-hgU8nMogLD4EY/edit?gid=0#gid=0
+    { freeInputs : Address.Dict Value
+    , freeOutputSum : Address.Dict Value
     , preSelected : { sum : Value, inputs : List ( OutputReference, Maybe (InputsOutputs -> Data) ) }
     , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
     , nativeScriptSources : List (WitnessSource NativeScript)
@@ -520,8 +528,8 @@ type alias ProcessedIntents =
 
 noIntent : ProcessedIntents
 noIntent =
-    { freeInputSum = Value.zero
-    , freeOutputSum = Value.zero
+    { freeInputs = Address.emptyDict
+    , freeOutputSum = Address.emptyDict
     , preSelected = { sum = Value.zero, inputs = [] }
     , preCreated = \_ -> { sum = Value.zero, outputs = [] }
     , nativeScriptSources = []
@@ -534,41 +542,34 @@ noIntent =
     }
 
 
-processIntents :
-    List ( OutputReference, Output )
-    -> List TxIntent
-    -> ProcessedIntents
+processIntents : Utxo.RefDict Output -> List TxIntent -> ProcessedIntents
 processIntents localStateUtxos txIntents =
     -- TODO: Generate all redeemers:
-    --   - Sorted list of spent inputs
-    --   - Accumulated mints
-    --   - Sorted list of withdrawals
     --   - List of certificates
     let
         comparableOutputRef : OutputReference -> ( String, Int )
         comparableOutputRef ref =
             ( Bytes.toString ref.transactionId, ref.outputIndex )
 
-        -- Build a dict with local state utxos
-        utxoRefDict : Dict ( String, Int ) Output
-        utxoRefDict =
-            localStateUtxos
-                |> List.map (Tuple.mapFirst comparableOutputRef)
-                |> Dict.fromList
-
         -- Retrieve the ada and tokens amount at a given output reference
         getValueFromRef : OutputReference -> Value
         getValueFromRef ref =
-            Dict.get (comparableOutputRef ref) utxoRefDict
+            Dict.Any.get ref localStateUtxos
                 |> Maybe.map .amount
                 |> Maybe.withDefault Value.zero
+
+        freeValueAdd : Address -> Value -> Address.Dict Value -> Address.Dict Value
+        freeValueAdd addr v freeValue =
+            Dict.Any.update addr (Just << Value.add v << Maybe.withDefault Value.zero) freeValue
 
         -- Step function that processes each TxIntent
         stepIntent : TxIntent -> ProcessedIntents -> ProcessedIntents
         stepIntent txIntent processedIntents =
             case txIntent of
-                SendTo _ v ->
-                    { processedIntents | freeOutputSum = Value.add v processedIntents.freeOutputSum }
+                SendTo addr v ->
+                    { processedIntents
+                        | freeOutputSum = freeValueAdd addr v processedIntents.freeOutputSum
+                    }
 
                 SendToOutput f ->
                     let
@@ -586,8 +587,10 @@ processIntents localStateUtxos txIntents =
                     in
                     { processedIntents | preCreated = newPreCreated }
 
-                Spend (From _ v) ->
-                    { processedIntents | freeInputSum = Value.add v processedIntents.freeInputSum }
+                Spend (From addr v) ->
+                    { processedIntents
+                        | freeInputs = freeValueAdd addr v processedIntents.freeInputs
+                    }
 
                 Spend (FromWalletUtxo ref) ->
                     { processedIntents | preSelected = addPreSelectedInput ( ref, Nothing ) (getValueFromRef ref) processedIntents.preSelected }
@@ -707,37 +710,56 @@ addPreSelectedInput ref value { sum, inputs } =
     }
 
 
+{-| Perform coin selection for the required input per address.
+-}
 computeCoinSelection :
-    List ( OutputReference, Output )
+    Utxo.RefDict Output
     -> ProcessedIntents
     -> CoinSelection.Algorithm
-    -> Result String CoinSelection.Selection
-computeCoinSelection localStateUtxos balance coinSelectionAlgo =
+    -> Result String (Address.Dict CoinSelection.Selection)
+computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
     let
-        localStateInputs =
-            Utxo.refSetFromList (List.map Tuple.first localStateUtxos)
-
-        notAvailableInputs =
-            -- TODO: should probably also forbid inputs that we don’t own?
-            Utxo.refSetFromList (List.map Tuple.first balance.preSelected.inputs)
-
-        availableInputs =
-            Utxo.refSetDiff localStateInputs notAvailableInputs
-
-        isAvailable ( ref, _ ) =
-            Utxo.hasRef ref availableInputs
-
-        context =
-            { alreadySelectedUtxos = []
-            , targetAmount = balance.freeInputSum
-            , availableUtxos = List.filter isAvailable localStateUtxos
+        dummyOutput =
+            { address = Byron <| Bytes.fromStringUnchecked ""
+            , amount = Value.zero
+            , datumOption = Nothing
+            , referenceScript = Nothing
             }
+
+        -- Inputs not available for selection because already manually preselected
+        notAvailableInputs =
+            List.map (Tuple.mapSecond <| always dummyOutput) processedIntents.preSelected.inputs
+                |> Dict.Any.fromList (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+
+        -- Precompute selectable inputs accross all addresses
+        availableInputs =
+            Dict.Any.diff localStateUtxos notAvailableInputs
 
         -- TODO: adjust at least with the number of different tokens in target Amount
         maxInputCount =
             10
     in
-    coinSelectionAlgo maxInputCount context
+    processedIntents.freeInputs
+        -- Apply the selection algo for each address with input requirements
+        |> Dict.Any.map
+            (\addr freeValue ->
+                coinSelectionAlgo maxInputCount
+                    { alreadySelectedUtxos = []
+                    , targetAmount = freeValue
+
+                    -- Only keep inputs from this address
+                    , availableUtxos =
+                        availableInputs
+                            |> Dict.Any.filter (\_ output -> output.address == addr)
+                            |> Dict.Any.toList
+                    }
+            )
+        -- Join the Dict (Result _ _) into Result _ Dict
+        |> Dict.Any.foldl
+            (\addr selectRes accumRes ->
+                Result.map2 (Dict.Any.insert addr) selectRes accumRes
+            )
+            (Ok Address.emptyDict)
         |> Result.mapError Debug.toString
 
 

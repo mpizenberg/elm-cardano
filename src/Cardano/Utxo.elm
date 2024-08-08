@@ -1,6 +1,6 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
-    , OutputReferenceSet, refSetFromList, refSetToList, hasRef, refSetDiff
+    , RefDict
     , fromLovelace
     , lovelace, totalLovelace, compareLovelace
     , minAda
@@ -16,9 +16,9 @@ module Cardano.Utxo exposing
 @docs OutputReference, TransactionId, Output, DatumHash, DatumOption
 
 
-## Output reference set
+## Dictionary with [OutputReference] keys
 
-@docs OutputReferenceSet, refSetFromList, refSetToList, hasRef, refSetDiff
+@docs RefDict
 
 
 ## Build
@@ -54,6 +54,7 @@ import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
+import Dict.Any exposing (AnyDict)
 import Natural as N exposing (Natural)
 import Set exposing (Set)
 
@@ -73,41 +74,10 @@ type TransactionId
     = TransactionId Never
 
 
-{-| Opaque type holding a set of [OutputReference].
+{-| Convenience type for `Dict` with [OutputReference] keys.
 -}
-type OutputReferenceSet
-    = OutputReferenceSet (Set ( String, Int ))
-
-
-{-| Create an [OutputReferenceSet] from a list of [OutputReference].
--}
-refSetFromList : List OutputReference -> OutputReferenceSet
-refSetFromList refs =
-    List.map (\r -> ( Bytes.toString r.transactionId, r.outputIndex )) refs
-        |> Set.fromList
-        |> OutputReferenceSet
-
-
-{-| Convert an [OutputReferenceSet] into a list of [OutputReference].
--}
-refSetToList : OutputReferenceSet -> List OutputReference
-refSetToList (OutputReferenceSet set) =
-    Set.toList set
-        |> List.map (\( txId, index ) -> OutputReference (Bytes.fromStringUnchecked txId) index)
-
-
-{-| Check if some [OutputReference] is present if the set.
--}
-hasRef : OutputReference -> OutputReferenceSet -> Bool
-hasRef { transactionId, outputIndex } (OutputReferenceSet set) =
-    Set.member ( Bytes.toString transactionId, outputIndex ) set
-
-
-{-| Compute set1 \\ set2.
--}
-refSetDiff : OutputReferenceSet -> OutputReferenceSet -> OutputReferenceSet
-refSetDiff set1 set2 =
-    Debug.todo "refSetDiff"
+type alias RefDict a =
+    AnyDict ( String, Int ) OutputReference a
 
 
 {-| CBOR encoder for [OutputReference].
