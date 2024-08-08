@@ -442,7 +442,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
     -- TODO: Check that all spent referenced inputs are present in the local state
     let
         -- Initialize InputsOutputs
-        -- TODO: better initalization
+        -- TODO: better initalization?
         inputsOutputs =
             { referenceInputs = []
             , spentInputs = []
@@ -462,33 +462,8 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
         -- check that pre-created outputs have correct min ada
         validMinAdaPerOutput inputsOutputs txIntents
             -- UTxO selection
-            |> Result.andThen
-                (\_ ->
-                    let
-                        localStateInputs =
-                            Utxo.refSetFromList (List.map Tuple.first localStateUtxos)
-
-                        preSelectedInputs =
-                            Utxo.refSetFromList balance.preSelected.inputs
-
-                        availableInputs =
-                            Utxo.refSetDiff localStateInputs preSelectedInputs
-
-                        isAvailable ( ref, _ ) =
-                            Utxo.hasRef ref availableInputs
-
-                        context =
-                            { alreadySelectedUtxos = []
-                            , targetAmount = balance.freeInputSum
-                            , availableUtxos = List.filter isAvailable localStateUtxos
-                            }
-
-                        maxInputCount =
-                            10
-                    in
-                    coinSelectionAlgo maxInputCount context
-                        |> Result.mapError Debug.toString
-                )
+            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos balance coinSelectionAlgo)
+            -- TODO: UTxOs creation
             |> Result.andThen
                 (\{ selectedUtxos, change } ->
                     Debug.todo "finalize"
@@ -624,7 +599,8 @@ computeBalance localStateUtxos inputsOutputs txIntents =
                 _ ->
                     balance
     in
-    List.foldl addToBalance zeroBalance txIntents
+    -- Use fold right so that the outputs list is in the correct order
+    List.foldr addToBalance zeroBalance txIntents
 
 
 {-| Helper function
@@ -640,8 +616,41 @@ addPreSelectedInput ref value { sum, inputs } =
     }
 
 
+computeCoinSelection :
+    List ( OutputReference, Output )
+    -> Balance
+    -> CoinSelection.Algorithm
+    -> Result String CoinSelection.Selection
+computeCoinSelection localStateUtxos balance coinSelectionAlgo =
+    let
+        localStateInputs =
+            Utxo.refSetFromList (List.map Tuple.first localStateUtxos)
 
---
+        notAvailableInputs =
+            -- TODO: should probably also forbid inputs that we don’t own?
+            Utxo.refSetFromList balance.preSelected.inputs
+
+        availableInputs =
+            Utxo.refSetDiff localStateInputs notAvailableInputs
+
+        isAvailable ( ref, _ ) =
+            Utxo.hasRef ref availableInputs
+
+        context =
+            { alreadySelectedUtxos = []
+            , targetAmount = balance.freeInputSum
+            , availableUtxos = List.filter isAvailable localStateUtxos
+            }
+
+        -- TODO: adjust at least with the number of different tokens in target Amount
+        maxInputCount =
+            10
+    in
+    coinSelectionAlgo maxInputCount context
+        |> Result.mapError Debug.toString
+
+
+
 -- EXAMPLES ##########################################################
 
 
