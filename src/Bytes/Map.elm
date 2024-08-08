@@ -58,9 +58,6 @@ import Dict exposing (Dict)
 
 
 
--- TODO: Because we rely on the sorting of the hex string,
--- it is super important to check that we only use
--- lower case OR upper case letters, but no mix
 -------- BytesMaps
 
 
