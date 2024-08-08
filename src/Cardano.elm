@@ -471,14 +471,20 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
     in
     if totalInput == totalOutput then
         -- check that pre-created outputs have correct min ada
+        -- TODO: change this step to use processed intents directly
         validMinAdaPerOutput inputsOutputs txIntents
             -- UTxO selection
             |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
-            -- TODO: UTxOs creation
+            -- TODO: UTxOs creation with the change per address
             |> Result.andThen
                 (\selectionPerAddress ->
                     Debug.todo "finalize"
                 )
+        -- TODO: without estimating cost of plutus script exec, do few loops of:
+        --   - estimate Tx fees
+        --   - adjust coin selection
+        --   - adjust redeemers
+        -- TODO: evaluate plutus script cost, and do a final round of above
 
     else
         Err ("Tx is not balanced.\n" ++ Debug.toString processedIntents)
@@ -486,6 +492,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
 
 validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
 validMinAdaPerOutput inputsOutputs txIntents =
+    -- TODO: change this to be checked on processed intents
     case txIntents of
         [] ->
             Ok ()
@@ -511,7 +518,6 @@ validMinAdaPerOutput inputsOutputs txIntents =
 
 
 type alias ProcessedIntents =
-    -- https://docs.google.com/spreadsheets/d/1j2rHUx5Nf5auvg5ikzYxbW4e1M9g0-hgU8nMogLD4EY/edit?gid=0#gid=0
     { freeInputs : Address.Dict Value
     , freeOutputSum : Address.Dict Value
     , preSelected : { sum : Value, inputs : List ( OutputReference, Maybe (InputsOutputs -> Data) ) }
@@ -544,8 +550,6 @@ noIntent =
 
 processIntents : Utxo.RefDict Output -> List TxIntent -> ProcessedIntents
 processIntents localStateUtxos txIntents =
-    -- TODO: Generate all redeemers:
-    --   - List of certificates
     let
         comparableOutputRef : OutputReference -> ( String, Int )
         comparableOutputRef ref =
@@ -690,6 +694,7 @@ processIntents localStateUtxos txIntents =
                                 }
                         }
 
+                -- TODO: Handle certificates
                 _ ->
                     processedIntents
     in
