@@ -467,7 +467,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
         totalOutput =
             Dict.Any.foldl (\_ -> Value.add)
                 preCreatedOutputs.sum
-                processedIntents.freeOutputSum
+                processedIntents.freeOutputs
     in
     if totalInput == totalOutput then
         -- check that pre-created outputs have correct min ada
@@ -519,7 +519,7 @@ validMinAdaPerOutput inputsOutputs txIntents =
 
 type alias ProcessedIntents =
     { freeInputs : Address.Dict Value
-    , freeOutputSum : Address.Dict Value
+    , freeOutputs : Address.Dict Value
     , preSelected : { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
     , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
     , nativeScriptSources : List (WitnessSource NativeScript)
@@ -535,7 +535,7 @@ type alias ProcessedIntents =
 noIntent : ProcessedIntents
 noIntent =
     { freeInputs = Address.emptyDict
-    , freeOutputSum = Address.emptyDict
+    , freeOutputs = Address.emptyDict
     , preSelected = { sum = Value.zero, inputs = Utxo.emptyRefDict }
     , preCreated = \_ -> { sum = Value.zero, outputs = [] }
     , nativeScriptSources = []
@@ -568,7 +568,7 @@ processIntents localStateUtxos txIntents =
             case txIntent of
                 SendTo addr v ->
                     { processedIntents
-                        | freeOutputSum = freeValueAdd addr v processedIntents.freeOutputSum
+                        | freeOutputs = freeValueAdd addr v processedIntents.freeOutputs
                     }
 
                 SendToOutput f ->
