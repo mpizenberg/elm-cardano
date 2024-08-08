@@ -1,6 +1,6 @@
 module Cardano.MultiAsset exposing
     ( MultiAsset, PolicyId, AssetName
-    , isEmpty, get, empty, onlyToken, normalize
+    , isEmpty, get, empty, onlyToken, normalize, mintAdd
     , balance, map2, split
     , coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
     )
@@ -8,7 +8,7 @@ module Cardano.MultiAsset exposing
 {-| Handling multi-asset values.
 
 @docs MultiAsset, PolicyId, AssetName
-@docs isEmpty, get, empty, onlyToken, normalize
+@docs isEmpty, get, empty, onlyToken, normalize, mintAdd
 @docs balance, map2, split
 @docs coinsToCbor, mintToCbor, coinsFromCbor, mintFromCbor
 
@@ -89,6 +89,13 @@ normalize multiAsset =
     multiAsset
         |> Bytes.Map.map (Bytes.Map.filter (not << Natural.isZero))
         |> Bytes.Map.filter (not << Bytes.Map.isEmpty)
+
+
+{-| Add together two mint values.
+-}
+mintAdd : MultiAsset Integer -> MultiAsset Integer -> MultiAsset Integer
+mintAdd m1 m2 =
+    map2 Integer.add Integer.zero m1 m2
 
 
 {-| Compute a mint balance.
