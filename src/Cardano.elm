@@ -520,7 +520,7 @@ validMinAdaPerOutput inputsOutputs txIntents =
 type alias ProcessedIntents =
     { freeInputs : Address.Dict Value
     , freeOutputSum : Address.Dict Value
-    , preSelected : { sum : Value, inputs : List ( OutputReference, Maybe (InputsOutputs -> Data) ) }
+    , preSelected : { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
     , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
     , nativeScriptSources : List (WitnessSource NativeScript)
     , plutusScriptSources : List (WitnessSource PlutusScript)
@@ -536,7 +536,7 @@ noIntent : ProcessedIntents
 noIntent =
     { freeInputs = Address.emptyDict
     , freeOutputSum = Address.emptyDict
-    , preSelected = { sum = Value.zero, inputs = [] }
+    , preSelected = { sum = Value.zero, inputs = Utxo.emptyRefDict }
     , preCreated = \_ -> { sum = Value.zero, outputs = [] }
     , nativeScriptSources = []
     , plutusScriptSources = []
@@ -551,10 +551,6 @@ noIntent =
 processIntents : Utxo.RefDict Output -> List TxIntent -> ProcessedIntents
 processIntents localStateUtxos txIntents =
     let
-        comparableOutputRef : OutputReference -> ( String, Int )
-        comparableOutputRef ref =
-            ( Bytes.toString ref.transactionId, ref.outputIndex )
-
         -- Retrieve the ada and tokens amount at a given output reference
         getValueFromRef : OutputReference -> Value
         getValueFromRef ref =
@@ -707,11 +703,11 @@ processIntents localStateUtxos txIntents =
 addPreSelectedInput :
     ( OutputReference, Maybe (InputsOutputs -> Data) )
     -> Value
-    -> { sum : Value, inputs : List ( OutputReference, Maybe (InputsOutputs -> Data) ) }
-    -> { sum : Value, inputs : List ( OutputReference, Maybe (InputsOutputs -> Data) ) }
-addPreSelectedInput ref value { sum, inputs } =
+    -> { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
+    -> { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
+addPreSelectedInput ( ref, maybeDatum ) value { sum, inputs } =
     { sum = Value.add value sum
-    , inputs = ref :: inputs
+    , inputs = Dict.Any.insert ref maybeDatum inputs
     }
 
 
@@ -733,8 +729,8 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
 
         -- Inputs not available for selection because already manually preselected
         notAvailableInputs =
-            List.map (Tuple.mapSecond <| always dummyOutput) processedIntents.preSelected.inputs
-                |> Dict.Any.fromList (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+            -- Using dummyOutput to have the same type as localStateUtxos
+            Dict.Any.map (\_ _ -> dummyOutput) processedIntents.preSelected.inputs
 
         -- Precompute selectable inputs accross all addresses
         availableInputs =
