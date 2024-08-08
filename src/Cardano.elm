@@ -449,20 +449,20 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             , createdOutputs = []
             }
 
-        balance =
-            computeBalance localStateUtxos inputsOutputs txIntents
+        processedIntents =
+            processIntents localStateUtxos inputsOutputs txIntents
 
         totalInput =
-            Value.add balance.preSelected.sum balance.freeInputSum
+            Value.add processedIntents.preSelected.sum processedIntents.freeInputSum
 
         totalOutput =
-            Value.add balance.preCreated.sum balance.freeOutputSum
+            Value.add processedIntents.preCreated.sum processedIntents.freeOutputSum
     in
     if totalInput == totalOutput then
         -- check that pre-created outputs have correct min ada
         validMinAdaPerOutput inputsOutputs txIntents
             -- UTxO selection
-            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos balance coinSelectionAlgo)
+            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
             -- TODO: UTxOs creation
             |> Result.andThen
                 (\{ selectedUtxos, change } ->
@@ -470,7 +470,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
                 )
 
     else
-        Err ("Tx is not balanced.\n" ++ Debug.toString balance)
+        Err ("Tx is not balanced.\n" ++ Debug.toString processedIntents)
 
 
 validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
@@ -499,7 +499,7 @@ validMinAdaPerOutput inputsOutputs txIntents =
                     validMinAdaPerOutput inputsOutputs others
 
 
-type alias Balance =
+type alias ProcessedIntents =
     { preSelected : { sum : Value, inputs : List OutputReference }
     , freeInputSum : Value
     , preCreated : { sum : Value, outputs : List Output }
@@ -507,8 +507,8 @@ type alias Balance =
     }
 
 
-zeroBalance : Balance
-zeroBalance =
+noIntent : ProcessedIntents
+noIntent =
     { preSelected = { sum = Value.zero, inputs = [] }
     , freeInputSum = Value.zero
     , preCreated = { sum = Value.zero, outputs = [] }
@@ -516,12 +516,17 @@ zeroBalance =
     }
 
 
-computeBalance :
+processIntents :
     List ( OutputReference, Output )
     -> InputsOutputs
     -> List TxIntent
-    -> Balance
-computeBalance localStateUtxos inputsOutputs txIntents =
+    -> ProcessedIntents
+processIntents localStateUtxos inputsOutputs txIntents =
+    -- TODO: Generate all redeemers:
+    --   - Sorted list of spent inputs
+    --   - Accumulated mints
+    --   - Sorted list of withdrawals
+    --   - List of certificates
     let
         comparableOutputRef : OutputReference -> ( String, Int )
         comparableOutputRef ref =
@@ -541,9 +546,9 @@ computeBalance localStateUtxos inputsOutputs txIntents =
                 |> Maybe.map .amount
                 |> Maybe.withDefault Value.zero
 
-        -- Step function that increases balance for each TxIntent
-        addToBalance : TxIntent -> Balance -> Balance
-        addToBalance txIntent balance =
+        -- Step function that processes each TxIntent
+        stepIntent : TxIntent -> ProcessedIntents -> ProcessedIntents
+        stepIntent txIntent balance =
             case txIntent of
                 SendTo _ v ->
                     { balance | freeOutputSum = Value.add v balance.freeOutputSum }
@@ -600,7 +605,7 @@ computeBalance localStateUtxos inputsOutputs txIntents =
                     balance
     in
     -- Use fold right so that the outputs list is in the correct order
-    List.foldr addToBalance zeroBalance txIntents
+    List.foldr stepIntent noIntent txIntents
 
 
 {-| Helper function
@@ -618,7 +623,7 @@ addPreSelectedInput ref value { sum, inputs } =
 
 computeCoinSelection :
     List ( OutputReference, Output )
-    -> Balance
+    -> ProcessedIntents
     -> CoinSelection.Algorithm
     -> Result String CoinSelection.Selection
 computeCoinSelection localStateUtxos balance coinSelectionAlgo =
