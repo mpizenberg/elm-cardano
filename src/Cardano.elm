@@ -1210,7 +1210,9 @@ prettyTx tx =
 globalStateUtxos : Utxo.RefDict Output
 globalStateUtxos =
     Utxo.refDictFromList
-        [ makeAdaOutput 0 (makeWalletAddress "me") 10 -- 10 ada at my address
+        [ makeAdaOutput 0 (makeWalletAddress "me") 2 --   2 ada at my address
+        , makeAdaOutput 1 (makeWalletAddress "me") 10 -- 10 ada at my address
+        , makeAdaOutput 2 (makeWalletAddress "me") 5 --   5 ada at my address
         ]
 
 
