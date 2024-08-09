@@ -2,8 +2,8 @@ module Bytes.Comparable exposing
     ( Bytes
     , Any, toAny
     , chunksOf, width, isEmpty
-    , bytes, fromBytes, fromString, fromStringUnchecked
-    , toBytes, toString, toCbor, toU8
+    , bytes, fromBytes, fromString, fromStringUnchecked, fromText
+    , toBytes, toString, toText, toCbor, toU8
     )
 
 {-| Comparable Bytes
@@ -15,8 +15,8 @@ module Bytes.Comparable exposing
 @docs Bytes
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
-@docs bytes, fromBytes, fromString, fromStringUnchecked
-@docs toBytes, toString, toCbor, toU8
+@docs bytes, fromBytes, fromString, fromStringUnchecked, fromText
+@docs toBytes, toString, toText, toCbor, toU8
 
 -}
 
@@ -86,6 +86,13 @@ fromStringUnchecked =
     Bytes
 
 
+{-| Create a [Bytes] with some text encoded as UTF8.
+-}
+fromText : String -> Bytes a
+fromText str =
+    E.encode (E.string str) |> fromBytes
+
+
 {-| Create a [Bytes] object from an elm/bytes [Bytes.Bytes].
 -}
 fromBytes : Bytes.Bytes -> Bytes a
@@ -98,6 +105,13 @@ fromBytes bs =
 toString : Bytes a -> String
 toString (Bytes str) =
     str
+
+
+{-| Convert [Bytes] into a UTF8 String.
+-}
+toText : Bytes a -> Maybe String
+toText bs =
+    D.decode (D.string <| width bs) (toBytes bs)
 
 
 {-| Convert [Bytes] into elm/bytes [Bytes.Bytes].

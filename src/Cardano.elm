@@ -479,7 +479,7 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
             |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
             --> Result String (Address.Dict Selection)
             -- Accumulate all selected UTxOs and newly created outputs
-            |> Result.map accumPerAddressSelection
+            |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
             --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
             -- Aggregate with pre-selected inputs and pre-created outputs
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
@@ -766,13 +766,43 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
                 Result.map2 (Dict.Any.insert addr) selectRes accumRes
             )
             (Ok Address.emptyDict)
+        |> Result.map (Debug.log "coin selection")
         |> Result.mapError Debug.toString
 
 
 {-| Helper function to accumulate all selected UTxOs and newly created outputs.
 -}
-accumPerAddressSelection : Address.Dict CoinSelection.Selection -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
-accumPerAddressSelection =
+accumPerAddressSelection :
+    Address.Dict Value
+    -> Address.Dict CoinSelection.Selection
+    -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
+accumPerAddressSelection freeOutput allSelections =
+    let
+        -- Reshape freeOutput as a selection to be able to merge with the selection change
+        freeOutputAsSelection =
+            Dict.Any.map (\_ v -> { selectedUtxos = [], change = Just v }) freeOutput
+                |> Debug.log "freeOutputAsSelection"
+
+        mergeHelper sel freeSel =
+            case freeSel.change of
+                Nothing ->
+                    sel
+
+                Just v ->
+                    { selectedUtxos = sel.selectedUtxos, change = Just <| Value.add v (Maybe.withDefault Value.zero sel.change) }
+
+        -- Merge the freeOutput value with the change from coin selection
+        mergedSelection =
+            Dict.Any.merge
+                Dict.Any.insert
+                (\addr sel freeSel acc ->
+                    Dict.Any.insert addr (mergeHelper sel freeSel) acc
+                )
+                Dict.Any.insert
+                allSelections
+                freeOutputAsSelection
+                Address.emptyDict
+    in
     Dict.Any.foldl
         (\addr { selectedUtxos, change } acc ->
             { selectedInputs =
@@ -787,6 +817,7 @@ accumPerAddressSelection =
             }
         )
         { selectedInputs = Utxo.emptyRefDict, createdOutputs = [] }
+        mergedSelection
 
 
 {-| Helper function to update Tx inputs/outputs after coin selection.
@@ -1007,20 +1038,20 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromStringUnchecked <| "key:" ++ name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromStringUnchecked <| "stake:" ++ name))
+        , paymentCredential = VKeyHash (Bytes.fromText <| "key:" ++ name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText <| "stake:" ++ name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Bytes.fromStringUnchecked ("key:" ++ name)
+    Bytes.fromText ("key:" ++ name)
         |> Address.enterprise Mainnet
 
 
 makeRef : Int -> OutputReference
 makeRef index =
-    { transactionId = Bytes.fromStringUnchecked <| "Tx:" ++ String.fromInt index
+    { transactionId = Bytes.fromText <| "Tx:" ++ String.fromInt index
     , outputIndex = index
     }
 
@@ -1045,16 +1076,16 @@ makeAdaOutput index address amount =
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
-    Value.onlyToken (Bytes.fromStringUnchecked policyId) (Bytes.fromStringUnchecked name) (Natural.fromSafeInt amount)
+    Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
 
 
 prettyAddr address =
     case address of
         Byron b ->
-            Bytes.toString b
+            (Bytes.toText >> Maybe.withDefault "") b
 
         Shelley { paymentCredential, stakeCredential } ->
-            [ Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
+            [ Just "Addr:", Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
                 |> List.filterMap identity
                 |> String.join " "
 
@@ -1074,10 +1105,10 @@ prettyStakeCred stakeCred =
 prettyCred cred =
     case cred of
         Address.VKeyHash b ->
-            Bytes.toString b
+            (Bytes.toText >> Maybe.withDefault "") b
 
         Address.ScriptHash b ->
-            Bytes.toString b
+            (Bytes.toText >> Maybe.withDefault "") b
 
 
 prettyValue : Value -> List String
@@ -1099,8 +1130,8 @@ prettyAssets toStr multiAsset =
                     |> List.map
                         (\( name, amount ) ->
                             String.join " "
-                                [ Bytes.toString policyId
-                                , Bytes.toString name
+                                [ (Bytes.toText >> Maybe.withDefault "") policyId
+                                , (Bytes.toText >> Maybe.withDefault "") name
                                 , toStr amount
                                 ]
                         )
@@ -1110,7 +1141,7 @@ prettyAssets toStr multiAsset =
 prettyDatum datumOption =
     case datumOption of
         Utxo.DatumHash h ->
-            Bytes.toString h
+            (Bytes.toText >> Maybe.withDefault "") h
 
         Utxo.Datum data ->
             prettyCbor Data.toCbor data
@@ -1131,13 +1162,15 @@ prettyScript script =
 
 prettyOutput : Output -> List String
 prettyOutput { address, amount, datumOption, referenceScript } =
-    [ Just <| [ prettyAddr address ]
-    , Just <| prettyValue amount
-    , Maybe.map (List.singleton << prettyDatum) datumOption
-    , Maybe.map (List.singleton << prettyScript) referenceScript
-    ]
-        |> List.filterMap identity
-        |> List.concat
+    ("- " ++ prettyAddr address)
+        :: ([ Just <| prettyValue amount
+            , Maybe.map (List.singleton << prettyDatum) datumOption
+            , Maybe.map (List.singleton << prettyScript) referenceScript
+            ]
+                |> List.filterMap identity
+                |> List.concat
+                |> List.map (indent 2)
+           )
 
 
 indent spaces str =
@@ -1148,7 +1181,7 @@ prettyTx : Transaction -> String
 prettyTx tx =
     let
         prettyInput ref =
-            String.join " " [ Bytes.toString ref.transactionId, "#" ++ String.fromInt ref.outputIndex ]
+            String.join " " [ (Bytes.toText >> Maybe.withDefault "") ref.transactionId, "#" ++ String.fromInt ref.outputIndex ]
 
         body =
             List.concat
