@@ -479,7 +479,9 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             -- Accumulate all selected UTxOs and newly created outputs
             |> Result.map accumPerAddressSelection
             --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
-            -- TODO: Aggregate with pre-selected inputs and pre-created outputs
+            -- Aggregate with pre-selected inputs and pre-created outputs
+            |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
+            --> Result String InputsOutputs
             |> Debug.todo "finalize"
         -- TODO: without estimating cost of plutus script exec, do few loops of:
         --   - estimate Tx fees
@@ -783,6 +785,26 @@ accumPerAddressSelection =
             }
         )
         { selectedInputs = Utxo.emptyRefDict, createdOutputs = [] }
+
+
+{-| Helper function to update Tx inputs/outputs after coin selection.
+-}
+updateInputsOutputs : ProcessedIntents -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output } -> InputsOutputs -> InputsOutputs
+updateInputsOutputs intents { selectedInputs, createdOutputs } old =
+    { referenceInputs = []
+    , spentInputs =
+        let
+            preSelected : Utxo.RefDict ()
+            preSelected =
+                Dict.Any.map (\_ _ -> ()) intents.preSelected.inputs
+
+            algoSelected : Utxo.RefDict ()
+            algoSelected =
+                Dict.Any.map (\_ _ -> ()) selectedInputs
+        in
+        Dict.Any.keys (Dict.Any.union preSelected algoSelected)
+    , createdOutputs = .outputs (intents.preCreated old) ++ createdOutputs
+    }
 
 
 
