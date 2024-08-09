@@ -475,11 +475,12 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
         validMinAdaPerOutput inputsOutputs txIntents
             -- UTxO selection
             |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
-            -- TODO: UTxOs creation with the change per address
-            |> Result.andThen
-                (\selectionPerAddress ->
-                    Debug.todo "finalize"
-                )
+            --> Result String (Address.Dict Selection)
+            -- Accumulate all selected UTxOs and newly created outputs
+            |> Result.map accumPerAddressSelection
+            --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
+            -- TODO: Aggregate with pre-selected inputs and pre-created outputs
+            |> Debug.todo "finalize"
         -- TODO: without estimating cost of plutus script exec, do few loops of:
         --   - estimate Tx fees
         --   - adjust coin selection
@@ -487,7 +488,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
         -- TODO: evaluate plutus script cost, and do a final round of above
 
     else
-        Err ("Tx is not balanced.\n" ++ Debug.toString processedIntents)
+        Err "Tx is not balanced.\n"
 
 
 validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
@@ -762,6 +763,26 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
             )
             (Ok Address.emptyDict)
         |> Result.mapError Debug.toString
+
+
+{-| Helper function to accumulate all selected UTxOs and newly created outputs.
+-}
+accumPerAddressSelection : Address.Dict CoinSelection.Selection -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
+accumPerAddressSelection =
+    Dict.Any.foldl
+        (\addr { selectedUtxos, change } acc ->
+            { selectedInputs =
+                List.foldl (\( ref, output ) -> Dict.Any.insert ref output) acc.selectedInputs selectedUtxos
+            , createdOutputs =
+                case change of
+                    Nothing ->
+                        acc.createdOutputs
+
+                    Just value ->
+                        { address = addr, amount = value, datumOption = Nothing, referenceScript = Nothing } :: acc.createdOutputs
+            }
+        )
+        { selectedInputs = Utxo.emptyRefDict, createdOutputs = [] }
 
 
 
