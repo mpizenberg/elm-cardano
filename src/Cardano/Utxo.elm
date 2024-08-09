@@ -1,8 +1,9 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
+    , RefDict, emptyRefDict, refDictFromList
     , fromLovelace
-    , lovelace, totalLovelace
-    , sortByAscendingLovelace, sortByDescendingLovelace
+    , lovelace, totalLovelace, compareLovelace
+    , minAda
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
     )
@@ -15,6 +16,11 @@ module Cardano.Utxo exposing
 @docs OutputReference, TransactionId, Output, DatumHash, DatumOption
 
 
+## Dictionary with [OutputReference] keys
+
+@docs RefDict, emptyRefDict, refDictFromList
+
+
 ## Build
 
 @docs fromLovelace
@@ -22,12 +28,12 @@ module Cardano.Utxo exposing
 
 ## Query
 
-@docs lovelace, totalLovelace
+@docs lovelace, totalLovelace, compareLovelace
 
 
-## Transform
+## Compute
 
-@docs sortByAscendingLovelace, sortByDescendingLovelace
+@docs minAda
 
 
 ## Convert
@@ -48,7 +54,9 @@ import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
+import Dict.Any exposing (AnyDict)
 import Natural as N exposing (Natural)
+import Set exposing (Set)
 
 
 {-| The reference for a eUTxO.
@@ -64,6 +72,26 @@ This is a Blake2b-256 hash.
 -}
 type TransactionId
     = TransactionId Never
+
+
+{-| Convenience type for `Dict` with [OutputReference] keys.
+-}
+type alias RefDict a =
+    AnyDict ( String, Int ) OutputReference a
+
+
+{-| Convenience empty initialization for `Dict` with [OutputReference] keys.
+-}
+emptyRefDict : RefDict a
+emptyRefDict =
+    Dict.Any.empty (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+
+
+{-| Convenience function to create a `Dict` with [OutputReference] keys from a list.
+-}
+refDictFromList : List ( OutputReference, a ) -> RefDict a
+refDictFromList =
+    Dict.Any.fromList (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
 
 
 {-| CBOR encoder for [OutputReference].
@@ -103,18 +131,11 @@ type DatumHash
     = DatumHash_ Never
 
 
-{-| Sorts a list of UTXOs in descending order by lovelace value.
+{-| Compare UTxOs by lovelace value.
 -}
-sortByDescendingLovelace : List Output -> List Output
-sortByDescendingLovelace =
-    List.sortWith (\a b -> N.compare (lovelace b) (lovelace a))
-
-
-{-| Sorts a list of UTXOs in ascending order by lovelace value.
--}
-sortByAscendingLovelace : List Output -> List Output
-sortByAscendingLovelace =
-    List.sortWith (\a b -> N.compare (lovelace a) (lovelace b))
+compareLovelace : Output -> Output -> Order
+compareLovelace a b =
+    N.compare (lovelace a) (lovelace b)
 
 
 {-| Construct an `Output` from an `Address` and a lovelace amount
@@ -140,6 +161,21 @@ lovelace output =
 totalLovelace : List Output -> Natural
 totalLovelace =
     List.foldr (\output total -> N.add (lovelace output) total) N.zero
+
+
+{-| Compute minimum Ada lovelace for a given [Output].
+
+The formula is given by CIP 55,
+with current value of `4310` for `coinsPerUTxOByte`.
+
+TODO: provide `coinsPerUTxOByte` in function arguments?
+
+-}
+minAda : Output -> Natural
+minAda output =
+    E.encode (encodeOutput output)
+        |> (Bytes.fromBytes >> Bytes.width)
+        |> (\w -> N.fromSafeInt ((160 + w) * 4310))
 
 
 {-| CBOR encoder for [Output].

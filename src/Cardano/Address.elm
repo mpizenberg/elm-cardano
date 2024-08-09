@@ -2,6 +2,9 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
+    , extractPubKeyHash, extractStakeCredential
+    , Dict, emptyDict
+    , StakeDict, emptyStakeDict
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -13,6 +16,12 @@ module Cardano.Address exposing
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
 @docs enterprise, script, base, pointer
+
+@docs extractPubKeyHash, extractStakeCredential
+
+@docs Dict, emptyDict
+
+@docs StakeDict, emptyStakeDict
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -27,6 +36,7 @@ import Bytes.Decode as BD
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
+import Dict.Any exposing (AnyDict)
 import Word7
 
 
@@ -91,8 +101,11 @@ type alias StakeCredentialPointer =
     { slotNumber : Int, transactionIndex : Int, certificateIndex : Int }
 
 
-{-| Phantom type for 28-bytes credential hashes.
+{-| Phantom type for 28-bytes credential hashes,
+corresponding either to VKey hashes or script hashes.
+
 This is a Blake2b-224 hash.
+
 -}
 type CredentialHash
     = CredentialHash Never
@@ -140,6 +153,65 @@ pointer networkId paymentCredential p =
         , paymentCredential = paymentCredential
         , stakeCredential = Just <| PointerCredential p
         }
+
+
+{-| Extract the pubkey hash of a Shelley wallet address.
+-}
+extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
+extractPubKeyHash address =
+    case address of
+        Shelley { paymentCredential } ->
+            case paymentCredential of
+                VKeyHash bytes ->
+                    Just bytes
+
+                ScriptHash _ ->
+                    Nothing
+
+        _ ->
+            Nothing
+
+
+{-| Extract the stake credential part of a Shelley address.
+-}
+extractStakeCredential : Address -> Maybe StakeCredential
+extractStakeCredential address =
+    case address of
+        Shelley { stakeCredential } ->
+            stakeCredential
+
+        _ ->
+            Nothing
+
+
+{-| Convenient alias for a `Dict` with [Address] keys.
+When converting to a `List`, its keys are sorted by address.
+-}
+type alias Dict a =
+    AnyDict String Address a
+
+
+{-| Initialize an empty address dictionary.
+For other operations, use the `AnyDict` module directly.
+-}
+emptyDict : Dict a
+emptyDict =
+    Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
+{-| Convenient alias for a `Dict` with [StakeAddress] keys.
+When converting to a `List`, its keys are sorted by stake address.
+-}
+type alias StakeDict a =
+    AnyDict String StakeAddress a
+
+
+{-| Initialize an empty stake address dictionary.
+For other operations, use the `AnyDict` module directly.
+-}
+emptyStakeDict : StakeDict a
+emptyStakeDict =
+    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
 {-| Encode an [Address] to CBOR.
