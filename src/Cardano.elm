@@ -528,7 +528,7 @@ type alias ProcessedIntents =
     , requiredSigners : List (Bytes CredentialHash)
     , totalMinted : MultiAsset Integer
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
-    , withdrawals : List ( StakeAddress, Natural, Maybe (InputsOutputs -> Data) )
+    , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     }
 
 
@@ -544,7 +544,7 @@ noIntent =
     , requiredSigners = []
     , totalMinted = MultiAsset.empty
     , mintRedeemers = Map.empty
-    , withdrawals = []
+    , withdrawals = Address.emptyStakeDict
     }
 
 
@@ -666,18 +666,18 @@ processIntents localStateUtxos txIntents =
                             case scriptWitness of
                                 Nothing ->
                                     { before
-                                        | withdrawals = ( stakeCredential, amount, Nothing ) :: processedIntents.withdrawals
+                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Nothing } processedIntents.withdrawals
                                     }
 
                                 Just (NativeWitness script) ->
                                     { before
-                                        | withdrawals = ( stakeCredential, amount, Nothing ) :: processedIntents.withdrawals
+                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Nothing } processedIntents.withdrawals
                                         , nativeScriptSources = script :: before.nativeScriptSources
                                     }
 
                                 Just (PlutusWitness { script, redeemerData, requiredSigners }) ->
                                     { before
-                                        | withdrawals = ( stakeCredential, amount, Just redeemerData ) :: processedIntents.withdrawals
+                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Just redeemerData } processedIntents.withdrawals
                                         , plutusScriptSources = script :: before.plutusScriptSources
                                         , requiredSigners = requiredSigners ++ before.requiredSigners
                                     }

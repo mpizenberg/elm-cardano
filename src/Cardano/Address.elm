@@ -4,6 +4,7 @@ module Cardano.Address exposing
     , enterprise, script, base, pointer
     , extractPubKeyHash, extractStakeCredential
     , Dict, emptyDict
+    , StakeDict, emptyStakeDict
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -19,6 +20,8 @@ module Cardano.Address exposing
 @docs extractPubKeyHash, extractStakeCredential
 
 @docs Dict, emptyDict
+
+@docs StakeDict, emptyStakeDict
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -182,6 +185,7 @@ extractStakeCredential address =
 
 
 {-| Convenient alias for a `Dict` with [Address] keys.
+When converting to a `List`, its keys are sorted by address.
 -}
 type alias Dict a =
     AnyDict String Address a
@@ -193,6 +197,21 @@ For other operations, use the `AnyDict` module directly.
 emptyDict : Dict a
 emptyDict =
     Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
+{-| Convenient alias for a `Dict` with [StakeAddress] keys.
+When converting to a `List`, its keys are sorted by stake address.
+-}
+type alias StakeDict a =
+    AnyDict String StakeAddress a
+
+
+{-| Initialize an empty stake address dictionary.
+For other operations, use the `AnyDict` module directly.
+-}
+emptyStakeDict : StakeDict a
+emptyStakeDict =
+    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
 {-| Encode an [Address] to CBOR.
