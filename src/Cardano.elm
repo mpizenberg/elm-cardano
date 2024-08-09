@@ -2,6 +2,7 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , finalize
+    , example1, prettyTx
     )
 
 {-| Cardano stuff
@@ -52,8 +53,8 @@ Here is a simple way to send 1 Ada to someone else.
         Value.onlyLovelace (Natural.fromSafeString "1000000")
 
     -- Some config required for Tx finalization
-    ({ localStateUtxos, costModels, coinSelectionAlgo } as config) =
-        Debug.todo "{ localStateUtxos, costModels, coinSelectionAlgo }"
+    ({ localStateUtxos, coinSelectionAlgo } as config) =
+        Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
 
     sendToSomeoneTx =
         [ Spend <| From me oneAda, SendTo you oneAda ]
@@ -333,11 +334,12 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction exposing (CostModels, Transaction, TransactionBody, WitnessSet)
+import Cardano.Transaction exposing (Transaction, TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
+import Cbor.Encode as E
 import Dict exposing (Dict)
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
@@ -436,13 +438,12 @@ Analyze all intents and perform the following actions:
 -}
 finalize :
     { localStateUtxos : Utxo.RefDict Output
-    , costModels : CostModels
     , coinSelectionAlgo : CoinSelection.Algorithm
     }
     -> List TxOtherInfo
     -> List TxIntent
     -> Result String Transaction
-finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntents =
+finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
     -- TODO: Check that all spent referenced inputs are present in the local state
     let
         -- Initialize InputsOutputs
@@ -987,27 +988,205 @@ filterScriptVersion v =
 -- EXAMPLES ##########################################################
 
 
-makeWalletAddress name =
-    Address.Shelley
-        { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromStringUnchecked name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromStringUnchecked name))
-        }
-
-
 oneAda =
     -- Asset amounts are typed with unbounded Natural numbers
     Value.onlyLovelace (Natural.fromSafeString "1000000")
+
+
+twoAda =
+    -- Asset amounts are typed with unbounded Natural numbers
+    Value.onlyLovelace (Natural.fromSafeString "2000000")
+
+
+tenAda =
+    -- Asset amounts are typed with unbounded Natural numbers
+    Value.onlyLovelace (Natural.fromSafeString "10000000")
+
+
+makeWalletAddress : String -> Address
+makeWalletAddress name =
+    Address.Shelley
+        { networkId = Mainnet
+        , paymentCredential = VKeyHash (Bytes.fromStringUnchecked <| "key:" ++ name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromStringUnchecked <| "stake:" ++ name))
+        }
+
+
+makeAddress : String -> Address
+makeAddress name =
+    Bytes.fromStringUnchecked ("key:" ++ name)
+        |> Address.enterprise Mainnet
+
+
+makeRef : Int -> OutputReference
+makeRef index =
+    { transactionId = Bytes.fromStringUnchecked <| "Tx:" ++ String.fromInt index
+    , outputIndex = index
+    }
+
+
+makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
+makeAsset index address policyId name amount =
+    ( makeRef index
+    , { address = address
+      , amount = makeToken policyId name amount
+      , datumOption = Nothing
+      , referenceScript = Nothing
+      }
+    )
+
+
+makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
+makeAdaOutput index address amount =
+    ( makeRef index
+    , Utxo.fromLovelace address (Natural.fromSafeInt <| 1000000 * amount)
+    )
+
+
+makeToken : String -> String -> Int -> Value
+makeToken policyId name amount =
+    Value.onlyToken (Bytes.fromStringUnchecked policyId) (Bytes.fromStringUnchecked name) (Natural.fromSafeInt amount)
+
+
+prettyAddr address =
+    case address of
+        Byron b ->
+            Bytes.toString b
+
+        Shelley { paymentCredential, stakeCredential } ->
+            [ Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
+                |> List.filterMap identity
+                |> String.join " "
+
+        Reward stakeAddr ->
+            "StakeAddr:" ++ prettyCred stakeAddr.stakeCredential
+
+
+prettyStakeCred stakeCred =
+    case stakeCred of
+        Address.InlineCredential cred ->
+            prettyCred cred
+
+        Address.PointerCredential _ ->
+            "PointerAddr"
+
+
+prettyCred cred =
+    case cred of
+        Address.VKeyHash b ->
+            Bytes.toString b
+
+        Address.ScriptHash b ->
+            Bytes.toString b
+
+
+prettyValue : Value -> List String
+prettyValue { lovelace, assets } =
+    if MultiAsset.isEmpty assets then
+        [ "₳ " ++ Natural.toString lovelace ]
+
+    else
+        "with native assets:"
+            :: ("   ₳ " ++ Natural.toString lovelace)
+            :: List.map (indent 3) (prettyAssets Natural.toString assets)
+
+
+prettyAssets toStr multiAsset =
+    Map.toList multiAsset
+        |> List.concatMap
+            (\( policyId, assets ) ->
+                Map.toList assets
+                    |> List.map
+                        (\( name, amount ) ->
+                            String.join " "
+                                [ Bytes.toString policyId
+                                , Bytes.toString name
+                                , toStr amount
+                                ]
+                        )
+            )
+
+
+prettyDatum datumOption =
+    case datumOption of
+        Utxo.DatumHash h ->
+            Bytes.toString h
+
+        Utxo.Datum data ->
+            prettyCbor Data.toCbor data
+
+
+prettyCbor toCbor x =
+    E.encode (toCbor x) |> Bytes.fromBytes |> Bytes.toString
+
+
+prettyScript script =
+    case script of
+        Script.Native nativeScript ->
+            "NativeScript: " ++ prettyCbor Script.encodeNativeScript nativeScript
+
+        Script.Plutus plutusScript ->
+            "PlutusScript: " ++ prettyCbor Script.encodePlutusScript plutusScript
+
+
+prettyOutput : Output -> List String
+prettyOutput { address, amount, datumOption, referenceScript } =
+    [ Just <| [ prettyAddr address ]
+    , Just <| prettyValue amount
+    , Maybe.map (List.singleton << prettyDatum) datumOption
+    , Maybe.map (List.singleton << prettyScript) referenceScript
+    ]
+        |> List.filterMap identity
+        |> List.concat
+
+
+indent spaces str =
+    String.repeat spaces " " ++ str
+
+
+prettyTx : Transaction -> String
+prettyTx tx =
+    let
+        prettyInput ref =
+            String.join " " [ Bytes.toString ref.transactionId, "#" ++ String.fromInt ref.outputIndex ]
+
+        body =
+            List.concat
+                [ [ "Tx inputs:" ]
+                , List.map (indent 3 << prettyInput) tx.body.inputs
+                , []
+                , [ "Tx outputs:" ]
+                , List.concatMap prettyOutput tx.body.outputs
+                    |> List.map (indent 3)
+                ]
+
+        witnessSet =
+            []
+
+        auxData =
+            []
+    in
+    List.concat [ body, witnessSet, auxData ]
+        |> String.join "\n"
 
 
 
 -- EXAMPLE 1: Simple transfer
 
 
+globalStateUtxos : Utxo.RefDict Output
+globalStateUtxos =
+    Utxo.refDictFromList
+        [ makeAdaOutput 0 (makeWalletAddress "me") 10 -- 10 ada at my address
+        ]
+
+
 example1 _ =
     let
-        ({ localStateUtxos, costModels, coinSelectionAlgo } as config) =
-            Debug.todo "{ localStateUtxos, costModels, coinSelectionAlgo }"
+        config =
+            { localStateUtxos = globalStateUtxos
+            , coinSelectionAlgo = CoinSelection.largestFirst
+            }
     in
     [ Spend <| From (makeWalletAddress "me") oneAda
     , SendTo (makeWalletAddress "you") oneAda
@@ -1030,8 +1209,8 @@ example2 _ =
         ( catOutputRef, catPolicyId, catAssetName ) =
             Debug.todo "cat info is provided"
 
-        ({ localStateUtxos, costModels, coinSelectionAlgo } as config) =
-            Debug.todo "{ localStateUtxos, costModels, coinSelectionAlgo }"
+        ({ localStateUtxos, coinSelectionAlgo } as config) =
+            Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
     in
     -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
     [ MintBurn
@@ -1083,8 +1262,8 @@ example3 _ =
         dummyRedeemer =
             Data.Int Integer.zero
 
-        ({ localStateUtxos, costModels, coinSelectionAlgo } as config) =
-            Debug.todo "{ localStateUtxos, costModels, coinSelectionAlgo }"
+        ({ localStateUtxos, coinSelectionAlgo } as config) =
+            Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
     in
     -- Collect 1 ada from the lock script
     [ Spend <|

@@ -1,0 +1,11 @@
+{
+    "serve": ".",
+    "targets": {
+        "main": {
+            "inputs": [
+                "Main.elm"
+            ],
+            "output": "main.js"
+        }
+    }
+}
