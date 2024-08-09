@@ -331,9 +331,9 @@ import Cardano.Cip30 exposing (Utxo)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
-import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script exposing (NativeScript, PlutusScript)
-import Cardano.Transaction exposing (CostModels, Transaction)
+import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
+import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
+import Cardano.Transaction exposing (CostModels, Transaction, TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
@@ -453,6 +453,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             , createdOutputs = []
             }
 
+        -- TODO: Deduplicate eventual duplicate witnesses (both value and reference) after processedIntents
         processedIntents =
             processIntents localStateUtxos txIntents
 
@@ -482,7 +483,7 @@ finalize { localStateUtxos, costModels, coinSelectionAlgo } txOtherInfo txIntent
             -- Aggregate with pre-selected inputs and pre-created outputs
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
             --> Result String InputsOutputs
-            |> Debug.todo "finalize"
+            |> Result.map (buildTx processedIntents)
         -- TODO: without estimating cost of plutus script exec, do few loops of:
         --   - estimate Tx fees
         --   - adjust coin selection
@@ -791,7 +792,7 @@ accumPerAddressSelection =
 -}
 updateInputsOutputs : ProcessedIntents -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output } -> InputsOutputs -> InputsOutputs
 updateInputsOutputs intents { selectedInputs, createdOutputs } old =
-    { referenceInputs = []
+    { referenceInputs = [] -- TODO: handle reference inputs
     , spentInputs =
         let
             preSelected : Utxo.RefDict ()
@@ -805,6 +806,181 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
         Dict.Any.keys (Dict.Any.union preSelected algoSelected)
     , createdOutputs = .outputs (intents.preCreated old) ++ createdOutputs
     }
+
+
+{-| Build the Transaction from the processed intents and the latest inputs/outputs.
+-}
+buildTx : ProcessedIntents -> InputsOutputs -> Transaction
+buildTx processedIntents inputsOutputs =
+    let
+        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
+        sortedWithdrawals =
+            Dict.Any.toList processedIntents.withdrawals
+                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
+
+        ( nativeScripts, nativeScriptRefs ) =
+            splitWitnessSources processedIntents.nativeScriptSources
+
+        ( plutusScripts, plutusScriptRefs ) =
+            splitWitnessSources processedIntents.plutusScriptSources
+
+        ( datumWitnessValues, datumWitnessRefs ) =
+            splitWitnessSources processedIntents.datumSources
+
+        -- Regroup all OutputReferences from witnesses
+        -- TODO: better handle inputsOutputs.referenceInputs?
+        allReferenceInputs =
+            List.concat [ inputsOutputs.referenceInputs, nativeScriptRefs, plutusScriptRefs, datumWitnessRefs ]
+
+        txBody : TransactionBody
+        txBody =
+            { inputs = inputsOutputs.spentInputs
+            , outputs = inputsOutputs.createdOutputs
+            , fee = Just Natural.zero -- TODO
+            , ttl = Nothing -- TODO
+            , certificates = [] -- TODO
+            , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
+            , update = Nothing -- TODO
+            , auxiliaryDataHash = Nothing -- TODO
+            , validityIntervalStart = Nothing -- TODO
+            , mint = processedIntents.totalMinted
+            , scriptDataHash = Nothing -- TODO
+            , collateral = [] -- TODO
+            , requiredSigners = processedIntents.requiredSigners
+            , networkId = Nothing -- TODO
+            , collateralReturn = Nothing -- TODO
+            , totalCollateral = Nothing -- TODO
+            , referenceInputs = allReferenceInputs
+            }
+
+        -- Compute datums for pre-selected inputs.
+        preSelected : Utxo.RefDict (Maybe Data)
+        preSelected =
+            processedIntents.preSelected.inputs
+                |> Dict.Any.map (\_ -> Maybe.map (\f -> f inputsOutputs))
+
+        -- Add a default Nothing to all inputs picked by the selection algorithm.
+        algoSelected : Utxo.RefDict (Maybe Data)
+        algoSelected =
+            List.map (\ref -> ( ref, Nothing )) inputsOutputs.spentInputs
+                |> Utxo.refDictFromList
+
+        -- Helper
+        makeRedeemer : RedeemerTag -> Int -> Data -> Redeemer
+        makeRedeemer tag id data =
+            { tag = tag
+            , index = id
+            , data = data
+            , exUnits = { mem = 0, steps = 0 } -- TODO: change or not?
+            }
+
+        -- Build the spend redeemers while keeping the index of the sorted inputs.
+        sortedSpendRedeemers : List Redeemer
+        sortedSpendRedeemers =
+            Dict.Any.diff algoSelected preSelected
+                -- The diff then union is to make sure the order does not matter
+                -- since we want to keep the Just Data of preSelected
+                -- insteaf of the Nothings of algoSelected
+                |> Dict.Any.union preSelected
+                |> Dict.Any.toList
+                |> List.indexedMap
+                    (\id ( _, maybeDatum ) ->
+                        Maybe.map (makeRedeemer Redeemer.Spend id) maybeDatum
+                    )
+                |> List.filterMap identity
+
+        -- Build the mint redeemers while keeping the index of the sorted order of policy IDs.
+        sortedMintRedeemers : List Redeemer
+        sortedMintRedeemers =
+            Map.values processedIntents.mintRedeemers
+                |> List.indexedMap
+                    (\id maybeRedeemerF ->
+                        Maybe.map
+                            (\redeemerF -> makeRedeemer Redeemer.Mint id (redeemerF inputsOutputs))
+                            maybeRedeemerF
+                    )
+                |> List.filterMap identity
+
+        -- Build the withdrawals redeemers while keeping the index in the sorted list.
+        sortedWithdrawalsRedeemers : List Redeemer
+        sortedWithdrawalsRedeemers =
+            sortedWithdrawals
+                |> List.indexedMap
+                    (\id ( _, _, maybeDatum ) ->
+                        Maybe.map (makeRedeemer Redeemer.Reward id) maybeDatum
+                    )
+                |> List.filterMap identity
+
+        -- TODO
+        sortedCertRedeemers : List Redeemer
+        sortedCertRedeemers =
+            []
+
+        txWitnessSet : WitnessSet
+        txWitnessSet =
+            { vkeywitness = Nothing -- TODO
+            , bootstrapWitness = Nothing -- TODO
+            , plutusData = nothingIfEmptyList datumWitnessValues
+            , nativeScripts = nothingIfEmptyList nativeScripts
+            , plutusV1Script = nothingIfEmptyList <| filterScriptVersion PlutusV1 plutusScripts
+            , plutusV2Script = nothingIfEmptyList <| filterScriptVersion PlutusV2 plutusScripts
+            , redeemer =
+                nothingIfEmptyList <|
+                    List.concat
+                        [ sortedSpendRedeemers
+                        , sortedMintRedeemers
+                        , sortedWithdrawalsRedeemers
+                        , sortedCertRedeemers
+                        ]
+            }
+    in
+    { body = txBody
+    , witnessSet = txWitnessSet
+    , isValid = True
+    , auxiliaryData = Nothing -- TODO
+    }
+
+
+{-| Helper function to split native script into a list of script value and a list of output references.
+-}
+splitWitnessSources : List (WitnessSource a) -> ( List a, List OutputReference )
+splitWitnessSources witnessSources =
+    List.foldl
+        (\w ( accValues, accRefs ) ->
+            case w of
+                WitnessValue value ->
+                    ( value :: accValues, accRefs )
+
+                WitnessReference ref ->
+                    ( accValues, ref :: accRefs )
+        )
+        ( [], [] )
+        witnessSources
+
+
+{-| Helper
+-}
+nothingIfEmptyList : List a -> Maybe (List a)
+nothingIfEmptyList list =
+    if List.isEmpty list then
+        Nothing
+
+    else
+        Just list
+
+
+{-| Helper
+-}
+filterScriptVersion : Script.PlutusVersion -> List PlutusScript -> List (Bytes ScriptCbor)
+filterScriptVersion v =
+    List.filterMap
+        (\{ version, script } ->
+            if version == v then
+                Just script
+
+            else
+                Nothing
+        )
 
 
 

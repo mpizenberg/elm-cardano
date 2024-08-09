@@ -1,6 +1,6 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
-    , RefDict, emptyRefDict
+    , RefDict, emptyRefDict, refDictFromList
     , fromLovelace
     , lovelace, totalLovelace, compareLovelace
     , minAda
@@ -18,7 +18,7 @@ module Cardano.Utxo exposing
 
 ## Dictionary with [OutputReference] keys
 
-@docs RefDict, emptyRefDict
+@docs RefDict, emptyRefDict, refDictFromList
 
 
 ## Build
@@ -85,6 +85,13 @@ type alias RefDict a =
 emptyRefDict : RefDict a
 emptyRefDict =
     Dict.Any.empty (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+
+
+{-| Convenience function to create a `Dict` with [OutputReference] keys from a list.
+-}
+refDictFromList : List ( OutputReference, a ) -> RefDict a
+refDictFromList =
+    Dict.Any.fromList (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
 
 
 {-| CBOR encoder for [OutputReference].
