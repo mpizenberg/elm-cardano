@@ -773,7 +773,7 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
                 Result.map2 (Dict.Any.insert addr) selectRes accumRes
             )
             (Ok Address.emptyDict)
-        |> Result.map (Debug.log "coin selection")
+        -- |> Result.map (Debug.log "coin selection")
         |> Result.mapError Debug.toString
 
 
@@ -788,7 +788,6 @@ accumPerAddressSelection freeOutput allSelections =
         -- Reshape freeOutput as a selection to be able to merge with the selection change
         freeOutputAsSelection =
             Dict.Any.map (\_ v -> { selectedUtxos = [], change = Just v }) freeOutput
-                |> Debug.log "freeOutputAsSelection"
 
         mergeHelper sel freeSel =
             case freeSel.change of
