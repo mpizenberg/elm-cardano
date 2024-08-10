@@ -35,4 +35,6 @@ view _ =
         , Html.pre [] [ text <| example Cardano.example1 ]
         , div [] [ text "Example transaction 2: mint dog & burn 1 cat" ]
         , Html.pre [] [ text <| example Cardano.example2 ]
+        , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada" ]
+        , Html.pre [] [ text <| example Cardano.example3 ]
         ]

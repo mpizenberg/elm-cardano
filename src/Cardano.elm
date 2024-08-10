@@ -2,7 +2,7 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , finalize
-    , example1, example2, prettyTx
+    , example1, example2, example3, prettyTx
     )
 
 {-| Cardano stuff
@@ -1190,7 +1190,12 @@ prettyMints sectionTitle multiAsset =
 
 
 prettyRedeemer redeemer =
-    Debug.todo "prettyRedeemer"
+    String.join " "
+        [ Debug.toString redeemer.tag
+        , "index:" ++ String.fromInt redeemer.index
+        , "exUnits:?"
+        , "data:" ++ prettyCbor Data.toCbor redeemer.data
+        ]
 
 
 indent spaces str =
@@ -1200,6 +1205,9 @@ indent spaces str =
 prettyTx : Transaction -> String
 prettyTx tx =
     let
+        prettyBytes b =
+            Maybe.withDefault (Bytes.toString b) (Bytes.toText b)
+
         body =
             List.concat
                 [ prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
@@ -1208,24 +1216,27 @@ prettyTx tx =
                 , List.concatMap prettyOutput tx.body.outputs
                     |> List.map (indent 3)
                 , prettyMints "Tx mints:" tx.body.mint
+                , [] -- TODO: witdrawals
+                , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
+                , [] -- TODO: collateral
                 ]
 
         witnessSet =
-            List.concat
-                [ tx.witnessSet.nativeScripts
-                    |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
-                    |> Maybe.withDefault []
-                , tx.witnessSet.plutusV1Script
-                    |> Maybe.map (prettyList "Tx plutus V1 scripts:" (prettyCbor Bytes.toCbor))
-                    |> Maybe.withDefault []
-                , tx.witnessSet.plutusV2Script
-                    |> Maybe.map (prettyList "Tx plutus V2 scripts:" (prettyCbor Bytes.toCbor))
-                    |> Maybe.withDefault []
-                , tx.witnessSet.redeemer
-                    |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
-                    |> Maybe.withDefault []
-                ]
+            List.concat <|
+                List.filterMap identity
+                    [ Nothing -- TODO: vkeywitness
+                    , tx.witnessSet.nativeScripts
+                        |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
+                    , tx.witnessSet.plutusV1Script
+                        |> Maybe.map (prettyList "Tx plutus V1 scripts:" prettyBytes)
+                    , tx.witnessSet.plutusV2Script
+                        |> Maybe.map (prettyList "Tx plutus V2 scripts:" prettyBytes)
+                    , tx.witnessSet.redeemer
+                        |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
+                    , Nothing -- TODO: plutusData
+                    ]
 
+        -- TODO: pretty print auxiliary data
         auxData =
             []
     in
@@ -1325,40 +1336,55 @@ example2 _ =
 -- EXAMPLE 3: spend from a Plutus script
 
 
-makeScriptAddress scriptHash maybeStakeCredential =
-    Address.Shelley
-        { networkId = Mainnet
-        , paymentCredential = ScriptHash scriptHash
-        , stakeCredential = maybeStakeCredential
-        }
-
-
 example3 _ =
     let
         ( myKeyCred, myStakeCred ) =
             ( Address.extractPubKeyHash exAddr.me
-                |> Maybe.withDefault (Debug.todo "should not fail")
+                |> Maybe.withDefault (Bytes.fromText "should not fail")
             , Address.extractStakeCredential exAddr.me
             )
 
-        ( lockScript, lockScriptHash ) =
-            Debug.todo "coming from the blueprint"
+        lock =
+            { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
+            , scriptHash = Bytes.fromText "LockHash"
+            }
+
+        -- Combining the script hash with our stake credential
+        -- to keep the locked add staked.
+        lockScriptAddress =
+            Address.Shelley
+                { networkId = Mainnet
+                , paymentCredential = ScriptHash lock.scriptHash
+                , stakeCredential = myStakeCred
+                }
 
         -- Dummy redeemer of the smallest size possible.
         -- A redeemer is mandatory, but unchecked by this contract anyway.
         dummyRedeemer =
             Data.Int Integer.zero
 
-        ({ localStateUtxos, coinSelectionAlgo } as config) =
-            Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
+        -- Helper function to create an output at the lock script address.
+        -- It contains our key credential in the datum.
+        makeLockedOutput adaAmount =
+            { address = lockScriptAddress
+            , amount = adaAmount
+            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
+            , referenceScript = Nothing
+            }
+
+        -- Add to local state utxos some previously sent 2 ada.
+        localStateUtxos =
+            configGlobalLargest.localStateUtxos
+                |> Dict.Any.insert (makeRef "previouslySentToLock" 0)
+                    (makeLockedOutput ada.two)
     in
     -- Collect 1 ada from the lock script
     [ Spend <|
         FromPlutusScript
-            { spentInput = Debug.todo "the locked utxo with 2 ada"
+            { spentInput = makeRef "previouslySentToLock" 0
             , datumWitness = Nothing
             , plutusScriptWitness =
-                { script = WitnessValue lockScript
+                { script = WitnessValue lock.script
                 , redeemerData = \_ -> dummyRedeemer
                 , requiredSigners = [ myKeyCred ]
                 }
@@ -1366,16 +1392,6 @@ example3 _ =
     , SendTo exAddr.me ada.one
 
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
-    , SendToOutput
-        (\_ ->
-            -- Use our own stake credential to keep staking and earning rewards
-            { address = makeScriptAddress lockScriptHash myStakeCred
-            , amount = ada.one
-
-            -- Add our pubkey credential to the datum of the newly locked utxo
-            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
-            , referenceScript = Nothing
-            }
-        )
+    , SendToOutput (\_ -> makeLockedOutput ada.one)
     ]
-        |> finalize config []
+        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } []
