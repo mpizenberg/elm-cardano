@@ -2,7 +2,7 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , finalize
-    , example1, prettyTx
+    , example1, example2, prettyTx
     )
 
 {-| Cardano stuff
@@ -492,6 +492,13 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
         -- TODO: evaluate plutus script cost, and do a final round of above
 
     else
+        let
+            _ =
+                Debug.log "totalInput" totalInput
+
+            _ =
+                Debug.log "totalOutput" totalOutput
+        in
         Err "Tx is not balanced.\n"
 
 
@@ -1019,21 +1026,6 @@ filterScriptVersion v =
 -- EXAMPLES ##########################################################
 
 
-oneAda =
-    -- Asset amounts are typed with unbounded Natural numbers
-    Value.onlyLovelace (Natural.fromSafeString "1000000")
-
-
-twoAda =
-    -- Asset amounts are typed with unbounded Natural numbers
-    Value.onlyLovelace (Natural.fromSafeString "2000000")
-
-
-tenAda =
-    -- Asset amounts are typed with unbounded Natural numbers
-    Value.onlyLovelace (Natural.fromSafeString "10000000")
-
-
 makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
@@ -1208,29 +1200,67 @@ prettyTx tx =
 
 
 
--- EXAMPLE 1: Simple transfer
+-- EXAMPLES global state
+
+
+ada =
+    -- Asset amounts are typed with unbounded Natural numbers
+    { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
+    , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
+    , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
+    }
+
+
+exAddr =
+    { me = makeWalletAddress "me"
+    , you = makeWalletAddress "you"
+    }
+
+
+dog =
+    { scriptRef = makeRef "dogScriptRef" 0
+    , policyId = Bytes.fromText "dog"
+    , policyIdStr = "dog"
+    , assetName = Bytes.fromText "yksoh"
+    , assetNameStr = "yksoh"
+    }
+
+
+cat =
+    { scriptRef = makeRef "catScriptRef" 0
+    , policyId = Bytes.fromText "cat"
+    , policyIdStr = "cat"
+    , assetName = Bytes.fromText "felix"
+    , assetNameStr = "felix"
+    }
 
 
 globalStateUtxos : Utxo.RefDict Output
 globalStateUtxos =
     Utxo.refDictFromList
-        [ makeAdaOutput 0 (makeWalletAddress "me") 2 --   2 ada at my address
-        , makeAdaOutput 1 (makeWalletAddress "me") 10 -- 10 ada at my address
-        , makeAdaOutput 2 (makeWalletAddress "me") 5 --   5 ada at my address
+        [ makeAdaOutput 0 exAddr.me 2 --   2 ada at my address
+        , makeAdaOutput 1 exAddr.me 10 -- 10 ada at my address
+        , makeAdaOutput 2 exAddr.me 5 --   5 ada at my address
+        , makeAsset 3 exAddr.me dog.policyIdStr dog.assetNameStr 2
+        , makeAsset 4 exAddr.me cat.policyIdStr cat.assetNameStr 5
         ]
 
 
+configGlobalLargest =
+    { localStateUtxos = globalStateUtxos
+    , coinSelectionAlgo = CoinSelection.largestFirst
+    }
+
+
+
+-- EXAMPLE 1: Simple transfer
+
+
 example1 _ =
-    let
-        config =
-            { localStateUtxos = globalStateUtxos
-            , coinSelectionAlgo = CoinSelection.largestFirst
-            }
-    in
-    [ Spend <| From (makeWalletAddress "me") oneAda
-    , SendTo (makeWalletAddress "you") oneAda
+    [ Spend <| From exAddr.me ada.one
+    , SendTo exAddr.you ada.one
     ]
-        |> finalize config []
+        |> finalize configGlobalLargest []
 
 
 
@@ -1238,36 +1268,23 @@ example1 _ =
 
 
 example2 _ =
-    let
-        me =
-            makeWalletAddress "me"
-
-        ( dogOutputRef, dogPolicyId, dogAssetName ) =
-            Debug.todo "dog info is provided"
-
-        ( catOutputRef, catPolicyId, catAssetName ) =
-            Debug.todo "cat info is provided"
-
-        ({ localStateUtxos, coinSelectionAlgo } as config) =
-            Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
-    in
     -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
     [ MintBurn
-        { policyId = dogPolicyId
-        , assets = Map.singleton dogAssetName Integer.one
-        , scriptWitness = NativeWitness (WitnessReference dogOutputRef)
+        { policyId = dog.policyId
+        , assets = Map.singleton dog.assetName Integer.one
+        , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
         }
-    , SendTo me (Value.onlyToken catPolicyId catAssetName Natural.one)
+    , SendTo exAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
     -- burning 1 cat
-    , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+    , Spend <| From exAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
     , MintBurn
-        { policyId = catPolicyId
-        , assets = Map.singleton catAssetName Integer.negativeOne
-        , scriptWitness = NativeWitness (WitnessReference catOutputRef)
+        { policyId = cat.policyId
+        , assets = Map.singleton cat.assetName Integer.negativeOne
+        , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize config []
+        |> finalize configGlobalLargest []
 
 
 
@@ -1284,13 +1301,10 @@ makeScriptAddress scriptHash maybeStakeCredential =
 
 example3 _ =
     let
-        ( me, myKeyCred, myStakeCred ) =
-            ( makeWalletAddress "me"
-            , makeWalletAddress "me"
-                |> Address.extractPubKeyHash
+        ( myKeyCred, myStakeCred ) =
+            ( Address.extractPubKeyHash exAddr.me
                 |> Maybe.withDefault (Debug.todo "should not fail")
-            , makeWalletAddress "me"
-                |> Address.extractStakeCredential
+            , Address.extractStakeCredential exAddr.me
             )
 
         ( lockScript, lockScriptHash ) =
@@ -1315,14 +1329,14 @@ example3 _ =
                 , requiredSigners = [ myKeyCred ]
                 }
             }
-    , SendTo me oneAda
+    , SendTo exAddr.me ada.one
 
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
     , SendToOutput
         (\_ ->
             -- Use our own stake credential to keep staking and earning rewards
             { address = makeScriptAddress lockScriptHash myStakeCred
-            , amount = oneAda
+            , amount = ada.one
 
             -- Add our pubkey credential to the datum of the newly locked utxo
             , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
