@@ -1172,6 +1172,28 @@ prettyOutput { address, amount, datumOption, referenceScript } =
            )
 
 
+prettyList sectionTitle prettify list =
+    if List.isEmpty list then
+        []
+
+    else
+        sectionTitle
+            :: List.map (indent 3 << prettify) list
+
+
+prettyMints sectionTitle multiAsset =
+    if MultiAsset.isEmpty multiAsset then
+        []
+
+    else
+        sectionTitle
+            :: List.map (indent 3) (prettyAssets Integer.toString multiAsset)
+
+
+prettyRedeemer redeemer =
+    Debug.todo "prettyRedeemer"
+
+
 indent spaces str =
     String.repeat spaces " " ++ str
 
@@ -1181,16 +1203,29 @@ prettyTx tx =
     let
         body =
             List.concat
-                [ [ "Tx inputs:" ]
-                , List.map (indent 3 << prettyInput) tx.body.inputs
-                , []
+                [ prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
+                , prettyList "Tx inputs:" prettyInput tx.body.inputs
                 , [ "Tx outputs:" ]
                 , List.concatMap prettyOutput tx.body.outputs
                     |> List.map (indent 3)
+                , prettyMints "Tx mints:" tx.body.mint
                 ]
 
         witnessSet =
-            []
+            List.concat
+                [ tx.witnessSet.nativeScripts
+                    |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
+                    |> Maybe.withDefault []
+                , tx.witnessSet.plutusV1Script
+                    |> Maybe.map (prettyList "Tx plutus V1 scripts:" (prettyCbor Bytes.toCbor))
+                    |> Maybe.withDefault []
+                , tx.witnessSet.plutusV2Script
+                    |> Maybe.map (prettyList "Tx plutus V2 scripts:" (prettyCbor Bytes.toCbor))
+                    |> Maybe.withDefault []
+                , tx.witnessSet.redeemer
+                    |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
+                    |> Maybe.withDefault []
+                ]
 
         auxData =
             []
