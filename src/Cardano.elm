@@ -1132,10 +1132,10 @@ prettyAssets toStr multiAsset =
 prettyDatum datumOption =
     case datumOption of
         Utxo.DatumHash h ->
-            (Bytes.toText >> Maybe.withDefault "") h
+            "datumHash: " ++ Maybe.withDefault "" (Bytes.toText h)
 
         Utxo.Datum data ->
-            prettyCbor Data.toCbor data
+            "datum: " ++ prettyCbor Data.toCbor data
 
 
 prettyCbor toCbor x =
