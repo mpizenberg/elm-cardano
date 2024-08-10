@@ -1038,8 +1038,8 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromText <| "key:" ++ name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText <| "stake:" ++ name))
+        , paymentCredential = VKeyHash (Bytes.fromText name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText name))
         }
 
 
@@ -1049,16 +1049,16 @@ makeAddress name =
         |> Address.enterprise Mainnet
 
 
-makeRef : Int -> OutputReference
-makeRef index =
-    { transactionId = Bytes.fromText <| "Tx:" ++ String.fromInt index
+makeRef : String -> Int -> OutputReference
+makeRef id index =
+    { transactionId = Bytes.fromText id
     , outputIndex = index
     }
 
 
 makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
 makeAsset index address policyId name amount =
-    ( makeRef index
+    ( makeRef (String.fromInt index) index
     , { address = address
       , amount = makeToken policyId name amount
       , datumOption = Nothing
@@ -1069,7 +1069,7 @@ makeAsset index address policyId name amount =
 
 makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
 makeAdaOutput index address amount =
-    ( makeRef index
+    ( makeRef (String.fromInt index) index
     , Utxo.fromLovelace address (Natural.fromSafeInt <| 1000000 * amount)
     )
 
@@ -1096,19 +1096,19 @@ prettyAddr address =
 prettyStakeCred stakeCred =
     case stakeCred of
         Address.InlineCredential cred ->
-            prettyCred cred
+            "stake:" ++ prettyCred cred
 
         Address.PointerCredential _ ->
-            "PointerAddr"
+            "stake:PointerAddr"
 
 
 prettyCred cred =
     case cred of
         Address.VKeyHash b ->
-            (Bytes.toText >> Maybe.withDefault "") b
+            "key:" ++ (Bytes.toText >> Maybe.withDefault "") b
 
         Address.ScriptHash b ->
-            (Bytes.toText >> Maybe.withDefault "") b
+            "script:" ++ (Bytes.toText >> Maybe.withDefault "") b
 
 
 prettyValue : Value -> List String
@@ -1160,6 +1160,13 @@ prettyScript script =
             "PlutusScript: " ++ prettyCbor Script.encodePlutusScript plutusScript
 
 
+prettyInput ref =
+    String.join " "
+        [ "TxId:" ++ (Bytes.toText >> Maybe.withDefault "") ref.transactionId
+        , "#" ++ String.fromInt ref.outputIndex
+        ]
+
+
 prettyOutput : Output -> List String
 prettyOutput { address, amount, datumOption, referenceScript } =
     ("- " ++ prettyAddr address)
@@ -1180,9 +1187,6 @@ indent spaces str =
 prettyTx : Transaction -> String
 prettyTx tx =
     let
-        prettyInput ref =
-            String.join " " [ (Bytes.toText >> Maybe.withDefault "") ref.transactionId, "#" ++ String.fromInt ref.outputIndex ]
-
         body =
             List.concat
                 [ [ "Tx inputs:" ]
