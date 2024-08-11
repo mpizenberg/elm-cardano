@@ -870,11 +870,17 @@ buildTx processedIntents inputsOutputs =
         allReferenceInputs =
             List.concat [ inputsOutputs.referenceInputs, nativeScriptRefs, plutusScriptRefs, datumWitnessRefs ]
 
+        -- Initialize fee estimation by setting the fee field to ₳0.5
+        -- This is represented as 500K lovelace, which is encoded as a 32bit uint.
+        -- 32bit uint can represent a range from ₳0.065 to ₳4200 so it most likely won’t change.
+        initialFee =
+            Natural.fromSafeInt 500000
+
         txBody : TransactionBody
         txBody =
             { inputs = inputsOutputs.spentInputs
             , outputs = inputsOutputs.createdOutputs
-            , fee = Just Natural.zero -- TODO
+            , fee = Just initialFee
             , ttl = Nothing -- TODO
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
