@@ -344,6 +344,7 @@ import Dict exposing (Dict)
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
+import Set
 
 
 type Todo
@@ -423,7 +424,12 @@ type TxOtherInfo
     = TxReferenceInput OutputReference
     | TxMetadata { tag : Natural, metadata : Metadatum }
     | TxTimeValidityRange { start : Int, end : Natural }
-    | TxManualFee { lovelace : Natural }
+
+
+{-| -}
+type Fee
+    = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
+    | MaxFeeEstimation { paymentSource : Address, maxFeeAmount : Natural }
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -446,6 +452,17 @@ finalize :
 finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
     -- TODO: Check that all spent referenced inputs are present in the local state
     let
+        -- TODO: after processing, check the time range is still valid
+        processedOtherInfo =
+            processOtherInfo txOtherInfo
+
+        -- List all metadata tags (converted to Int because its still almost as useful)
+        metadataTags =
+            List.map (.tag >> Natural.toInt) processedOtherInfo.metadata
+
+        hasDuplicatedMetadataTags =
+            List.length metadataTags /= Set.size (Set.fromList metadataTags)
+
         -- Initialize InputsOutputs
         -- TODO: better initalization?
         inputsOutputs =
@@ -471,7 +488,21 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
                 preCreatedOutputs.sum
                 processedIntents.freeOutputs
     in
-    if totalInput == totalOutput then
+    if hasDuplicatedMetadataTags then
+        -- TODO: more descriptive error
+        Err "Tx has duplicated metadata tags"
+
+    else if totalInput /= totalOutput then
+        let
+            _ =
+                Debug.log "totalInput" totalInput
+
+            _ =
+                Debug.log "totalOutput" totalOutput
+        in
+        Err "Tx is not balanced.\n"
+
+    else
         -- check that pre-created outputs have correct min ada
         -- TODO: change this step to use processed intents directly
         validMinAdaPerOutput inputsOutputs txIntents
@@ -485,21 +516,12 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
             --> Result String InputsOutputs
             |> Result.map (buildTx processedIntents)
-        -- TODO: without estimating cost of plutus script exec, do few loops of:
-        --   - estimate Tx fees
-        --   - adjust coin selection
-        --   - adjust redeemers
-        -- TODO: evaluate plutus script cost, and do a final round of above
-
-    else
-        let
-            _ =
-                Debug.log "totalInput" totalInput
-
-            _ =
-                Debug.log "totalOutput" totalOutput
-        in
-        Err "Tx is not balanced.\n"
+            -- TODO: without estimating cost of plutus script exec, do few loops of:
+            --   - estimate Tx fees
+            --   - adjust coin selection
+            --   - adjust redeemers
+            -- TODO: evaluate plutus script cost, and do a final round of above
+            |> identity
 
 
 validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
@@ -723,6 +745,46 @@ addPreSelectedInput ( ref, maybeDatum ) value { sum, inputs } =
     }
 
 
+type alias ProcessedOtherInfo =
+    { referenceInputs : Utxo.RefDict ()
+    , metadata : List { tag : Natural, metadata : Metadatum }
+    , timeValidityRange : Maybe { start : Int, end : Natural }
+    }
+
+
+noInfo : ProcessedOtherInfo
+noInfo =
+    { referenceInputs = Utxo.emptyRefDict
+    , metadata = []
+    , timeValidityRange = Nothing
+    }
+
+
+processOtherInfo : List TxOtherInfo -> ProcessedOtherInfo
+processOtherInfo =
+    List.foldl
+        (\info acc ->
+            case info of
+                TxReferenceInput ref ->
+                    { acc | referenceInputs = Dict.Any.insert ref () acc.referenceInputs }
+
+                TxMetadata m ->
+                    { acc | metadata = m :: acc.metadata }
+
+                TxTimeValidityRange ({ start, end } as newVR) ->
+                    { acc
+                        | timeValidityRange =
+                            case acc.timeValidityRange of
+                                Nothing ->
+                                    Just newVR
+
+                                Just vr ->
+                                    Just { start = max start vr.start, end = Natural.min end vr.end }
+                    }
+        )
+        noInfo
+
+
 {-| Perform coin selection for the required input per address.
 -}
 computeCoinSelection :
@@ -875,6 +937,10 @@ buildTx processedIntents inputsOutputs =
         -- 32bit uint can represent a range from ₳0.065 to ₳4200 so it most likely won’t change.
         initialFee =
             Natural.fromSafeInt 500000
+
+        -- Helper function to create dummy bytes, mostly for fee estimation
+        dummyBytes bytesLength =
+            Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
 
         txBody : TransactionBody
         txBody =
