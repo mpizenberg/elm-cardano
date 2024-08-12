@@ -335,7 +335,8 @@ import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyI
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction exposing (Transaction, TransactionBody, WitnessSet)
-import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
+import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
+import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
@@ -526,7 +527,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
             -- Aggregate with pre-selected inputs and pre-created outputs
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
             --> Result String InputsOutputs
-            |> Result.map (buildTx fee processedIntents)
+            |> Result.map (buildTx fee processedIntents processedOtherInfo)
             -- TODO: without estimating cost of plutus script exec, do few loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
@@ -757,7 +758,7 @@ addPreSelectedInput ( ref, maybeDatum ) value { sum, inputs } =
 
 
 type alias ProcessedOtherInfo =
-    { referenceInputs : Utxo.RefDict ()
+    { referenceInputs : List OutputReference
     , metadata : List { tag : Natural, metadata : Metadatum }
     , timeValidityRange : Maybe { start : Int, end : Natural }
     }
@@ -765,7 +766,7 @@ type alias ProcessedOtherInfo =
 
 noInfo : ProcessedOtherInfo
 noInfo =
-    { referenceInputs = Utxo.emptyRefDict
+    { referenceInputs = []
     , metadata = []
     , timeValidityRange = Nothing
     }
@@ -777,7 +778,7 @@ processOtherInfo =
         (\info acc ->
             case info of
                 TxReferenceInput ref ->
-                    { acc | referenceInputs = Dict.Any.insert ref () acc.referenceInputs }
+                    { acc | referenceInputs = ref :: acc.referenceInputs }
 
                 TxMetadata m ->
                     { acc | metadata = m :: acc.metadata }
@@ -941,8 +942,8 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
-buildTx : Fee -> ProcessedIntents -> InputsOutputs -> Transaction
-buildTx fee processedIntents inputsOutputs =
+buildTx : Fee -> ProcessedIntents -> ProcessedOtherInfo -> InputsOutputs -> Transaction
+buildTx fee processedIntents otherInfo inputsOutputs =
     let
         initialFee : Natural
         initialFee =
@@ -971,9 +972,17 @@ buildTx fee processedIntents inputsOutputs =
             splitWitnessSources processedIntents.datumSources
 
         -- Regroup all OutputReferences from witnesses
-        -- TODO: better handle inputsOutputs.referenceInputs?
         allReferenceInputs =
-            List.concat [ inputsOutputs.referenceInputs, nativeScriptRefs, plutusScriptRefs, datumWitnessRefs ]
+            List.concat
+                [ inputsOutputs.referenceInputs
+                , otherInfo.referenceInputs
+                , nativeScriptRefs
+                , plutusScriptRefs
+                , datumWitnessRefs
+                ]
+                |> List.map (\ref -> ( ref, () ))
+                |> Utxo.refDictFromList
+                |> Dict.Any.keys
 
         -- Helper function to create dummy bytes, mostly for fee estimation
         dummyBytes bytesLength =
@@ -988,10 +997,16 @@ buildTx fee processedIntents inputsOutputs =
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing -- TODO
-            , auxiliaryDataHash = Nothing -- TODO
+            , auxiliaryDataHash =
+                case otherInfo.metadata of
+                    [] ->
+                        Nothing
+
+                    _ ->
+                        Just (dummyBytes 32)
             , validityIntervalStart = Nothing -- TODO
             , mint = processedIntents.totalMinted
-            , scriptDataHash = Nothing -- TODO
+            , scriptDataHash = Nothing -- TODO: use dummyBytes
             , collateral = [] -- TODO
             , requiredSigners = processedIntents.requiredSigners
             , networkId = Nothing -- TODO
@@ -1080,11 +1095,25 @@ buildTx fee processedIntents inputsOutputs =
                         , sortedCertRedeemers
                         ]
             }
+
+        txAuxData : Maybe AuxiliaryData
+        txAuxData =
+            case otherInfo.metadata of
+                [] ->
+                    Nothing
+
+                _ ->
+                    Just
+                        { labels = List.map (\{ tag, metadata } -> ( tag, metadata )) otherInfo.metadata
+                        , nativeScripts = []
+                        , plutusV1Scripts = []
+                        , plutusV2Scripts = []
+                        }
     in
     { body = txBody
     , witnessSet = txWitnessSet
     , isValid = True
-    , auxiliaryData = Nothing -- TODO
+    , auxiliaryData = txAuxData
     }
 
 
@@ -1307,6 +1336,10 @@ prettyRedeemer redeemer =
         ]
 
 
+prettyMetadata ( tag, metadatum ) =
+    Natural.toString tag ++ ": " ++ prettyCbor Metadatum.toCbor metadatum
+
+
 indent spaces str =
     String.repeat spaces " " ++ str
 
@@ -1347,10 +1380,20 @@ prettyTx tx =
                     ]
 
         -- TODO: pretty print auxiliary data
-        auxData =
-            []
+        auxiliaryData =
+            case tx.auxiliaryData of
+                Nothing ->
+                    []
+
+                Just auxData ->
+                    List.concat <|
+                        [ prettyList "Tx metadata:" prettyMetadata auxData.labels
+                        , prettyList "Tx native scripts in auxiliary data:" (prettyScript << Script.Native) auxData.nativeScripts
+                        , prettyList "Tx plutus V1 scripts in auxiliary data:" prettyBytes auxData.plutusV1Scripts
+                        , prettyList "Tx plutus V2 scripts in auxiliary data:" prettyBytes auxData.plutusV2Scripts
+                        ]
     in
-    List.concat [ body, witnessSet, auxData ]
+    List.concat [ body, witnessSet, auxiliaryData ]
         |> String.join "\n"
 
 
@@ -1423,7 +1466,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize configGlobalLargest twoAdaFee []
+        |> finalize configGlobalLargest twoAdaFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
