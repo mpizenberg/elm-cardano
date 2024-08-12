@@ -430,6 +430,16 @@ type TxOtherInfo
 type Fee
     = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
     | MaxFeeEstimation { paymentSource : Address, maxFeeAmount : Natural }
+    | AutoFee { paymentSource : Address }
+
+
+{-| Initialize fee estimation by setting the fee field to ₳0.5
+This is represented as 500K lovelace, which is encoded as a 32bit uint.
+32bit uint can represent a range from ₳0.065 to ₳4200 so it most likely won’t change.
+-}
+defaultAutoFee : Natural
+defaultAutoFee =
+    Natural.fromSafeInt 500000
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -446,10 +456,11 @@ finalize :
     { localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     }
+    -> Fee
     -> List TxOtherInfo
     -> List TxIntent
     -> Result String Transaction
-finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
+finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
     -- TODO: Check that all spent referenced inputs are present in the local state
     let
         -- TODO: after processing, check the time range is still valid
@@ -507,7 +518,7 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
         -- TODO: change this step to use processed intents directly
         validMinAdaPerOutput inputsOutputs txIntents
             -- UTxO selection
-            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
+            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo)
             --> Result String (Address.Dict Selection)
             -- Accumulate all selected UTxOs and newly created outputs
             |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
@@ -515,7 +526,7 @@ finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
             -- Aggregate with pre-selected inputs and pre-created outputs
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
             --> Result String InputsOutputs
-            |> Result.map (buildTx processedIntents)
+            |> Result.map (buildTx fee processedIntents)
             -- TODO: without estimating cost of plutus script exec, do few loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
@@ -789,10 +800,11 @@ processOtherInfo =
 -}
 computeCoinSelection :
     Utxo.RefDict Output
+    -> Fee
     -> ProcessedIntents
     -> CoinSelection.Algorithm
     -> Result String (Address.Dict CoinSelection.Selection)
-computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
+computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
     let
         dummyOutput =
             { address = Byron <| Bytes.fromStringUnchecked ""
@@ -813,8 +825,27 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
         -- TODO: adjust at least with the number of different tokens in target Amount
         maxInputCount =
             10
+
+        -- Add the fee to free inputs
+        addFee : Address -> Natural -> Address.Dict Value -> Address.Dict Value
+        addFee addr amount dict =
+            Dict.Any.update addr (Just << Value.add (Value.onlyLovelace amount) << Maybe.withDefault Value.zero) dict
+
+        freeInputsWithFee =
+            case fee of
+                ManualFee perAddressFee ->
+                    List.foldl
+                        (\{ paymentSource, exactFeeAmount } -> addFee paymentSource exactFeeAmount)
+                        processedIntents.freeInputs
+                        perAddressFee
+
+                MaxFeeEstimation { paymentSource, maxFeeAmount } ->
+                    addFee paymentSource maxFeeAmount processedIntents.freeInputs
+
+                AutoFee { paymentSource } ->
+                    addFee paymentSource defaultAutoFee processedIntents.freeInputs
     in
-    processedIntents.freeInputs
+    freeInputsWithFee
         -- Apply the selection algo for each address with input requirements
         |> Dict.Any.map
             (\addr freeValue ->
@@ -910,9 +941,21 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
-buildTx : ProcessedIntents -> InputsOutputs -> Transaction
-buildTx processedIntents inputsOutputs =
+buildTx : Fee -> ProcessedIntents -> InputsOutputs -> Transaction
+buildTx fee processedIntents inputsOutputs =
     let
+        initialFee : Natural
+        initialFee =
+            case fee of
+                ManualFee perAddressFee ->
+                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+
+                MaxFeeEstimation { paymentSource, maxFeeAmount } ->
+                    maxFeeAmount
+
+                AutoFee { paymentSource } ->
+                    defaultAutoFee
+
         sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
         sortedWithdrawals =
             Dict.Any.toList processedIntents.withdrawals
@@ -931,12 +974,6 @@ buildTx processedIntents inputsOutputs =
         -- TODO: better handle inputsOutputs.referenceInputs?
         allReferenceInputs =
             List.concat [ inputsOutputs.referenceInputs, nativeScriptRefs, plutusScriptRefs, datumWitnessRefs ]
-
-        -- Initialize fee estimation by setting the fee field to ₳0.5
-        -- This is represented as 500K lovelace, which is encoded as a 32bit uint.
-        -- 32bit uint can represent a range from ₳0.065 to ₳4200 so it most likely won’t change.
-        initialFee =
-            Natural.fromSafeInt 500000
 
         -- Helper function to create dummy bytes, mostly for fee estimation
         dummyBytes bytesLength =
@@ -1282,7 +1319,8 @@ prettyTx tx =
 
         body =
             List.concat
-                [ prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
+                [ [ "Tx fee: ₳ " ++ (Maybe.withDefault Natural.zero tx.body.fee |> Natural.toString) ]
+                , prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
                 , prettyList "Tx inputs:" prettyInput tx.body.inputs
                 , [ "Tx outputs:" ]
                 , List.concatMap prettyOutput tx.body.outputs
@@ -1369,6 +1407,14 @@ configGlobalLargest =
     }
 
 
+twoAdaFee =
+    ManualFee [ { paymentSource = exAddr.me, exactFeeAmount = Natural.fromSafeInt 2000000 } ]
+
+
+autoFee =
+    AutoFee { paymentSource = exAddr.me }
+
+
 
 -- EXAMPLE 1: Simple transfer
 
@@ -1377,7 +1423,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize configGlobalLargest []
+        |> finalize configGlobalLargest twoAdaFee []
 
 
 
@@ -1401,7 +1447,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize configGlobalLargest []
+        |> finalize configGlobalLargest twoAdaFee []
 
 
 
@@ -1466,4 +1512,4 @@ example3 _ =
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
     , SendToOutput (\_ -> makeLockedOutput ada.one)
     ]
-        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } []
+        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } twoAdaFee []
