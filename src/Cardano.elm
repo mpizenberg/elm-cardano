@@ -528,7 +528,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                     --> Result String InputsOutputs
                     |> Result.map (buildTx roundFees processedIntents processedOtherInfo)
 
-            adjustInputsOutputs tx =
+            extractInputsOutputs tx =
                 { referenceInputs = tx.body.referenceInputs
                 , spentInputs = tx.body.inputs
                 , createdOutputs = tx.body.outputs
@@ -549,7 +549,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
         validMinAdaPerOutput inputsOutputs txIntents
             |> Result.andThen (\_ -> buildTxRound inputsOutputs fee)
             --> Result String Transaction
-            |> Result.andThen (\tx -> buildTxRound (adjustInputsOutputs tx) (adjustFees tx))
+            |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
             -- TODO: without estimating cost of plutus script exec, do few loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
