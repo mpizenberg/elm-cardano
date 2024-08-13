@@ -31,10 +31,11 @@ example ex =
 view : () -> Html ()
 view _ =
     div []
-        [ div [] [ text "Example transaction 1: send 1 ada from me to you" ]
+        [ div [] [ text "Example transaction 1: send 1 ada from me to you." ]
         , Html.pre [] [ text <| example Cardano.example1 ]
-        , div [] [ text "Example transaction 2: mint dog & burn 1 cat" ]
+        , div [] [ text "Example transaction 2: mint dog & burn 1 cat." ]
         , Html.pre [] [ text <| example Cardano.example2 ]
-        , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada" ]
+        , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada." ]
+        , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
         , Html.pre [] [ text <| example Cardano.example3 ]
         ]

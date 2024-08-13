@@ -1511,6 +1511,11 @@ example2 _ =
 
 
 -- EXAMPLE 3: spend from a Plutus script
+-- The input index is provided in the redeemer
+
+
+utxoBeingSpent =
+    makeRef "previouslySentToLock" 0
 
 
 findSpendingUtxo inputs =
@@ -1519,7 +1524,7 @@ findSpendingUtxo inputs =
             0
 
         ( id, ref ) :: next ->
-            if ref == makeRef "previouslySentToLock" 0 then
+            if ref == utxoBeingSpent then
                 id
 
             else
@@ -1566,13 +1571,13 @@ example3 _ =
         -- Add to local state utxos some previously sent 2 ada.
         localStateUtxos =
             configGlobalLargest.localStateUtxos
-                |> Dict.Any.insert (makeRef "previouslySentToLock" 0)
+                |> Dict.Any.insert utxoBeingSpent
                     (makeLockedOutput ada.two)
     in
     -- Collect 1 ada from the lock script
     [ Spend <|
         FromPlutusScript
-            { spentInput = makeRef "previouslySentToLock" 0
+            { spentInput = utxoBeingSpent
             , datumWitness = Nothing
             , plutusScriptWitness =
                 { script = WitnessValue lock.script
