@@ -1513,6 +1513,19 @@ example2 _ =
 -- EXAMPLE 3: spend from a Plutus script
 
 
+findSpendingUtxo inputs =
+    case inputs of
+        [] ->
+            0
+
+        ( id, ref ) :: next ->
+            if ref == makeRef "previouslySentToLock" 0 then
+                id
+
+            else
+                findSpendingUtxo next
+
+
 example3 _ =
     let
         ( myKeyCred, myStakeCred ) =
@@ -1535,10 +1548,11 @@ example3 _ =
                 , stakeCredential = myStakeCred
                 }
 
-        -- Dummy redeemer of the smallest size possible.
-        -- A redeemer is mandatory, but unchecked by this contract anyway.
-        dummyRedeemer =
-            Data.Int Integer.zero
+        -- Build a redeemer that contains the index of the spent script input.
+        redeemer inputsOutputs =
+            List.indexedMap Tuple.pair inputsOutputs.spentInputs
+                |> findSpendingUtxo
+                |> (Data.Int << Integer.fromSafeInt)
 
         -- Helper function to create an output at the lock script address.
         -- It contains our key credential in the datum.
@@ -1562,7 +1576,7 @@ example3 _ =
             , datumWitness = Nothing
             , plutusScriptWitness =
                 { script = WitnessValue lock.script
-                , redeemerData = \_ -> dummyRedeemer
+                , redeemerData = redeemer
                 , requiredSigners = [ myKeyCred ]
                 }
             }
