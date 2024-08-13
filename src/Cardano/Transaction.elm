@@ -9,6 +9,7 @@ module Cardano.Transaction exposing
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
+    , computeFees
     , deserialize, serialize
     )
 
@@ -33,6 +34,8 @@ module Cardano.Transaction exposing
 @docs RationalNumber, UnitInterval, PositiveInterval
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
+
+@docs computeFees
 
 @docs deserialize, serialize
 
@@ -430,6 +433,54 @@ otherwise the funds are given to the other accounting pot.
 type RewardTarget
     = StakeCredentials (List ( Credential, Natural ))
     | OtherAccountingPot Natural
+
+
+{-| Re-compute fees for a transaction (does not read `body.fee`).
+-}
+computeFees : Transaction -> Natural
+computeFees tx =
+    let
+        ( baseFee, feePerByte ) =
+            -- TODO: check those values
+            ( 155381, 44 )
+
+        priceStep =
+            { numerator = Natural.fromSafeInt 721 -- TODO: check those values
+            , denominator = Natural.fromSafeInt 10000000
+            }
+
+        priceMem =
+            { numerator = Natural.fromSafeInt 577 -- TODO: check those values
+            , denominator = Natural.fromSafeInt 10000
+            }
+
+        txSize =
+            Bytes.width (serialize tx)
+
+        ( totalSteps, totalMem ) =
+            tx.witnessSet.redeemer
+                |> Maybe.withDefault []
+                |> List.foldl
+                    (\r ( steps, mem ) ->
+                        ( Natural.add steps <| Natural.fromSafeInt r.exUnits.steps
+                        , Natural.add mem <| Natural.fromSafeInt r.exUnits.mem
+                        )
+                    )
+                    ( Natural.zero, Natural.zero )
+
+        totalStepsCost =
+            Natural.mul totalSteps priceStep.numerator
+                |> Natural.divBy priceStep.denominator
+                |> Maybe.withDefault Natural.zero
+
+        totalMemCost =
+            Natural.mul totalMem priceMem.numerator
+                |> Natural.divBy priceMem.denominator
+                |> Maybe.withDefault Natural.zero
+    in
+    Natural.fromSafeInt (baseFee + feePerByte * txSize)
+        |> Natural.add totalStepsCost
+        |> Natural.add totalMemCost
 
 
 

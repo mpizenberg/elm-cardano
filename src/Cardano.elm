@@ -334,7 +334,7 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction exposing (Transaction, TransactionBody, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner)
@@ -430,7 +430,6 @@ type TxOtherInfo
 {-| -}
 type Fee
     = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
-    | MaxFeeEstimation { paymentSource : Address, maxFeeAmount : Natural }
     | AutoFee { paymentSource : Address }
 
 
@@ -528,6 +527,31 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
             |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
             --> Result String InputsOutputs
             |> Result.map (buildTx fee processedIntents processedOtherInfo)
+            --> Result String Transaction
+            |> Result.andThen
+                (\tx ->
+                    let
+                        updatedInputsOutputs =
+                            { referenceInputs = tx.body.referenceInputs
+                            , spentInputs = tx.body.inputs
+                            , createdOutputs = tx.body.outputs
+                            }
+
+                        adjustedFee =
+                            case fee of
+                                ManualFee _ ->
+                                    fee
+
+                                AutoFee { paymentSource } ->
+                                    Transaction.computeFees tx
+                                        |> Debug.log "estimatedFee"
+                                        |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
+                    in
+                    computeCoinSelection localStateUtxos adjustedFee processedIntents coinSelectionAlgo
+                        |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
+                        |> Result.map (\selection -> updateInputsOutputs processedIntents selection updatedInputsOutputs)
+                        |> Result.map (buildTx adjustedFee processedIntents processedOtherInfo)
+                )
             -- TODO: without estimating cost of plutus script exec, do few loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
@@ -840,9 +864,6 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
                         processedIntents.freeInputs
                         perAddressFee
 
-                MaxFeeEstimation { paymentSource, maxFeeAmount } ->
-                    addFee paymentSource maxFeeAmount processedIntents.freeInputs
-
                 AutoFee { paymentSource } ->
                     addFee paymentSource defaultAutoFee processedIntents.freeInputs
     in
@@ -950,9 +971,6 @@ buildTx fee processedIntents otherInfo inputsOutputs =
             case fee of
                 ManualFee perAddressFee ->
                     List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
-
-                MaxFeeEstimation { paymentSource, maxFeeAmount } ->
-                    maxFeeAmount
 
                 AutoFee { paymentSource } ->
                     defaultAutoFee
@@ -1466,7 +1484,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize configGlobalLargest twoAdaFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
+        |> finalize configGlobalLargest autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
@@ -1490,7 +1508,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize configGlobalLargest twoAdaFee []
+        |> finalize configGlobalLargest autoFee []
 
 
 
@@ -1555,4 +1573,4 @@ example3 _ =
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
     , SendToOutput (\_ -> makeLockedOutput ada.one)
     ]
-        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } twoAdaFee []
+        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } autoFee []
