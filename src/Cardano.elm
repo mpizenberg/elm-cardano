@@ -514,44 +514,42 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
         Err "Tx is not balanced.\n"
 
     else
+        let
+            buildTxRound : InputsOutputs -> Fee -> Result String Transaction
+            buildTxRound roundInputsOutputs roundFees =
+                -- UTxO selection
+                computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo
+                    --> Result String (Address.Dict Selection)
+                    -- Accumulate all selected UTxOs and newly created outputs
+                    |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
+                    --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
+                    -- Aggregate with pre-selected inputs and pre-created outputs
+                    |> Result.map (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
+                    --> Result String InputsOutputs
+                    |> Result.map (buildTx roundFees processedIntents processedOtherInfo)
+
+            adjustInputsOutputs tx =
+                { referenceInputs = tx.body.referenceInputs
+                , spentInputs = tx.body.inputs
+                , createdOutputs = tx.body.outputs
+                }
+
+            adjustFees tx =
+                case fee of
+                    ManualFee _ ->
+                        fee
+
+                    AutoFee { paymentSource } ->
+                        Transaction.computeFees tx
+                            |> Debug.log "estimatedFee"
+                            |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
+        in
         -- check that pre-created outputs have correct min ada
         -- TODO: change this step to use processed intents directly
         validMinAdaPerOutput inputsOutputs txIntents
-            -- UTxO selection
-            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo)
-            --> Result String (Address.Dict Selection)
-            -- Accumulate all selected UTxOs and newly created outputs
-            |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
-            --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
-            -- Aggregate with pre-selected inputs and pre-created outputs
-            |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
-            --> Result String InputsOutputs
-            |> Result.map (buildTx fee processedIntents processedOtherInfo)
+            |> Result.andThen (\_ -> buildTxRound inputsOutputs fee)
             --> Result String Transaction
-            |> Result.andThen
-                (\tx ->
-                    let
-                        updatedInputsOutputs =
-                            { referenceInputs = tx.body.referenceInputs
-                            , spentInputs = tx.body.inputs
-                            , createdOutputs = tx.body.outputs
-                            }
-
-                        adjustedFee =
-                            case fee of
-                                ManualFee _ ->
-                                    fee
-
-                                AutoFee { paymentSource } ->
-                                    Transaction.computeFees tx
-                                        |> Debug.log "estimatedFee"
-                                        |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
-                    in
-                    computeCoinSelection localStateUtxos adjustedFee processedIntents coinSelectionAlgo
-                        |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
-                        |> Result.map (\selection -> updateInputsOutputs processedIntents selection updatedInputsOutputs)
-                        |> Result.map (buildTx adjustedFee processedIntents processedOtherInfo)
-                )
+            |> Result.andThen (\tx -> buildTxRound (adjustInputsOutputs tx) (adjustFees tx))
             -- TODO: without estimating cost of plutus script exec, do few loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
