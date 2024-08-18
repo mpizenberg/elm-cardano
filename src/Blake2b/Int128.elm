@@ -63,7 +63,7 @@ shiftLeftBy n (Int128 higher lower) =
     else
         let
             carry =
-                Int64.shiftRightZfBy (32 - n) lower
+                Int64.shiftRightZfBy (64 - n) lower
 
             newHigher =
                 higher
