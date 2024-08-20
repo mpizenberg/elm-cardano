@@ -469,70 +469,56 @@ finalize :
     -> Result String Transaction
 finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
     -- TODO: Check that all spent referenced inputs are present in the local state
-    let
-        -- TODO: after processing, check the time range is still valid
-        processedOtherInfo =
-            processOtherInfo txOtherInfo
+    case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
+        ( Err (TxIntentError err), _ ) ->
+            Err err
 
-        -- List all metadata tags (converted to Int because its still almost as useful)
-        metadataTags =
-            List.map (.tag >> Natural.toInt) processedOtherInfo.metadata
+        ( _, Err (TxOtherInfoError err) ) ->
+            Err err
 
-        hasDuplicatedMetadataTags =
-            List.length metadataTags /= Set.size (Set.fromList metadataTags)
-    in
-    if hasDuplicatedMetadataTags then
-        -- TODO: more descriptive error
-        Err "Tx has duplicated metadata tags"
+        ( Ok processedIntents, Ok processedOtherInfo ) ->
+            let
+                buildTxRound : InputsOutputs -> Fee -> Result String Transaction
+                buildTxRound roundInputsOutputs roundFees =
+                    -- UTxO selection
+                    computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo
+                        --> Result String (Address.Dict Selection)
+                        -- Accumulate all selected UTxOs and newly created outputs
+                        |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
+                        --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
+                        -- Aggregate with pre-selected inputs and pre-created outputs
+                        |> Result.map (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
+                        --> Result String InputsOutputs
+                        |> Result.map (buildTx roundFees processedIntents processedOtherInfo)
 
-    else
-        case processIntents localStateUtxos (preProcessIntents txIntents) of
-            Err (TxIntentError err) ->
-                Err err
+                extractInputsOutputs tx =
+                    { referenceInputs = tx.body.referenceInputs
+                    , spentInputs = tx.body.inputs
+                    , createdOutputs = tx.body.outputs
+                    }
 
-            Ok processedIntents ->
-                let
-                    buildTxRound : InputsOutputs -> Fee -> Result String Transaction
-                    buildTxRound roundInputsOutputs roundFees =
-                        -- UTxO selection
-                        computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo
-                            --> Result String (Address.Dict Selection)
-                            -- Accumulate all selected UTxOs and newly created outputs
-                            |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
-                            --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
-                            -- Aggregate with pre-selected inputs and pre-created outputs
-                            |> Result.map (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
-                            --> Result String InputsOutputs
-                            |> Result.map (buildTx roundFees processedIntents processedOtherInfo)
+                adjustFees tx =
+                    case fee of
+                        ManualFee _ ->
+                            fee
 
-                    extractInputsOutputs tx =
-                        { referenceInputs = tx.body.referenceInputs
-                        , spentInputs = tx.body.inputs
-                        , createdOutputs = tx.body.outputs
-                        }
-
-                    adjustFees tx =
-                        case fee of
-                            ManualFee _ ->
-                                fee
-
-                            AutoFee { paymentSource } ->
-                                Transaction.computeFees tx
-                                    |> Debug.log "estimatedFee"
-                                    |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
-                in
-                -- check that pre-created outputs have correct min ada
-                -- TODO: change this step to use processed intents directly
-                validMinAdaPerOutput noInputsOutputs txIntents
-                    |> Result.andThen (\_ -> buildTxRound noInputsOutputs fee)
-                    --> Result String Transaction
-                    |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
-                    -- TODO: without estimating cost of plutus script exec, do few loops of:
-                    --   - estimate Tx fees
-                    --   - adjust coin selection
-                    --   - adjust redeemers
-                    -- TODO: evaluate plutus script cost, and do a final round of above
-                    |> identity
+                        AutoFee { paymentSource } ->
+                            Transaction.computeFees tx
+                                |> Debug.log "estimatedFee"
+                                |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
+            in
+            -- check that pre-created outputs have correct min ada
+            -- TODO: change this step to use processed intents directly
+            validMinAdaPerOutput noInputsOutputs txIntents
+                |> Result.andThen (\_ -> buildTxRound noInputsOutputs fee)
+                --> Result String Transaction
+                |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
+                -- TODO: without estimating cost of plutus script exec, do few loops of:
+                --   - estimate Tx fees
+                --   - adjust coin selection
+                --   - adjust redeemers
+                -- TODO: evaluate plutus script cost, and do a final round of above
+                |> identity
 
 
 validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
@@ -720,9 +706,12 @@ type TxIntentError
 
 {-| Process already pre-processed intents and validate them all.
 -}
-processIntents : Utxo.RefDict Output -> PreProcessedIntents -> Result TxIntentError ProcessedIntents
-processIntents localStateUtxos preProcessedIntents =
+processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxIntentError ProcessedIntents
+processIntents localStateUtxos txIntents =
     let
+        preProcessedIntents =
+            preProcessIntents txIntents
+
         totalMintedAndBurned : MultiAsset Integer
         totalMintedAndBurned =
             List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
@@ -836,29 +825,52 @@ noInfo =
     }
 
 
-processOtherInfo : List TxOtherInfo -> ProcessedOtherInfo
-processOtherInfo =
-    List.foldl
-        (\info acc ->
-            case info of
-                TxReferenceInput ref ->
-                    { acc | referenceInputs = ref :: acc.referenceInputs }
+type TxOtherInfoError
+    = TxOtherInfoError String
 
-                TxMetadata m ->
-                    { acc | metadata = m :: acc.metadata }
 
-                TxTimeValidityRange ({ start, end } as newVR) ->
-                    { acc
-                        | timeValidityRange =
-                            case acc.timeValidityRange of
-                                Nothing ->
-                                    Just newVR
+processOtherInfo : List TxOtherInfo -> Result TxOtherInfoError ProcessedOtherInfo
+processOtherInfo otherInfo =
+    -- TODO: after processing, check the time range is still valid
+    let
+        processedOtherInfo =
+            List.foldl
+                (\info acc ->
+                    case info of
+                        TxReferenceInput ref ->
+                            { acc | referenceInputs = ref :: acc.referenceInputs }
 
-                                Just vr ->
-                                    Just { start = max start vr.start, end = Natural.min end vr.end }
-                    }
-        )
-        noInfo
+                        TxMetadata m ->
+                            { acc | metadata = m :: acc.metadata }
+
+                        TxTimeValidityRange ({ start, end } as newVR) ->
+                            { acc
+                                | timeValidityRange =
+                                    case acc.timeValidityRange of
+                                        Nothing ->
+                                            Just newVR
+
+                                        Just vr ->
+                                            Just { start = max start vr.start, end = Natural.min end vr.end }
+                            }
+                )
+                noInfo
+                otherInfo
+
+        -- Check if there are duplicate metadata tags.
+        -- (use Int instead of Natural for this purpose)
+        metadataTags =
+            List.map (.tag >> Natural.toInt) processedOtherInfo.metadata
+
+        hasDuplicatedMetadataTags =
+            List.length metadataTags /= Set.size (Set.fromList metadataTags)
+    in
+    if hasDuplicatedMetadataTags then
+        -- TODO: more descriptive error
+        Err <| TxOtherInfoError "Tx has duplicated metadata tags"
+
+    else
+        Ok processedOtherInfo
 
 
 {-| Perform coin selection for the required input per address.
