@@ -1165,6 +1165,7 @@ buildTx fee processedIntents otherInfo inputsOutputs =
 
         -- Script data is serialized in a very specific way to compute the hash.
         -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
+        -- See Blaze impl: https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935
         -- See cardano-js-sdk serialization of redeemers: https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29
         scriptDataHash : Maybe (Bytes ScriptDataHash)
         scriptDataHash =
