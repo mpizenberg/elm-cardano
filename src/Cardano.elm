@@ -480,6 +480,15 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
             let
                 buildTxRound : InputsOutputs -> Fee -> Result String Transaction
                 buildTxRound roundInputsOutputs roundFees =
+                    let
+                        feeAmount =
+                            case roundFees of
+                                ManualFee perAddressFee ->
+                                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+
+                                AutoFee { paymentSource } ->
+                                    defaultAutoFee
+                    in
                     -- UTxO selection
                     computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo
                         --> Result String (Address.Dict Selection)
@@ -489,7 +498,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                         -- Aggregate with pre-selected inputs and pre-created outputs
                         |> Result.map (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
                         --> Result String InputsOutputs
-                        |> Result.map (buildTx roundFees processedIntents processedOtherInfo)
+                        |> Result.map (buildTx feeAmount processedIntents processedOtherInfo)
 
                 extractInputsOutputs tx =
                     { referenceInputs = tx.body.referenceInputs
@@ -1019,8 +1028,8 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
-buildTx : Fee -> ProcessedIntents -> ProcessedOtherInfo -> InputsOutputs -> Transaction
-buildTx fee processedIntents otherInfo inputsOutputs =
+buildTx : Natural -> ProcessedIntents -> ProcessedOtherInfo -> InputsOutputs -> Transaction
+buildTx feeAmount processedIntents otherInfo inputsOutputs =
     let
         -- WitnessSet ######################################
         --
@@ -1137,15 +1146,6 @@ buildTx fee processedIntents otherInfo inputsOutputs =
 
         -- TransactionBody #################################
         --
-        feeAmount : Natural
-        feeAmount =
-            case fee of
-                ManualFee perAddressFee ->
-                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
-
-                AutoFee { paymentSource } ->
-                    defaultAutoFee
-
         -- Regroup all OutputReferences from witnesses
         allReferenceInputs =
             List.concat
