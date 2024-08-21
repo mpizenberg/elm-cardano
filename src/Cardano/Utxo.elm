@@ -3,7 +3,7 @@ module Cardano.Utxo exposing
     , RefDict, emptyRefDict, refDictFromList
     , fromLovelace
     , lovelace, totalLovelace, compareLovelace
-    , minAda
+    , minAda, checkMinAda
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
     )
@@ -33,7 +33,7 @@ module Cardano.Utxo exposing
 
 ## Compute
 
-@docs minAda
+@docs minAda, checkMinAda
 
 
 ## Convert
@@ -176,6 +176,21 @@ minAda output =
     E.encode (encodeOutput output)
         |> (Bytes.fromBytes >> Bytes.width)
         |> (\w -> N.fromSafeInt ((160 + w) * 4310))
+
+
+{-| Check that an [Output] has enough ada to cover its size.
+-}
+checkMinAda : Output -> Result String ()
+checkMinAda output =
+    let
+        outputMinAda =
+            minAda output
+    in
+    if lovelace output |> N.isGreaterThanOrEqual outputMinAda then
+        Ok ()
+
+    else
+        Err ("Output has less ada than its required min ada (" ++ N.toString outputMinAda ++ "):\n" ++ Debug.toString output)
 
 
 {-| CBOR encoder for [Output].

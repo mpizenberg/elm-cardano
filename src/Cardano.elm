@@ -507,10 +507,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                                 |> Debug.log "estimatedFee"
                                 |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
             in
-            -- check that pre-created outputs have correct min ada
-            -- TODO: change this step to use processed intents directly
-            validMinAdaPerOutput noInputsOutputs txIntents
-                |> Result.andThen (\_ -> buildTxRound noInputsOutputs fee)
+            buildTxRound noInputsOutputs fee
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 -- TODO: without estimating cost of plutus script exec, do few loops of:
@@ -519,33 +516,6 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                 --   - adjust redeemers
                 -- TODO: evaluate plutus script cost, and do a final round of above
                 |> identity
-
-
-validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
-validMinAdaPerOutput inputsOutputs txIntents =
-    -- TODO: change this to be checked on processed intents
-    case txIntents of
-        [] ->
-            Ok ()
-
-        first :: others ->
-            case first of
-                SendToOutput f ->
-                    let
-                        output =
-                            f inputsOutputs
-
-                        outputMinAda =
-                            Utxo.minAda output
-                    in
-                    if Utxo.lovelace output |> Natural.isGreaterThanOrEqual outputMinAda then
-                        validMinAdaPerOutput inputsOutputs others
-
-                    else
-                        Err ("Output has less ada than its required min ada (" ++ Natural.toString outputMinAda ++ "):\n" ++ Debug.toString output)
-
-                _ ->
-                    validMinAdaPerOutput inputsOutputs others
 
 
 type alias PreProcessedIntents =
@@ -756,12 +726,15 @@ processIntents localStateUtxos txIntents =
                 in
                 { sum = Value.add sum totalBurnedValue, outputs = outputs }
 
+        preCreatedOutputs =
+            preCreated noInputsOutputs
+
         -- Compute total inputs and outputs to check the Tx balance
         totalInput =
             Dict.Any.foldl (\_ -> Value.add) preSelected.sum preProcessedIntents.freeInputs
 
         totalOutput =
-            Dict.Any.foldl (\_ -> Value.add) (.sum <| preCreated noInputsOutputs) preProcessedIntents.freeOutputs
+            Dict.Any.foldl (\_ -> Value.add) preCreatedOutputs.sum preProcessedIntents.freeOutputs
     in
     if totalInput /= totalOutput then
         let
@@ -774,26 +747,30 @@ processIntents localStateUtxos txIntents =
         Err <| TxIntentError "Tx is not balanced.\n"
 
     else
-        -- TODO: Deduplicate eventual duplicate witnesses (both value and reference)
-        Ok
-            { freeInputs = preProcessedIntents.freeInputs
-            , freeOutputs = preProcessedIntents.freeOutputs
-            , preSelected = preSelected
-            , preCreated = preCreated
-            , nativeScriptSources = preProcessedIntents.nativeScriptSources
-            , plutusScriptSources = preProcessedIntents.plutusScriptSources
-            , datumSources = preProcessedIntents.datumSources
+        validMinAdaPerOutput preCreatedOutputs.outputs
+            |> Result.mapError TxIntentError
+            |> Result.map
+                (\_ ->
+                    -- TODO: Deduplicate eventual duplicate witnesses (both value and reference)
+                    { freeInputs = preProcessedIntents.freeInputs
+                    , freeOutputs = preProcessedIntents.freeOutputs
+                    , preSelected = preSelected
+                    , preCreated = preCreated
+                    , nativeScriptSources = preProcessedIntents.nativeScriptSources
+                    , plutusScriptSources = preProcessedIntents.plutusScriptSources
+                    , datumSources = preProcessedIntents.datumSources
 
-            -- TODO: dedup required signers
-            , requiredSigners = List.concat preProcessedIntents.requiredSigners
-            , totalMinted = totalMintedAndBurned
-            , mintRedeemers =
-                List.map (\m -> ( m.policyId, m.redeemer )) preProcessedIntents.mints
-                    |> Map.fromList
-            , withdrawals =
-                List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
-                    |> Address.stakeDictFromList
-            }
+                    -- TODO: dedup required signers
+                    , requiredSigners = List.concat preProcessedIntents.requiredSigners
+                    , totalMinted = totalMintedAndBurned
+                    , mintRedeemers =
+                        List.map (\m -> ( m.policyId, m.redeemer )) preProcessedIntents.mints
+                            |> Map.fromList
+                    , withdrawals =
+                        List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
+                            |> Address.stakeDictFromList
+                    }
+                )
 
 
 {-| Helper function
@@ -808,6 +785,21 @@ addPreSelectedInput ref value maybeRedeemer { sum, inputs } =
     { sum = Value.add value sum
     , inputs = Dict.Any.insert ref maybeRedeemer inputs
     }
+
+
+validMinAdaPerOutput : List Output -> Result String ()
+validMinAdaPerOutput outputs =
+    case outputs of
+        [] ->
+            Ok ()
+
+        output :: rest ->
+            case Utxo.checkMinAda output of
+                Ok () ->
+                    validMinAdaPerOutput rest
+
+                Err err ->
+                    Err err
 
 
 type alias ProcessedOtherInfo =
