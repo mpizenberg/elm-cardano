@@ -334,7 +334,7 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, WitnessSet)
+import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner)
@@ -1022,73 +1022,8 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 buildTx : Fee -> ProcessedIntents -> ProcessedOtherInfo -> InputsOutputs -> Transaction
 buildTx fee processedIntents otherInfo inputsOutputs =
     let
-        initialFee : Natural
-        initialFee =
-            case fee of
-                ManualFee perAddressFee ->
-                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
-
-                AutoFee { paymentSource } ->
-                    defaultAutoFee
-
-        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
-        sortedWithdrawals =
-            Dict.Any.toList processedIntents.withdrawals
-                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
-
-        ( nativeScripts, nativeScriptRefs ) =
-            splitWitnessSources processedIntents.nativeScriptSources
-
-        ( plutusScripts, plutusScriptRefs ) =
-            splitWitnessSources processedIntents.plutusScriptSources
-
-        ( datumWitnessValues, datumWitnessRefs ) =
-            splitWitnessSources processedIntents.datumSources
-
-        -- Regroup all OutputReferences from witnesses
-        allReferenceInputs =
-            List.concat
-                [ inputsOutputs.referenceInputs
-                , otherInfo.referenceInputs
-                , nativeScriptRefs
-                , plutusScriptRefs
-                , datumWitnessRefs
-                ]
-                |> List.map (\ref -> ( ref, () ))
-                |> Utxo.refDictFromList
-                |> Dict.Any.keys
-
-        -- Helper function to create dummy bytes, mostly for fee estimation
-        dummyBytes bytesLength =
-            Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
-
-        txBody : TransactionBody
-        txBody =
-            { inputs = inputsOutputs.spentInputs
-            , outputs = inputsOutputs.createdOutputs
-            , fee = Just initialFee
-            , ttl = Maybe.map .end otherInfo.timeValidityRange
-            , certificates = [] -- TODO
-            , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
-            , update = Nothing -- TODO
-            , auxiliaryDataHash =
-                case otherInfo.metadata of
-                    [] ->
-                        Nothing
-
-                    _ ->
-                        Just (dummyBytes 32)
-            , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
-            , mint = processedIntents.totalMinted
-            , scriptDataHash = Nothing -- TODO: use dummyBytes
-            , collateral = [] -- TODO
-            , requiredSigners = processedIntents.requiredSigners
-            , networkId = Nothing -- TODO
-            , collateralReturn = Nothing -- TODO
-            , totalCollateral = Nothing -- TODO
-            , referenceInputs = allReferenceInputs
-            }
-
+        -- WitnessSet ######################################
+        --
         -- Compute datums for pre-selected inputs.
         preSelected : Utxo.RefDict (Maybe Data)
         preSelected =
@@ -1170,6 +1105,8 @@ buildTx fee processedIntents otherInfo inputsOutputs =
                         ]
             }
 
+        -- AuxiliaryData ###################################
+        --
         txAuxData : Maybe AuxiliaryData
         txAuxData =
             case otherInfo.metadata of
@@ -1183,6 +1120,87 @@ buildTx fee processedIntents otherInfo inputsOutputs =
                         , plutusV1Scripts = []
                         , plutusV2Scripts = []
                         }
+
+        -- TransactionBody #################################
+        --
+        initialFee : Natural
+        initialFee =
+            case fee of
+                ManualFee perAddressFee ->
+                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+
+                AutoFee { paymentSource } ->
+                    defaultAutoFee
+
+        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
+        sortedWithdrawals =
+            Dict.Any.toList processedIntents.withdrawals
+                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
+
+        ( nativeScripts, nativeScriptRefs ) =
+            splitWitnessSources processedIntents.nativeScriptSources
+
+        ( plutusScripts, plutusScriptRefs ) =
+            splitWitnessSources processedIntents.plutusScriptSources
+
+        ( datumWitnessValues, datumWitnessRefs ) =
+            splitWitnessSources processedIntents.datumSources
+
+        -- Regroup all OutputReferences from witnesses
+        allReferenceInputs =
+            List.concat
+                [ inputsOutputs.referenceInputs
+                , otherInfo.referenceInputs
+                , nativeScriptRefs
+                , plutusScriptRefs
+                , datumWitnessRefs
+                ]
+                |> List.map (\ref -> ( ref, () ))
+                |> Utxo.refDictFromList
+                |> Dict.Any.keys
+
+        -- Helper function to create dummy bytes, mostly for fee estimation
+        dummyBytes bytesLength =
+            Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
+
+        -- Script data is serialized in a very specific way to compute the hash.
+        -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
+        -- See cardano-js-sdk serialization of redeemers: https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29
+        scriptDataHash : Maybe (Bytes ScriptDataHash)
+        scriptDataHash =
+            if txWitnessSet.redeemer == Nothing && txWitnessSet.plutusData == Nothing then
+                Nothing
+
+            else
+                -- TODO: actual hashing
+                Just (dummyBytes 32)
+
+        txBody : TransactionBody
+        txBody =
+            { inputs = inputsOutputs.spentInputs
+            , outputs = inputsOutputs.createdOutputs
+            , fee = Just initialFee
+            , ttl = Maybe.map .end otherInfo.timeValidityRange
+            , certificates = [] -- TODO
+            , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
+            , update = Nothing -- TODO
+            , auxiliaryDataHash =
+                case otherInfo.metadata of
+                    [] ->
+                        Nothing
+
+                    _ ->
+                        Just (dummyBytes 32)
+            , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
+            , mint = processedIntents.totalMinted
+            , scriptDataHash = scriptDataHash
+            , collateral = [] -- TODO
+            , requiredSigners = processedIntents.requiredSigners
+            , networkId = Nothing -- TODO
+            , collateralReturn = Nothing -- TODO
+            , totalCollateral = Nothing -- TODO
+            , referenceInputs = allReferenceInputs
+            }
     in
     { body = txBody
     , witnessSet = txWitnessSet
