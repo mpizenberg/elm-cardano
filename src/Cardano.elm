@@ -1137,8 +1137,8 @@ buildTx fee processedIntents otherInfo inputsOutputs =
 
         -- TransactionBody #################################
         --
-        initialFee : Natural
-        initialFee =
+        feeAmount : Natural
+        feeAmount =
             case fee of
                 ManualFee perAddressFee ->
                     List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
@@ -1180,7 +1180,7 @@ buildTx fee processedIntents otherInfo inputsOutputs =
         txBody =
             { inputs = inputsOutputs.spentInputs
             , outputs = inputsOutputs.createdOutputs
-            , fee = Just initialFee
+            , fee = Just feeAmount
             , ttl = Maybe.map .end otherInfo.timeValidityRange
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
