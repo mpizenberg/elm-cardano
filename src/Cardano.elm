@@ -856,10 +856,22 @@ processOtherInfo otherInfo =
 
         hasDuplicatedMetadataTags =
             List.length metadataTags /= Set.size (Set.fromList metadataTags)
+
+        -- Check that the time range intersection is still valid
+        validTimeRange =
+            case processedOtherInfo.timeValidityRange of
+                Nothing ->
+                    True
+
+                Just range ->
+                    Natural.fromSafeInt range.start |> Natural.isLessThan range.end
     in
     if hasDuplicatedMetadataTags then
         -- TODO: more descriptive error
         Err <| TxOtherInfoError "Tx has duplicated metadata tags"
+
+    else if not validTimeRange then
+        Err <| TxOtherInfoError <| "Invalid time range (or intersection of multiple time ranges). The time range end must be > than the start." ++ Debug.toString processedOtherInfo.timeValidityRange
 
     else
         Ok processedOtherInfo
@@ -1055,7 +1067,7 @@ buildTx fee processedIntents otherInfo inputsOutputs =
             { inputs = inputsOutputs.spentInputs
             , outputs = inputsOutputs.createdOutputs
             , fee = Just initialFee
-            , ttl = Nothing -- TODO
+            , ttl = Maybe.map .end otherInfo.timeValidityRange
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing -- TODO
@@ -1066,7 +1078,7 @@ buildTx fee processedIntents otherInfo inputsOutputs =
 
                     _ ->
                         Just (dummyBytes 32)
-            , validityIntervalStart = Nothing -- TODO
+            , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
             , scriptDataHash = Nothing -- TODO: use dummyBytes
             , collateral = [] -- TODO
