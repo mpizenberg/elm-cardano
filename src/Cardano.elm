@@ -1024,6 +1024,15 @@ buildTx fee processedIntents otherInfo inputsOutputs =
     let
         -- WitnessSet ######################################
         --
+        ( nativeScripts, nativeScriptRefs ) =
+            splitWitnessSources processedIntents.nativeScriptSources
+
+        ( plutusScripts, plutusScriptRefs ) =
+            splitWitnessSources processedIntents.plutusScriptSources
+
+        ( datumWitnessValues, datumWitnessRefs ) =
+            splitWitnessSources processedIntents.datumSources
+
         -- Compute datums for pre-selected inputs.
         preSelected : Utxo.RefDict (Maybe Data)
         preSelected =
@@ -1071,6 +1080,11 @@ buildTx fee processedIntents otherInfo inputsOutputs =
                             maybeRedeemerF
                     )
                 |> List.filterMap identity
+
+        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
+        sortedWithdrawals =
+            Dict.Any.toList processedIntents.withdrawals
+                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
 
         -- Build the withdrawals redeemers while keeping the index in the sorted list.
         sortedWithdrawalsRedeemers : List Redeemer
@@ -1132,20 +1146,6 @@ buildTx fee processedIntents otherInfo inputsOutputs =
                 AutoFee { paymentSource } ->
                     defaultAutoFee
 
-        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
-        sortedWithdrawals =
-            Dict.Any.toList processedIntents.withdrawals
-                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
-
-        ( nativeScripts, nativeScriptRefs ) =
-            splitWitnessSources processedIntents.nativeScriptSources
-
-        ( plutusScripts, plutusScriptRefs ) =
-            splitWitnessSources processedIntents.plutusScriptSources
-
-        ( datumWitnessValues, datumWitnessRefs ) =
-            splitWitnessSources processedIntents.datumSources
-
         -- Regroup all OutputReferences from witnesses
         allReferenceInputs =
             List.concat
@@ -1195,11 +1195,11 @@ buildTx fee processedIntents otherInfo inputsOutputs =
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
             , scriptDataHash = scriptDataHash
-            , collateral = [] -- TODO
+            , collateral = [] -- TODO now
             , requiredSigners = processedIntents.requiredSigners
             , networkId = Nothing -- TODO
             , collateralReturn = Nothing -- TODO
-            , totalCollateral = Nothing -- TODO
+            , totalCollateral = Nothing
             , referenceInputs = allReferenceInputs
             }
     in
