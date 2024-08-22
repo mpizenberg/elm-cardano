@@ -2,8 +2,8 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
-    , extractPubKeyHash, extractStakeCredential
-    , Dict, emptyDict
+    , isShelleyWallet, extractPubKeyHash, extractStakeCredential
+    , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
@@ -17,9 +17,9 @@ module Cardano.Address exposing
 
 @docs enterprise, script, base, pointer
 
-@docs extractPubKeyHash, extractStakeCredential
+@docs isShelleyWallet, extractPubKeyHash, extractStakeCredential
 
-@docs Dict, emptyDict
+@docs Dict, emptyDict, dictFromList
 
 @docs StakeDict, emptyStakeDict, stakeDictFromList
 
@@ -155,6 +155,23 @@ pointer networkId paymentCredential p =
         }
 
 
+{-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.
+-}
+isShelleyWallet : Address -> Bool
+isShelleyWallet address =
+    case address of
+        Shelley { paymentCredential } ->
+            case paymentCredential of
+                VKeyHash _ ->
+                    True
+
+                ScriptHash _ ->
+                    False
+
+        _ ->
+            False
+
+
 {-| Extract the pubkey hash of a Shelley wallet address.
 -}
 extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
@@ -197,6 +214,14 @@ For other operations, use the `AnyDict` module directly.
 emptyDict : Dict a
 emptyDict =
     Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
+{-| Create an address dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+-}
+dictFromList : List ( Address, a ) -> Dict a
+dictFromList =
+    Dict.Any.fromList (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
 {-| Convenient alias for a `Dict` with [StakeAddress] keys.

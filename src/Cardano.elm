@@ -337,7 +337,7 @@ import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVers
 import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
-import Cardano.Transaction.Builder exposing (requiredSigner)
+import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
@@ -481,24 +481,51 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                 buildTxRound : InputsOutputs -> Fee -> Result String Transaction
                 buildTxRound roundInputsOutputs roundFees =
                     let
-                        feeAmount =
+                        ( feeAmount, feeAddresses ) =
                             case roundFees of
                                 ManualFee perAddressFee ->
-                                    List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+                                    ( List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+                                    , List.map .paymentSource perAddressFee
+                                    )
 
                                 AutoFee { paymentSource } ->
-                                    defaultAutoFee
+                                    ( defaultAutoFee, [ paymentSource ] )
+
+                        -- collateral = 1.5 * fee
+                        -- It’s an euclidean division, so if there is a non-zero rest,
+                        -- we add 1 to make sure we aren’t short 1 lovelace.
+                        --
+                        -- Identify automatically collateral sources
+                        -- from free inputs addresses, spent inputs addresses or fee addresses.
+                        ( collateralAmount, collateralSources ) =
+                            if List.isEmpty processedIntents.plutusScriptSources then
+                                ( Natural.zero, Address.emptyDict )
+
+                            else
+                                ( feeAmount
+                                    |> Natural.mul (Natural.fromSafeInt 15)
+                                    |> Natural.divModBy (Natural.fromSafeInt 10)
+                                    |> Maybe.withDefault ( Natural.zero, Natural.zero )
+                                    |> (\( q, r ) -> Natural.add q <| Natural.min r Natural.one)
+                                , List.concat [ feeAddresses, findPaymentWalletAddresses localStateUtxos processedIntents ]
+                                    |> List.map (\addr -> ( addr, () ))
+                                    |> Address.dictFromList
+                                )
                     in
                     -- UTxO selection
-                    computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo
-                        --> Result String (Address.Dict Selection)
-                        -- Accumulate all selected UTxOs and newly created outputs
-                        |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
-                        --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
-                        -- Aggregate with pre-selected inputs and pre-created outputs
-                        |> Result.map (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
-                        --> Result String InputsOutputs
-                        |> Result.map (buildTx feeAmount processedIntents processedOtherInfo)
+                    Result.map2
+                        (\coinSelection collateralSelection ->
+                            --> coinSelection : Address.Dict Selection
+                            -- Accumulate all selected UTxOs and newly created outputs
+                            accumPerAddressSelection processedIntents.freeOutputs coinSelection
+                                --> { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
+                                -- Aggregate with pre-selected inputs and pre-created outputs
+                                |> (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
+                                --> InputsOutputs
+                                |> buildTx feeAmount collateralSelection processedIntents processedOtherInfo
+                        )
+                        (computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo)
+                        (computeCollateralSelection localStateUtxos collateralSources collateralAmount)
 
                 extractInputsOutputs tx =
                     { referenceInputs = tx.body.referenceInputs
@@ -677,6 +704,22 @@ type alias ProcessedIntents =
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     }
+
+
+{-| Look for all potentially spent input addresses, that will need a signature.
+-}
+findPaymentWalletAddresses : Utxo.RefDict Output -> ProcessedIntents -> List Address
+findPaymentWalletAddresses localStateUtxos { freeInputs, preSelected } =
+    Dict.Any.keys preSelected.inputs
+        |> List.filterMap (\addr -> Dict.Any.get addr localStateUtxos |> Maybe.map .address)
+        -- append pre-selected inputs addresses with free inputs addresses
+        |> List.append (Dict.Any.keys freeInputs)
+        --> List Address
+        |> List.filter Address.isShelleyWallet
+        -- make the list unique
+        |> List.map (\addr -> ( addr, () ))
+        |> Address.dictFromList
+        |> Dict.Any.keys
 
 
 type TxIntentError
@@ -886,6 +929,32 @@ processOtherInfo otherInfo =
         Ok processedOtherInfo
 
 
+{-| Perform collateral selection.
+
+Only UTxOs at the provided whitelist of addresses are viable.
+Only UTxOs containing only Ada, without other CNT or datums are viable.
+
+-}
+computeCollateralSelection :
+    Utxo.RefDict Output
+    -> Address.Dict ()
+    -> Natural
+    -> Result String CoinSelection.Selection
+computeCollateralSelection localStateUtxos collateralSources collateralAmount =
+    CoinSelection.largestFirst 10
+        { alreadySelectedUtxos = []
+        , targetAmount = Value.onlyLovelace collateralAmount
+        , availableUtxos =
+            Dict.Any.toList localStateUtxos
+                |> List.filter
+                    (\( _, output ) ->
+                        Utxo.isAdaOnly output
+                            && Dict.Any.member output.address collateralSources
+                    )
+        }
+        |> Result.mapError Debug.toString
+
+
 {-| Perform coin selection for the required input per address.
 -}
 computeCoinSelection :
@@ -999,6 +1068,8 @@ accumPerAddressSelection freeOutput allSelections =
                         acc.createdOutputs
 
                     Just value ->
+                        -- TODO: try making one ada-only output if possible
+                        -- to avoid consuming all outputs viable for collateral little by little.
                         { address = addr, amount = value, datumOption = Nothing, referenceScript = Nothing } :: acc.createdOutputs
             }
         )
@@ -1028,8 +1099,14 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
-buildTx : Natural -> ProcessedIntents -> ProcessedOtherInfo -> InputsOutputs -> Transaction
-buildTx feeAmount processedIntents otherInfo inputsOutputs =
+buildTx :
+    Natural
+    -> CoinSelection.Selection
+    -> ProcessedIntents
+    -> ProcessedOtherInfo
+    -> InputsOutputs
+    -> Transaction
+buildTx feeAmount collateralSelection processedIntents otherInfo inputsOutputs =
     let
         -- WitnessSet ######################################
         --
@@ -1176,6 +1253,25 @@ buildTx feeAmount processedIntents otherInfo inputsOutputs =
                 -- TODO: actual hashing
                 Just (dummyBytes 32)
 
+        collateralReturnAmount =
+            (Maybe.withDefault Value.zero collateralSelection.change).lovelace
+
+        collateralReturn : Maybe Output
+        collateralReturn =
+            List.head collateralSelection.selectedUtxos
+                |> Maybe.map (\( _, output ) -> Utxo.fromLovelace output.address collateralReturnAmount)
+
+        totalCollateral : Maybe Int
+        totalCollateral =
+            if List.isEmpty collateralSelection.selectedUtxos then
+                Nothing
+
+            else
+                collateralSelection.selectedUtxos
+                    |> List.foldl (\( _, o ) -> Natural.add o.amount.lovelace) Natural.zero
+                    |> Natural.toInt
+                    |> Just
+
         txBody : TransactionBody
         txBody =
             { inputs = inputsOutputs.spentInputs
@@ -1195,11 +1291,11 @@ buildTx feeAmount processedIntents otherInfo inputsOutputs =
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
             , scriptDataHash = scriptDataHash
-            , collateral = [] -- TODO now
+            , collateral = List.map Tuple.first collateralSelection.selectedUtxos
             , requiredSigners = processedIntents.requiredSigners
             , networkId = Nothing -- TODO
-            , collateralReturn = Nothing -- TODO
-            , totalCollateral = Nothing
+            , collateralReturn = collateralReturn
+            , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
             }
     in
@@ -1454,7 +1550,13 @@ prettyTx tx =
                 , prettyMints "Tx mints:" tx.body.mint
                 , [] -- TODO: witdrawals
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
-                , [] -- TODO: collateral
+                , prettyList
+                    ("Tx collateral (total: ₳ " ++ String.fromInt (Maybe.withDefault 0 tx.body.totalCollateral) ++ "):")
+                    prettyInput
+                    tx.body.collateral
+                , Maybe.map prettyOutput tx.body.collateralReturn
+                    |> Maybe.withDefault []
+                    |> prettyList "Tx collateral return:" identity
                 ]
 
         witnessSet =

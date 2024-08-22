@@ -101,6 +101,9 @@ largestFirst maxInputCount context =
                         Just (Value.substract state.accumulatedAmount context.targetAmount)
                 }
             )
+        -- TODO: if possible, remove extraneous inputs.
+        -- Indeed, when selecting later CNT, they might contain enough previous CNT too.
+        |> identity
 
 
 type alias SelectionState =

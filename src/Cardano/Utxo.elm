@@ -2,7 +2,7 @@ module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , RefDict, emptyRefDict, refDictFromList
     , fromLovelace
-    , lovelace, totalLovelace, compareLovelace
+    , lovelace, totalLovelace, compareLovelace, isAdaOnly
     , minAda, checkMinAda
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
@@ -28,7 +28,7 @@ module Cardano.Utxo exposing
 
 ## Query
 
-@docs lovelace, totalLovelace, compareLovelace
+@docs lovelace, totalLovelace, compareLovelace, isAdaOnly
 
 
 ## Compute
@@ -47,6 +47,7 @@ module Cardano.Utxo exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address)
 import Cardano.Data as Data exposing (Data)
+import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Script as Script exposing (Script)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
@@ -161,6 +162,16 @@ lovelace output =
 totalLovelace : List Output -> Natural
 totalLovelace =
     List.foldr (\output total -> N.add (lovelace output) total) N.zero
+
+
+{-| Check if the output contains only Ada.
+Nothing else is allowed, no tokens, no datum, no ref script.
+-}
+isAdaOnly : Output -> Bool
+isAdaOnly { amount, datumOption, referenceScript } =
+    (amount.assets == MultiAsset.empty)
+        && (datumOption == Nothing)
+        && (referenceScript == Nothing)
 
 
 {-| Compute minimum Ada lovelace for a given [Output].
