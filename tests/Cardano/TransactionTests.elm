@@ -6,11 +6,10 @@ import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
-import Cardano.Utxo as Utxo
 import Cardano.Value as Value
 import Dict exposing (Dict)
 import Expect
@@ -136,7 +135,7 @@ decode79acf081 =
 
 txBody79acf081 : TransactionBody
 txBody79acf081 =
-    { newTxBody
+    { newBody
         | inputs =
             [ { transactionId = Bytes.fromStringUnchecked "397eb970e7980e6ac1eb17fcb26a8df162db4e101f776138d74bbd09ad1a9dee"
               , outputIndex = 0
@@ -213,7 +212,7 @@ txBody79acf081 =
 
 txWitnessSet79acf081 : Transaction.WitnessSet
 txWitnessSet79acf081 =
-    { newTxWitnessSet
+    { newWitnessSet
         | bootstrapWitness =
             Just
                 [ { publicKey = Bytes.fromStringUnchecked "f202012360fa94af83651a8b8b9592bcda2bee5e187c40d4263a838107c27ae8"
@@ -263,7 +262,7 @@ decode871b14fb =
 
 txBody871b14fb : TransactionBody
 txBody871b14fb =
-    { newTxBody
+    { newBody
         | inputs =
             [ { transactionId = Bytes.fromStringUnchecked "9a822a5601a29f7a880948cf3b6491c24d861df18dbbe6ea2ba293f9878f965f"
               , outputIndex = 0
@@ -298,7 +297,7 @@ txBody871b14fb =
 
 txWitnessSet871b14fb : Transaction.WitnessSet
 txWitnessSet871b14fb =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { vkey = Bytes.fromStringUnchecked "0607a454923b9bd5fec2897ce7f2b9ca2874ee545d750624084ba0fc9ef06dd5"
@@ -336,7 +335,7 @@ decodef3a0835d =
 
 txBodyf3a0835d : TransactionBody
 txBodyf3a0835d =
-    { newTxBody
+    { newBody
         | inputs =
             [ { transactionId = Bytes.fromStringUnchecked "c0810285e7cffd0ea65851008392d41dd4cdf223d9263ca7a33e28a7e7b410b8"
               , outputIndex = 0
@@ -364,7 +363,7 @@ txBodyf3a0835d =
 
 txWitnessSetf3a0835d : Transaction.WitnessSet
 txWitnessSetf3a0835d =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { vkey = Bytes.fromStringUnchecked "473f36674fcde1ff195076774decda62f4b0ba860f9fcc0c51d63abee8b1e128"
@@ -405,7 +404,7 @@ decode841cca81 =
 
 txBody841cca81 : TransactionBody
 txBody841cca81 =
-    { newTxBody
+    { newBody
         | inputs =
             [ { transactionId = Bytes.fromStringUnchecked "f3a0835d9359ed79f8301ba61ff263188c180ffd6dfddaba60a7e31b8366c38e"
               , outputIndex = 0
@@ -460,7 +459,7 @@ txBody841cca81 =
 
 txWitnessSet841cca81 : WitnessSet
 txWitnessSet841cca81 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { vkey = Bytes.fromStringUnchecked "473f36674fcde1ff195076774decda62f4b0ba860f9fcc0c51d63abee8b1e128"
@@ -504,7 +503,7 @@ decode896cf8fe =
 
 txBody896cf8fe : TransactionBody
 txBody896cf8fe =
-    { newTxBody
+    { newBody
         | inputs =
             [ { transactionId = Bytes.fromStringUnchecked "e1d1d61ecd706790ee31a1c07fc87827f7b9738d374ef705d1c8cff8295c8cf0"
               , outputIndex = 0
@@ -535,7 +534,7 @@ txBody896cf8fe =
 
 txWitnessSet896cf8fe : WitnessSet
 txWitnessSet896cf8fe =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { vkey = Bytes.fromStringUnchecked "6f0d127f3f5122171fec5f91e85df66bac1314680f703abf5caefddffd55a285"
@@ -576,7 +575,7 @@ decode3dd8be52 =
 
 txBody3dd8be52 : TransactionBody
 txBody3dd8be52 =
-    { newTxBody
+    { newBody
         | inputs = [ { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "2f744483e15d31c9a3e7407970bb01f9a4542a6cf3ab6d921477cadbc865aa67" } ]
         , outputs =
             [ { address =
@@ -622,7 +621,7 @@ txBody3dd8be52 =
 
 txWitnessSet3dd8be52 : WitnessSet
 txWitnessSet3dd8be52 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "6a368d10744c8ca8d84e3f664a1e0aac6b3c5e53bd6b32f5fa9490213310eb6b5d4c5d9487cd6705dc11b44558a3df9d0538a6f8fc05858c9fa40d48d8dc560a"
@@ -675,7 +674,7 @@ decode3c03090c =
 
 txBody3c03090c : TransactionBody
 txBody3c03090c =
-    { newTxBody
+    { newBody
         | inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "f9785983a5480c77407ad35b2e533256f26859a99567e4259ed5a5d6d7b00238" } ]
         , outputs =
             [ { address =
@@ -713,7 +712,7 @@ txBody3c03090c =
 
 txWitnessSet3c03090c : WitnessSet
 txWitnessSet3c03090c =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "72bbd8363b2da559d75722353ae5a0791cd76ca804718c2c4c99a37c7c2add4b8c4fe0ba4d1fa80f837d595b8404b12f6301a3d73b8b88f6f7b811c60cf67b08"
@@ -757,7 +756,7 @@ decode35d2728e =
 
 txBody35d2728e : TransactionBody
 txBody35d2728e =
-    { newTxBody
+    { newBody
         | inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "2dcf5b56aa5d63bd346b1196b8dadc3bb32cafa3a7e080b04339d105e4637d17" } ]
         , outputs =
             [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "d80fe69ded1ff90f41e526d0332a2ff98ba8a0d85ceb8941b5178420"), stakeCredential = Nothing }
@@ -1181,7 +1180,7 @@ txBody35d2728e =
 
 txWitnessSet35d2728e : WitnessSet
 txWitnessSet35d2728e =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "04f7d6e3c5af19cf76ec46b6a876f688c5ea83f8bfd6cac4b26fb5944622584a1cd8a986bfef66a25dac652ec4d6004b2f250dce9d60e3a4efdb2e8520d2a403"
@@ -1240,7 +1239,7 @@ decodea2d8a927 =
 
 txBodya2d8a927 : TransactionBody
 txBodya2d8a927 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 215651)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "a6afff5e962033731b67a256b9205fdaadc57faa06793dbde553dd26a2cd1732" } ]
         , outputs =
@@ -1261,7 +1260,7 @@ txBodya2d8a927 =
 
 txWitnessSeta2d8a927 : WitnessSet
 txWitnessSeta2d8a927 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "0c836a9aa1d5b32b7e282add2458e1a71e8828e34e6e2ad3ad50454e7bee4a3c83222d5b16d466be02d3e969684c1e09005b2c16a8ca26aabcbd344f56e8cb09"
@@ -1299,7 +1298,7 @@ decode2383af05 =
 
 txBody2383af05 : TransactionBody
 txBody2383af05 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 1000000)
         , inputs = [ { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "72cb2dde1d5cea967255d6dd141aaf76801840033760f452763436bd1afc3836" } ]
         , outputs =
@@ -1316,7 +1315,7 @@ txBody2383af05 =
 
 txWitnessSet2383af05 : WitnessSet
 txWitnessSet2383af05 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "fe644cc6fe77d19bf75d766d2894246a5ad9c5482be671be5a81efb6ad694215e15312895bf8bb36150d9a15c80457017c2895792ad244da1d136ed50d41f603"
@@ -1357,7 +1356,7 @@ decode1bcd8fa7 =
 
 txBody1bcd8fa7 : TransactionBody
 txBody1bcd8fa7 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 169884)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "ca6267b5f2b336da224e6b5efac292f0eaf45b40f7f7b931e4b5ee21e68455d8" } ]
         , outputs =
@@ -1378,7 +1377,7 @@ txBody1bcd8fa7 =
 
 txWitnessSet1bcd8fa7 : WitnessSet
 txWitnessSet1bcd8fa7 =
-    { newTxWitnessSet
+    { newWitnessSet
         | bootstrapWitness =
             Just
                 [ { attributes = Bytes.fromStringUnchecked "a0"
@@ -1435,7 +1434,7 @@ txAuxiliaryDatac220e20c =
 
 txBodyc220e20c : TransactionBody
 txBodyc220e20c =
-    { newTxBody
+    { newBody
         | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "c2d2b42fbacf30eeddab1447f525297eec0ab134f8cddd2025a075c69d57e4bc")
         , fee = Just (N.fromSafeInt 175401)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "5b06f6ea129a404d5bc610880be35376625a8f7f11773bf79db1889eb3bb87eb" } ]
@@ -1452,7 +1451,7 @@ txBodyc220e20c =
 
 txWitnessSetc220e20c : WitnessSet
 txWitnessSetc220e20c =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "57e649e46b1711bfd45cb2ae0e4ecb8c863e5c261545f0ec96fe6ee3fc8dd5b36106fd13d21e643c34e04c58b18759afaca58f990060b4342dd7369bd11b1d06"
@@ -1511,7 +1510,7 @@ txAuxiliaryData254685a8 =
 
 txBody254685a8 : TransactionBody
 txBody254685a8 =
-    { newTxBody
+    { newBody
         | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "27c2bbc74ce52de561afc65f4db18eaff9cf05938e570c2370bca19bf8b33c68")
         , fee = Just (N.fromSafeInt 176457)
         , inputs = [ { outputIndex = 1, transactionId = Bytes.fromStringUnchecked "d241c8e10ff0d9ac04cfed2a6d6d6f80d0250bc2a47489df7b436f0d9f769b4d" } ]
@@ -1543,7 +1542,7 @@ txBody254685a8 =
 
 txWitnessSet254685a8 : WitnessSet
 txWitnessSet254685a8 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "b6fff317173f5aa8eff05ae47df56b89360fe547a3a900e1db849f52e83bd0743b18da254684256d29c016ed2e3792149bdbf6c3375b7b9ff4cf12507e662e05"
@@ -1581,7 +1580,7 @@ decode4a3f8676 =
 
 txBody4a3f8676 : TransactionBody
 txBody4a3f8676 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 500000)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "e7db1f809fcc21d3dd108ced6218bf0f0cbb6a0f679f848ff1790b68d3a35872" } ]
         , outputs =
@@ -1602,7 +1601,7 @@ txBody4a3f8676 =
 
 txWitnessSet4a3f8676 : WitnessSet
 txWitnessSet4a3f8676 =
-    { newTxWitnessSet
+    { newWitnessSet
         | nativeScripts =
             Just
                 [ ScriptAll
@@ -1654,7 +1653,7 @@ decodee252be4c =
 
 txBodye252be4c : TransactionBody
 txBodye252be4c =
-    { newTxBody
+    { newBody
         | auxiliaryDataHash = Nothing
         , fee = Just (N.fromSafeInt 1000000)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "d9a8ae2194e2e25e8079a04a4694e2679464a4f51512863a0008a35a85762ff0" } ]
@@ -1680,7 +1679,7 @@ txBodye252be4c =
 
 txWitnessSete252be4c : WitnessSet
 txWitnessSete252be4c =
-    { newTxWitnessSet
+    { newWitnessSet
         | bootstrapWitness = Nothing
         , nativeScripts = Just [ ScriptAll [ InvalidHereafter (N.fromSafeInt 24285375), ScriptPubkey (Bytes.fromStringUnchecked "e97316c52c85eab276fd40feacf78bc5eff74e225e744567140070c3") ] ]
         , vkeywitness =
@@ -1723,7 +1722,7 @@ decodefc863a44 =
 
 txBodyfc863a44 : TransactionBody
 txBodyfc863a44 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 217553)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "bf30608a974d09c56dd62ca10199ec11746ea2d90dbd83649d4f37c629b1ba84" } ]
         , outputs =
@@ -1760,7 +1759,7 @@ txBodyfc863a44 =
 
 txWitnessSetfc863a44 : WitnessSet
 txWitnessSetfc863a44 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "7d72721e7504e12d50204f7d9e9d9fe60d9c6a4fd18ad629604729df4f7f3867199b62885623fab68a02863e7877955ca4a56c867157a559722b7b350b668a0b"
@@ -1793,16 +1792,6 @@ txWitnessSetfc863a44 =
 
 
 -- Helpers
-
-
-newTxBody : TransactionBody
-newTxBody =
-    Tx.newBody
-
-
-newTxWitnessSet : WitnessSet
-newTxWitnessSet =
-    Tx.newWitnessSet
 
 
 {-| Convert the internal representation of Natural, using a base 2^26, back into a Natural.
