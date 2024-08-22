@@ -231,6 +231,23 @@ failTxBuilding =
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
+        , failTxTest "when there is not enough minAda in created output (100 lovelaces here)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
+                , SendToOutput (\_ -> Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
+                ]
+            }
+            (\error ->
+                case error of
+                    NotEnoughMinAda _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
         ]
 
 
