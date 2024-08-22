@@ -6,10 +6,9 @@ import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data as Data exposing (Data(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, noParamUpdate)
+import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, newBody, newWitnessSet, noParamUpdate)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
-import Cardano.Transaction.Builder as Tx
 import Cardano.Utxo as Utxo exposing (DatumOption(..))
 import Cardano.Value as Value
 import Cbor.Decode as D
@@ -77,7 +76,7 @@ auxiliaryData8a8f8dfe =
 
 body8a8f8dfe : TransactionBody
 body8a8f8dfe =
-    { newTxBody
+    { newBody
         | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "36663d429bded43331a968fcaa3a0aba03d6d83474176b8c85a019b0b408ff8d")
         , fee = Just (N.fromSafeInt 203781)
         , inputs =
@@ -114,7 +113,7 @@ body8a8f8dfe =
 
 witnessSet8a8f8dfe : WitnessSet
 witnessSet8a8f8dfe =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "6ee6dfafc7fdcd553bf0c11cc93d165c77a93a265af250eafb1dca2b044ae0b62d6eb4969e7946c438be5f73b0d9a25ad83d074c8d9cd6f4c80ace7b7c62ab0d"
@@ -152,7 +151,7 @@ decodebf095309 =
 
 bodybf095309 : TransactionBody
 bodybf095309 =
-    { newTxBody
+    { newBody
         | fee = Just (N.fromSafeInt 211613)
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "03b02cff29a5f2dfc827e00345eaab8b29a3d740e9878aa6e5dd2b52da0763c5" } ]
         , outputs =
@@ -218,7 +217,7 @@ bodybf095309 =
 
 witnessSetbf095309 : WitnessSet
 witnessSetbf095309 =
-    { newTxWitnessSet
+    { newWitnessSet
         | vkeywitness =
             Just
                 [ { signature = Bytes.fromStringUnchecked "c65d631ecb286668eeef3537c279fb0c5c5d54bb7ab71a6d0c795f48f6093e664f9e923fd590e3373dd9e054eb622724cb107673a83ad201f503622cdcdae603", vkey = Bytes.fromStringUnchecked "61261a95b7613ee6bf2067dad77b70349729b0c50d57bc1cf30de0db4a1e73a8" }
@@ -309,7 +308,7 @@ auxiliaryData9c91bdbb =
 
 body9c91bdbb : TransactionBody
 body9c91bdbb =
-    { newTxBody
+    { newBody
         | auxiliaryDataHash = Just (Bytes.fromStringUnchecked "91ebd602815a977fff9028bbebbe7bfb7f8ae703c65a684e5c85f380f5249e24")
         , collateral = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" } ]
         , fee = Just (N.fromSafeInt 228509)
@@ -336,7 +335,7 @@ body9c91bdbb =
 
 witnessSet9c91bdbb : WitnessSet
 witnessSet9c91bdbb =
-    { newTxWitnessSet
+    { newWitnessSet
         | plutusData =
             Just
                 [ Data.Constr (N.fromSafeInt 0)
@@ -399,16 +398,6 @@ decodeOutputfd83f4f9 =
 
 
 -- Helpers
-
-
-newTxBody : TransactionBody
-newTxBody =
-    Tx.newBody
-
-
-newTxWitnessSet : WitnessSet
-newTxWitnessSet =
-    Tx.newWitnessSet
 
 
 {-| Convert the internal representation of Natural, using a base 2^26, back into a Natural.
