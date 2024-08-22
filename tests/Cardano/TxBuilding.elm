@@ -2,9 +2,9 @@ module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
+import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
 import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
-import Cardano.CoinSelection as CoinSelection
+import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
@@ -180,7 +180,7 @@ okTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectTran
             in
             case finalize buildingConfig fee txOtherInfo txIntents of
                 Err error ->
-                    Expect.fail error
+                    Expect.fail (Debug.toString error)
 
                 Ok tx ->
                     Expect.equal tx <| expectTransaction tx
@@ -190,12 +190,19 @@ failTxBuilding : Test
 failTxBuilding =
     describe "Detected failure"
         [ failTxTest "when there is no utxo in local state"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            { localStateUtxos = []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents = []
             }
-            (\error -> Expect.pass)
+            (\error ->
+                case error of
+                    FailedToPerformCoinSelection UTxOBalanceInsufficient ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
         ]
 
 
@@ -207,7 +214,7 @@ failTxTest :
         , txOtherInfo : List TxOtherInfo
         , txIntents : List TxIntent
         }
-    -> (String -> Expectation)
+    -> (TxFinalizationError -> Expectation)
     -> Test
 failTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectedFailure =
     test description <|

@@ -2,7 +2,7 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , Fee(..)
-    , finalize
+    , finalize, TxFinalizationError(..)
     , example1, example2, example3, prettyTx
     )
 
@@ -323,7 +323,7 @@ We can embed it directly in the transaction witness.
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
 @docs TxOtherInfo
 @docs Fee
-@docs finalize
+@docs finalize, TxFinalizationError
 
 -}
 
@@ -451,6 +451,17 @@ defaultAutoFee =
     Natural.fromSafeInt 500000
 
 
+{-| Errors that may happen during Tx finalization.
+-}
+type TxFinalizationError
+    = UnbalancedIntents String
+    | NotEnoughMinAda String
+    | FailedToPerformCoinSelection CoinSelection.Error
+    | CollateralSelectionError CoinSelection.Error
+    | DuplicatedMetadataTags
+    | IncorrectTimeValidityRange String
+
+
 {-| Finalize a transaction before signing and sending it.
 
 Analyze all intents and perform the following actions:
@@ -468,19 +479,19 @@ finalize :
     -> Fee
     -> List TxOtherInfo
     -> List TxIntent
-    -> Result String Transaction
+    -> Result TxFinalizationError Transaction
 finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
     -- TODO: Check that all spent referenced inputs are present in the local state
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
-        ( Err (TxIntentError err), _ ) ->
+        ( Err err, _ ) ->
             Err err
 
-        ( _, Err (TxOtherInfoError err) ) ->
+        ( _, Err err ) ->
             Err err
 
         ( Ok processedIntents, Ok processedOtherInfo ) ->
             let
-                buildTxRound : InputsOutputs -> Fee -> Result String Transaction
+                buildTxRound : InputsOutputs -> Fee -> Result TxFinalizationError Transaction
                 buildTxRound roundInputsOutputs roundFees =
                     let
                         ( feeAmount, feeAddresses ) =
@@ -730,7 +741,7 @@ type TxIntentError
 
 {-| Process already pre-processed intents and validate them all.
 -}
-processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxIntentError ProcessedIntents
+processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
 processIntents localStateUtxos txIntents =
     let
         preProcessedIntents =
@@ -798,11 +809,11 @@ processIntents localStateUtxos txIntents =
             _ =
                 Debug.log "totalOutput" totalOutput
         in
-        Err <| TxIntentError "Tx is not balanced.\n"
+        Err <| UnbalancedIntents "Tx is not balanced.\n"
 
     else
         validMinAdaPerOutput preCreatedOutputs.outputs
-            |> Result.mapError TxIntentError
+            |> Result.mapError NotEnoughMinAda
             |> Result.map
                 (\_ ->
                     -- TODO: Deduplicate eventual duplicate witnesses (both value and reference)
@@ -875,7 +886,7 @@ type TxOtherInfoError
     = TxOtherInfoError String
 
 
-processOtherInfo : List TxOtherInfo -> Result TxOtherInfoError ProcessedOtherInfo
+processOtherInfo : List TxOtherInfo -> Result TxFinalizationError ProcessedOtherInfo
 processOtherInfo otherInfo =
     -- TODO: after processing, check the time range is still valid
     let
@@ -922,10 +933,10 @@ processOtherInfo otherInfo =
     in
     if hasDuplicatedMetadataTags then
         -- TODO: more descriptive error
-        Err <| TxOtherInfoError "Tx has duplicated metadata tags"
+        Err <| DuplicatedMetadataTags
 
     else if not validTimeRange then
-        Err <| TxOtherInfoError <| "Invalid time range (or intersection of multiple time ranges). The time range end must be > than the start." ++ Debug.toString processedOtherInfo.timeValidityRange
+        Err <| IncorrectTimeValidityRange <| "Invalid time range (or intersection of multiple time ranges). The time range end must be > than the start." ++ Debug.toString processedOtherInfo.timeValidityRange
 
     else
         Ok processedOtherInfo
@@ -941,7 +952,7 @@ computeCollateralSelection :
     Utxo.RefDict Output
     -> Address.Dict ()
     -> Natural
-    -> Result String CoinSelection.Selection
+    -> Result TxFinalizationError CoinSelection.Selection
 computeCollateralSelection localStateUtxos collateralSources collateralAmount =
     CoinSelection.largestFirst 10
         { alreadySelectedUtxos = []
@@ -954,7 +965,7 @@ computeCollateralSelection localStateUtxos collateralSources collateralAmount =
                             && Dict.Any.member output.address collateralSources
                     )
         }
-        |> Result.mapError Debug.toString
+        |> Result.mapError CollateralSelectionError
 
 
 {-| Perform coin selection for the required input per address.
@@ -964,7 +975,7 @@ computeCoinSelection :
     -> Fee
     -> ProcessedIntents
     -> CoinSelection.Algorithm
-    -> Result String (Address.Dict CoinSelection.Selection)
+    -> Result TxFinalizationError (Address.Dict CoinSelection.Selection)
 computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
     let
         dummyOutput =
@@ -1025,7 +1036,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
             )
             (Ok Address.emptyDict)
         -- |> Result.map (Debug.log "coin selection")
-        |> Result.mapError Debug.toString
+        |> Result.mapError FailedToPerformCoinSelection
 
 
 {-| Helper function to accumulate all selected UTxOs and newly created outputs.
