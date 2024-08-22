@@ -7,6 +7,7 @@ import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(.
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
+import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
@@ -156,6 +157,8 @@ okTxBuilding =
                         }
                 }
             )
+
+        -- TODO: test with plutus script spending
         ]
 
 
@@ -248,6 +251,25 @@ failTxBuilding =
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
+        , failTxTest "when there are duplicated metadata tags (tag 0 here)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo =
+                [ TxMetadata { tag = Natural.zero, metadata = Metadatum.Int Integer.one }
+                , TxMetadata { tag = Natural.zero, metadata = Metadatum.Int Integer.two }
+                ]
+            , txIntents = []
+            }
+            (\error ->
+                case error of
+                    DuplicatedMetadataTags ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
+
+        -- TODO: test for collateral selection error
         ]
 
 
