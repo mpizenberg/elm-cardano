@@ -1,13 +1,16 @@
 module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Cardano exposing (Fee(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), finalize)
+import Bytes.Map as Map
+import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
 import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
+import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect
+import Integer
 import Natural exposing (Natural)
 import Test exposing (Test, describe, test)
 
@@ -96,6 +99,57 @@ okTxBuilding =
                             , outputs =
                                 [ Utxo.fromLovelace testAddr.you (ada 1)
                                 , Utxo.fromLovelace testAddr.me (ada 2)
+                                ]
+                        }
+                }
+            )
+        , okTxTest "mint 1 dog and burn 1 cat"
+            { localStateUtxos =
+                [ makeAdaOutput 0 testAddr.me 5
+                , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
+                ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                -- minting 1 dog
+                [ MintBurn
+                    { policyId = dog.policyId
+                    , assets = Map.singleton dog.assetName Integer.one
+                    , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
+                    }
+                , SendTo testAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
+
+                -- burning 1 cat
+                , Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
+                , MintBurn
+                    { policyId = cat.policyId
+                    , assets = Map.singleton cat.assetName Integer.negativeOne
+                    , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
+                    }
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
+                            , referenceInputs = [ cat.scriptRef, dog.scriptRef ]
+                            , mint =
+                                MultiAsset.mintAdd
+                                    (MultiAsset.onlyToken dog.policyId dog.assetName Integer.one)
+                                    (MultiAsset.onlyToken cat.policyId cat.assetName Integer.negativeOne)
+                            , outputs =
+                                [ { address = testAddr.me
+                                  , amount =
+                                        Value.onlyLovelace (ada 3)
+                                            -- 1 minted dog
+                                            |> Value.add (Value.onlyToken dog.policyId dog.assetName Natural.one)
+                                            -- 2 cat left after burning 1 from the utxo with 3 cat
+                                            |> Value.add (Value.onlyToken cat.policyId cat.assetName Natural.two)
+                                  , datumOption = Nothing
+                                  , referenceScript = Nothing
+                                  }
                                 ]
                         }
                 }
