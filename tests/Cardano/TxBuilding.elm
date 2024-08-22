@@ -203,6 +203,34 @@ failTxBuilding =
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
+        , failTxTest "when Tx intents are unbalanced (too much spend here)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents = [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1) ]
+            }
+            (\error ->
+                case error of
+                    UnbalancedIntents _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
+        , failTxTest "when Tx intents are unbalanced (too much send here)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents = [ SendTo testAddr.me (Value.onlyLovelace <| ada 1) ]
+            }
+            (\error ->
+                case error of
+                    UnbalancedIntents _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
         ]
 
 
