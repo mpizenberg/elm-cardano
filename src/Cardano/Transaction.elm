@@ -1,7 +1,7 @@
 module Cardano.Transaction exposing
-    ( Transaction
-    , TransactionBody, AuxiliaryDataHash, ScriptDataHash
-    , WitnessSet
+    ( Transaction, new
+    , TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
+    , WitnessSet, newWitnessSet
     , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion, noParamUpdate
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
@@ -15,11 +15,11 @@ module Cardano.Transaction exposing
 
 {-| Types and functions related to on-chain transactions.
 
-@docs Transaction
+@docs Transaction, new
 
-@docs TransactionBody, AuxiliaryDataHash, ScriptDataHash
+@docs TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
 
-@docs WitnessSet
+@docs WitnessSet, newWitnessSet
 
 @docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion, noParamUpdate
 
@@ -69,6 +69,17 @@ type alias Transaction =
     }
 
 
+{-| Helper for empty [Transaction] initialization.
+-}
+new : Transaction
+new =
+    { body = newBody
+    , witnessSet = newWitnessSet
+    , isValid = True
+    , auxiliaryData = Nothing
+    }
+
+
 {-| A Cardano transaction body.
 -}
 type alias TransactionBody =
@@ -106,6 +117,30 @@ type ScriptDataHash
     = ScriptDataHash Never
 
 
+{-| Helper for empty transaction body initialization.
+-}
+newBody : TransactionBody
+newBody =
+    { inputs = []
+    , outputs = []
+    , fee = Nothing
+    , ttl = Nothing
+    , certificates = []
+    , withdrawals = []
+    , update = Nothing
+    , auxiliaryDataHash = Nothing
+    , validityIntervalStart = Nothing
+    , mint = MultiAsset.empty
+    , scriptDataHash = Nothing
+    , collateral = []
+    , requiredSigners = []
+    , networkId = Nothing
+    , collateralReturn = Nothing
+    , totalCollateral = Nothing
+    , referenceInputs = []
+    }
+
+
 {-| A Cardano transaction witness set.
 
 [Pallas alonzo implementation][pallas]
@@ -121,6 +156,20 @@ type alias WitnessSet =
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
     , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
+    }
+
+
+{-| Helper for empty witness set initialization.
+-}
+newWitnessSet : WitnessSet
+newWitnessSet =
+    { vkeywitness = Nothing
+    , nativeScripts = Nothing
+    , bootstrapWitness = Nothing
+    , plutusV1Script = Nothing
+    , plutusData = Nothing
+    , redeemer = Nothing
+    , plutusV2Script = Nothing
     }
 
 
@@ -1421,40 +1470,6 @@ decodeNetworkId =
 
 
 -- Helper definitions
-
-
-newBody : TransactionBody
-newBody =
-    { inputs = []
-    , outputs = []
-    , fee = Nothing
-    , ttl = Nothing
-    , certificates = []
-    , withdrawals = []
-    , update = Nothing
-    , auxiliaryDataHash = Nothing
-    , validityIntervalStart = Nothing
-    , mint = MultiAsset.empty
-    , scriptDataHash = Nothing
-    , collateral = []
-    , requiredSigners = []
-    , networkId = Nothing
-    , collateralReturn = Nothing
-    , totalCollateral = Nothing
-    , referenceInputs = []
-    }
-
-
-newWitnessSet : WitnessSet
-newWitnessSet =
-    { vkeywitness = Nothing
-    , nativeScripts = Nothing
-    , bootstrapWitness = Nothing
-    , plutusV1Script = Nothing
-    , plutusData = Nothing
-    , redeemer = Nothing
-    , plutusV2Script = Nothing
-    }
 
 
 setInputs : List OutputReference -> TransactionBody -> TransactionBody

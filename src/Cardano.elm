@@ -1,6 +1,7 @@
 module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
+    , Fee(..)
     , finalize
     , example1, example2, example3, prettyTx
     )
@@ -321,6 +322,7 @@ We can embed it directly in the transaction witness.
 
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
 @docs TxOtherInfo
+@docs Fee
 @docs finalize
 
 -}
