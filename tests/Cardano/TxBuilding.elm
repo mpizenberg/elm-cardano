@@ -9,7 +9,7 @@ import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
-import Expect
+import Expect exposing (Expectation)
 import Integer
 import Natural exposing (Natural)
 import Test exposing (Test, describe, test)
@@ -18,7 +18,9 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     describe "Cardano Tx building"
-        [ okTxBuilding ]
+        [ okTxBuilding
+        , failTxBuilding
+        ]
 
 
 okTxBuilding : Test
@@ -182,6 +184,46 @@ okTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectTran
 
                 Ok tx ->
                     Expect.equal tx <| expectTransaction tx
+
+
+failTxBuilding : Test
+failTxBuilding =
+    describe "Detected failure"
+        [ failTxTest "when there is no utxo in local state"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents = []
+            }
+            (\error -> Expect.pass)
+        ]
+
+
+failTxTest :
+    String
+    ->
+        { localStateUtxos : List ( OutputReference, Output )
+        , fee : Fee
+        , txOtherInfo : List TxOtherInfo
+        , txIntents : List TxIntent
+        }
+    -> (String -> Expectation)
+    -> Test
+failTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectedFailure =
+    test description <|
+        \_ ->
+            let
+                buildingConfig =
+                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    , coinSelectionAlgo = CoinSelection.largestFirst
+                    }
+            in
+            case finalize buildingConfig fee txOtherInfo txIntents of
+                Err error ->
+                    expectedFailure error
+
+                Ok tx ->
+                    Expect.fail "This Tx building was not supposed to succeed"
 
 
 newTx =
