@@ -18,7 +18,7 @@ main =
 example ex =
     case ex () of
         Err error ->
-            error
+            Debug.toString error
 
         Ok tx ->
             Cardano.prettyTx tx
