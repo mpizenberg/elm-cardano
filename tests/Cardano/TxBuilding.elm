@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano exposing (Fee(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), finalize)
 import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
-import Cardano.Transaction as Transaction exposing (newBody, newWitnessSet)
+import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect
@@ -15,67 +15,72 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     describe "Cardano Tx building"
-        [ txWithJustManualFees
-        , txWithJustAutoFees
+        [ okTxTest "Tx with just manual fees"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents = []
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just <| Natural.fromSafeInt 2000000
+                            , inputs = [ makeRef "0" 0 ]
+                        }
+                }
+            )
+        , okTxTest "Tx with just auto fees"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            , fee = autoFee
+            , txOtherInfo = []
+            , txIntents = []
+            }
+            (\tx ->
+                let
+                    feeAmount =
+                        Transaction.computeFees tx
+
+                    adaLeft =
+                        Natural.sub (ada 2) feeAmount
+                in
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just feeAmount
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me adaLeft ]
+                        }
+                }
+            )
         ]
 
 
-txWithJustManualFees : Test
-txWithJustManualFees =
-    test "Tx with just manual fees" <|
+okTxTest :
+    String
+    ->
+        { localStateUtxos : List ( OutputReference, Output )
+        , fee : Fee
+        , txOtherInfo : List TxOtherInfo
+        , txIntents : List TxIntent
+        }
+    -> (Transaction -> Transaction)
+    -> Test
+okTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectTransaction =
+    test description <|
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 2 ] --   2 ada at my address
+                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     }
             in
-            case finalize buildingConfig twoAdaFee [] [] of
+            case finalize buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     Expect.fail error
 
                 Ok tx ->
-                    Expect.equal tx <|
-                        { newTx
-                            | body =
-                                { newBody
-                                    | fee = Just <| Natural.fromSafeInt 2000000
-                                    , inputs = [ makeRef "0" 0 ]
-                                }
-                        }
-
-
-txWithJustAutoFees : Test
-txWithJustAutoFees =
-    test "Tx with just auto fees" <|
-        \_ ->
-            let
-                buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 2 ] --   2 ada at my address
-                    , coinSelectionAlgo = CoinSelection.largestFirst
-                    }
-            in
-            case finalize buildingConfig autoFee [] [] of
-                Err error ->
-                    Expect.fail error
-
-                Ok tx ->
-                    let
-                        feeAmount =
-                            Transaction.computeFees tx
-
-                        adaLeft =
-                            Natural.sub (ada 2) feeAmount
-                    in
-                    Expect.equal tx <|
-                        { newTx
-                            | body =
-                                { newBody
-                                    | fee = Just feeAmount
-                                    , inputs = [ makeRef "0" 0 ]
-                                    , outputs = [ Utxo.fromLovelace testAddr.me adaLeft ]
-                                }
-                        }
+                    Expect.equal tx <| expectTransaction tx
 
 
 newTx =
