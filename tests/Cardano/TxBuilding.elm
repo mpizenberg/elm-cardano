@@ -8,20 +8,21 @@ import Cardano.Transaction as Transaction exposing (newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect
-import Natural
+import Natural exposing (Natural)
 import Test exposing (Test, describe, test)
 
 
 suite : Test
 suite =
     describe "Cardano Tx building"
-        [ txWithJustFees
+        [ txWithJustManualFees
+        , txWithJustAutoFees
         ]
 
 
-txWithJustFees : Test
-txWithJustFees =
-    test "Tx with just fees" <|
+txWithJustManualFees : Test
+txWithJustManualFees =
+    test "Tx with just manual fees" <|
         \_ ->
             let
                 buildingConfig =
@@ -40,6 +41,39 @@ txWithJustFees =
                                 { newBody
                                     | fee = Just <| Natural.fromSafeInt 2000000
                                     , inputs = [ makeRef "0" 0 ]
+                                }
+                        }
+
+
+txWithJustAutoFees : Test
+txWithJustAutoFees =
+    test "Tx with just auto fees" <|
+        \_ ->
+            let
+                buildingConfig =
+                    { localStateUtxos = Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 2 ] --   2 ada at my address
+                    , coinSelectionAlgo = CoinSelection.largestFirst
+                    }
+            in
+            case finalize buildingConfig autoFee [] [] of
+                Err error ->
+                    Expect.fail error
+
+                Ok tx ->
+                    let
+                        feeAmount =
+                            Transaction.computeFees tx
+
+                        adaLeft =
+                            Natural.sub (ada 2) feeAmount
+                    in
+                    Expect.equal tx <|
+                        { newTx
+                            | body =
+                                { newBody
+                                    | fee = Just feeAmount
+                                    , inputs = [ makeRef "0" 0 ]
+                                    , outputs = [ Utxo.fromLovelace testAddr.me adaLeft ]
                                 }
                         }
 
@@ -69,12 +103,10 @@ globalStateUtxos =
         ]
 
 
-ada =
-    -- Asset amounts are typed with unbounded Natural numbers
-    { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
-    , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
-    , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
-    }
+ada : Int -> Natural
+ada n =
+    Natural.fromSafeInt n
+        |> Natural.mul (Natural.fromSafeInt 1000000)
 
 
 testAddr =
