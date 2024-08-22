@@ -268,6 +268,20 @@ failTxBuilding =
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
+        , failTxTest "when validity range is incorrect (start > end)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo = [ TxTimeValidityRange { start = 1, end = Natural.zero } ]
+            , txIntents = []
+            }
+            (\error ->
+                case error of
+                    IncorrectTimeValidityRange _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
 
         -- TODO: test for collateral selection error
         ]
