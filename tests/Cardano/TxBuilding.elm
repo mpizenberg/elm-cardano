@@ -15,6 +15,12 @@ import Test exposing (Test, describe, test)
 suite : Test
 suite =
     describe "Cardano Tx building"
+        [ okTxBuilding ]
+
+
+okTxBuilding : Test
+okTxBuilding =
+    describe "Successfull"
         [ okTxTest "with just manual fees"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
             , fee = twoAdaFee
@@ -69,6 +75,28 @@ suite =
                             | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0 ]
                             , outputs = [ Utxo.fromLovelace testAddr.me (ada 3) ]
+                        }
+                }
+            )
+        , okTxTest "send 1 ada from me to you"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                , SendTo testAddr.you (Value.onlyLovelace <| ada 1)
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs =
+                                [ Utxo.fromLovelace testAddr.you (ada 1)
+                                , Utxo.fromLovelace testAddr.me (ada 2)
+                                ]
                         }
                 }
             )
