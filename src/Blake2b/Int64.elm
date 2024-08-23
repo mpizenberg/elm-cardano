@@ -1,4 +1,4 @@
-module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, fromLeByteValues, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toLeByteValues, toUnsigned, xor)
+module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, fromLeByteValues, maxValue, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toLeByteValues, toUnsigned, xor)
 
 import Bitwise
 import Bytes exposing (Endianness(..))
@@ -9,6 +9,11 @@ import Hex.Convert as Hex
 
 type Int64
     = Int64 Int Int
+
+
+maxValue : Int64
+maxValue =
+    Int64 0xFFFFFFFF 0xFFFFFFFF
 
 
 and : Int64 -> Int64 -> Int64

@@ -2,6 +2,155 @@ module Blake2b exposing (blake2bIV, mixing, sigmaRound)
 
 import Bitwise
 import Blake2b.Int64 as Int64 exposing (Int64(..))
+import Extra.List as List
+
+
+
+-- Compression function takes the state vector ("h" in spec),
+-- message block vector ("m" in spec),
+-- a 2w-bit (128-bit) offset counter ("t" in spec),
+-- and final block indicator flag ("f" in spec),
+-- and returns the new state vector.
+
+
+compress : List Int64 -> List Int -> { low : Int64, high : Int64 } -> Bool -> Maybe (List Int64)
+compress state block ctr finalBlockFlag =
+    let
+        -- Pad the block and convert to U64 words
+        -- blockWords =
+        mBlockWords : Maybe (List Int64)
+        mBlockWords =
+            (block ++ List.repeat (128 - List.length block) 0x00)
+                |> List.chunksOf 8
+                |> List.map Int64.fromLeByteValues
+                |> List.foldr
+                    (\mByte mAcc ->
+                        case ( mByte, mAcc ) of
+                            ( Just b, Just acc ) ->
+                                Just (b :: acc)
+
+                            _ ->
+                                Nothing
+                    )
+                    (Just [])
+
+        -- Initialize local vector with state and IV
+        vInit : List Int64
+        vInit =
+            (state ++ blake2bIV)
+                |> List.indexedMap
+                    (\i word ->
+                        if i == 12 then
+                            Int64.or word ctr.low
+
+                        else if i == 13 then
+                            Int64.or word ctr.high
+
+                        else if i == 14 then
+                            if finalBlockFlag then
+                                Int64.or word Int64.maxValue
+
+                            else
+                                word
+
+                        else
+                            word
+                    )
+
+        -- Cryptographic mixing step
+        mSigmaMixingStep : Quadruple64 -> Int64 -> Int64 -> List Int64 -> Maybe (List Int64)
+        mSigmaMixingStep { a, b, c, d } si sj v =
+            mBlockWords
+                |> Maybe.andThen
+                    (\blockWords ->
+                        let
+                            x =
+                                blockWords |> List.get64 si |> Maybe.withDefault (Int64 0 0)
+
+                            y =
+                                blockWords |> List.get64 sj |> Maybe.withDefault (Int64 0 0)
+
+                            va =
+                                List.get64 a v |> Maybe.withDefault (Int64 0 0)
+
+                            vb =
+                                List.get64 b v |> Maybe.withDefault (Int64 0 0)
+
+                            vc =
+                                List.get64 c v |> Maybe.withDefault (Int64 0 0)
+
+                            vd =
+                                List.get64 d v |> Maybe.withDefault (Int64 0 0)
+
+                            -- { vaNew, vbNew, vcNew, vdNew } =
+                            newVsQuad =
+                                mixing va vb vc vd x y
+                        in
+                        v
+                            |> List.indexedMap64
+                                (\i v0 ->
+                                    if i == a then
+                                        newVsQuad.a
+
+                                    else if i == b then
+                                        newVsQuad.b
+
+                                    else if i == c then
+                                        newVsQuad.c
+
+                                    else if i == d then
+                                        newVsQuad.d
+
+                                    else
+                                        v0
+                                )
+                            |> Just
+                    )
+
+        -- Cryptographic mixing round
+        mSigmaMixingRound : Int -> List Int64 -> Maybe (List Int64)
+        mSigmaMixingRound round v =
+            let
+                s =
+                    sigmaRound round
+            in
+            mSigmaMixingStep (q64FromInts 0 4 8 12) s.i00 s.i01 v
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 1 5 9 13) s.i02 s.i03)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 2 6 10 14) s.i04 s.i05)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 3 7 11 15) s.i06 s.i07)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 0 5 10 15) s.i08 s.i09)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 1 6 11 12) s.i10 s.i11)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 2 7 8 13) s.i12 s.i13)
+                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 3 4 9 14) s.i14 s.i15)
+
+        -- Apply 12 mixing rounds to the local vector
+        mNewV =
+            mSigmaMixingRound 0 vInit
+                |> Maybe.andThen (mSigmaMixingRound 1)
+                |> Maybe.andThen (mSigmaMixingRound 2)
+                |> Maybe.andThen (mSigmaMixingRound 3)
+                |> Maybe.andThen (mSigmaMixingRound 4)
+                |> Maybe.andThen (mSigmaMixingRound 5)
+                |> Maybe.andThen (mSigmaMixingRound 6)
+                |> Maybe.andThen (mSigmaMixingRound 7)
+                |> Maybe.andThen (mSigmaMixingRound 8)
+                |> Maybe.andThen (mSigmaMixingRound 9)
+                |> Maybe.andThen (mSigmaMixingRound 10)
+                |> Maybe.andThen (mSigmaMixingRound 11)
+    in
+    mNewV
+        |> Maybe.andThen
+            (\newV ->
+                -- XOR the two halves of v
+                List.map3
+                    (\hi vi vii ->
+                        Int64.xor hi vi |> Int64.xor vii
+                    )
+                    state
+                    (List.sublist 0 8 newV)
+                    (List.sublist 8 8 newV)
+                    |> Just
+            )
 
 
 blake2bIV : List Int64
@@ -26,11 +175,20 @@ blake2bIV =
 
 
 type alias Quadruple64 =
-    { first : Int64
-    , second : Int64
-    , third : Int64
-    , fourth : Int64
+    { a : Int64
+    , b : Int64
+    , c : Int64
+    , d : Int64
     }
+
+
+q64FromInts : Int -> Int -> Int -> Int -> Quadruple64
+q64FromInts a b c d =
+    let
+        int64 =
+            Int64 0
+    in
+    Quadruple64 (int64 a) (int64 b) (int64 c) (int64 d)
 
 
 mixing : Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Quadruple64
@@ -151,12 +309,3 @@ sigmaRound round =
 
         _ ->
             sigmaRound (modBy 10 round)
-
-
-listToChunksOf : Int -> List a -> List (List a)
-listToChunksOf size list =
-    if List.isEmpty list then
-        []
-
-    else
-        List.take size list :: listToChunksOf size (List.drop size list)
