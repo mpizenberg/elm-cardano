@@ -504,23 +504,29 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                                 AutoFee { paymentSource } ->
                                     ( defaultAutoFee, [ paymentSource ] )
 
-                        -- collateral = 1.5 * fee
-                        -- It’s an euclidean division, so if there is a non-zero rest,
-                        -- we add 1 to make sure we aren’t short 1 lovelace.
-                        --
-                        -- Identify automatically collateral sources
-                        -- from free inputs addresses, spent inputs addresses or fee addresses.
                         ( collateralAmount, collateralSources ) =
                             if List.isEmpty processedIntents.plutusScriptSources then
                                 ( Natural.zero, Address.emptyDict )
 
                             else
+                                -- collateral = 1.5 * fee
+                                -- It’s an euclidean division, so if there is a non-zero rest,
+                                -- we add 1 to make sure we aren’t short 1 lovelace.
                                 ( feeAmount
                                     |> Natural.mul (Natural.fromSafeInt 15)
                                     |> Natural.divModBy (Natural.fromSafeInt 10)
                                     |> Maybe.withDefault ( Natural.zero, Natural.zero )
                                     |> (\( q, r ) -> Natural.add q <| Natural.min r Natural.one)
-                                , List.concat [ feeAddresses, findPaymentWalletAddresses localStateUtxos processedIntents ]
+                                  -- Identify automatically collateral sources
+                                  -- from fee addresses, free inputs addresses or spent inputs addresses.
+                                , [ feeAddresses
+                                  , Dict.Any.keys processedIntents.freeInputs
+                                  , Dict.Any.keys processedIntents.preSelected.inputs
+                                        |> List.filterMap (\addr -> Dict.Any.get addr localStateUtxos |> Maybe.map .address)
+                                  ]
+                                    |> List.concat
+                                    |> List.filter Address.isShelleyWallet
+                                    -- make the list unique
                                     |> List.map (\addr -> ( addr, () ))
                                     |> Address.dictFromList
                                 )
@@ -717,22 +723,6 @@ type alias ProcessedIntents =
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     }
-
-
-{-| Look for all potentially spent input addresses, that will need a signature.
--}
-findPaymentWalletAddresses : Utxo.RefDict Output -> ProcessedIntents -> List Address
-findPaymentWalletAddresses localStateUtxos { freeInputs, preSelected } =
-    Dict.Any.keys preSelected.inputs
-        |> List.filterMap (\addr -> Dict.Any.get addr localStateUtxos |> Maybe.map .address)
-        -- append pre-selected inputs addresses with free inputs addresses
-        |> List.append (Dict.Any.keys freeInputs)
-        --> List Address
-        |> List.filter Address.isShelleyWallet
-        -- make the list unique
-        |> List.map (\addr -> ( addr, () ))
-        |> Address.dictFromList
-        |> Dict.Any.keys
 
 
 type TxIntentError
