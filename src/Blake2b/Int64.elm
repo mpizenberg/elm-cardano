@@ -1,4 +1,4 @@
-module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toUnsigned, xor)
+module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, fromLeByteValues, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toLeByteValues, toUnsigned, xor)
 
 import Bitwise
 import Bytes exposing (Endianness(..))
@@ -191,11 +191,6 @@ toHex (Int64 higher lower) =
     high ++ low
 
 
-toByteValues : Int64 -> List Int
-toByteValues (Int64 higher lower) =
-    wordToBytes higher ++ wordToBytes lower
-
-
 wordToBytes : Int -> List Int
 wordToBytes int =
     [ int |> Bitwise.shiftRightZfBy 0x18 |> Bitwise.and 0xFF
@@ -203,3 +198,53 @@ wordToBytes int =
     , int |> Bitwise.shiftRightZfBy 0x08 |> Bitwise.and 0xFF
     , int |> Bitwise.and 0xFF
     ]
+
+
+toByteValues : Int64 -> List Int
+toByteValues (Int64 higher lower) =
+    wordToBytes higher ++ wordToBytes lower
+
+
+toLeByteValues : Int64 -> List Int
+toLeByteValues =
+    toByteValues >> List.reverse
+
+
+fromLeByteValues : List Int -> Maybe Int64
+fromLeByteValues bytes =
+    if List.any (\b -> b < 0 || b > 255) bytes || (List.length bytes /= 8) then
+        Nothing
+
+    else
+        List.foldl
+            (\byte ( Int64 higherAcc lowerAcc, i ) ->
+                if i < 4 then
+                    let
+                        valueFromThisByte =
+                            Bitwise.shiftLeftBy (8 * i) byte
+                    in
+                    ( Int64
+                        0
+                        (Bitwise.or lowerAcc valueFromThisByte
+                            |> Bitwise.shiftRightZfBy 0
+                        )
+                    , i + 1
+                    )
+
+                else
+                    let
+                        valueFromThisByte =
+                            Bitwise.shiftLeftBy (8 * (i - 4)) byte
+                    in
+                    ( Int64
+                        (Bitwise.or higherAcc valueFromThisByte
+                            |> Bitwise.shiftRightZfBy 0
+                        )
+                        lowerAcc
+                    , i + 1
+                    )
+            )
+            ( Int64 0 0, 0 )
+            bytes
+            |> Tuple.first
+            |> Just
