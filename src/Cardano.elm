@@ -980,9 +980,18 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
             -- Using dummyOutput to have the same type as localStateUtxos
             Dict.Any.map (\_ _ -> dummyOutput) processedIntents.preSelected.inputs
 
-        -- Precompute selectable inputs accross all addresses
+        -- Precompute selectable inputs per addresses
+        availableInputs : Address.Dict (List ( OutputReference, Output ))
         availableInputs =
             Dict.Any.diff localStateUtxos notAvailableInputs
+                --> Utxo.RefDict Output
+                |> Dict.Any.foldl
+                    (\ref output ->
+                        -- append the output to the list of outputs for the same address
+                        Dict.Any.update output.address
+                            (Just << (::) ( ref, output ) << Maybe.withDefault [])
+                    )
+                    Address.emptyDict
 
         -- TODO: adjust at least with the number of different tokens in target Amount
         maxInputCount =
@@ -1011,12 +1020,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
                 coinSelectionAlgo maxInputCount
                     { alreadySelectedUtxos = []
                     , targetAmount = freeValue
-
-                    -- Only keep inputs from this address
-                    , availableUtxos =
-                        availableInputs
-                            |> Dict.Any.filter (\_ output -> output.address == addr)
-                            |> Dict.Any.toList
+                    , availableUtxos = Maybe.withDefault [] (Dict.Any.get addr availableInputs)
                     }
             )
         -- Join the Dict (Result _ _) into Result _ Dict
