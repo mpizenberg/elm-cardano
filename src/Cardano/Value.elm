@@ -116,7 +116,7 @@ sum allValues =
 normalize : Value -> Value
 normalize v =
     { lovelace = v.lovelace
-    , assets = MultiAsset.normalize v.assets
+    , assets = MultiAsset.normalize Natural.isZero v.assets
     }
 
 

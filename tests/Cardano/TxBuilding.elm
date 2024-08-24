@@ -106,6 +106,73 @@ okTxBuilding =
                         }
                 }
             )
+        , let
+            threeCat =
+                Value.onlyToken cat.policyId cat.assetName Natural.three
+
+            threeCatOneAda =
+                { threeCat | lovelace = ada 1 }
+          in
+          okTxTest "send 3 cat with 1 ada from me to you"
+            { localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
+                ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.me threeCatOneAda
+                , SendTo testAddr.you threeCatOneAda
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
+                            , outputs =
+                                [ Utxo.simpleOutput testAddr.you threeCatOneAda
+                                , Utxo.fromLovelace testAddr.me (ada 2)
+                                ]
+                        }
+                }
+            )
+        , let
+            threeCat =
+                Value.onlyToken cat.policyId cat.assetName Natural.three
+
+            minAda =
+                Utxo.minAdaForAssets testAddr.you threeCat.assets
+
+            threeCatMinAda =
+                { threeCat | lovelace = minAda }
+          in
+          okTxTest "send 3 cat with minAda from me to you"
+            { localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
+                ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.me threeCatMinAda
+                , SendTo testAddr.you threeCatMinAda
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
+                            , outputs =
+                                [ Utxo.simpleOutput testAddr.you threeCatMinAda
+                                , Utxo.fromLovelace testAddr.me (Natural.sub (ada 3) minAda)
+                                ]
+                        }
+                }
+            )
         , okTxTest "mint 1 dog and burn 1 cat"
             { localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
@@ -200,7 +267,7 @@ failTxBuilding =
             }
             (\error ->
                 case error of
-                    FailedToPerformCoinSelection UTxOBalanceInsufficient ->
+                    FailedToPerformCoinSelection (UTxOBalanceInsufficient _) ->
                         Expect.pass
 
                     _ ->
@@ -241,6 +308,26 @@ failTxBuilding =
             , txIntents =
                 [ Spend <| From testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
                 , SendToOutput (\_ -> Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
+                ]
+            }
+            (\error ->
+                case error of
+                    NotEnoughMinAda _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
+        , failTxTest "when we send CNT without Ada"
+            { localStateUtxos =
+                [ makeAdaOutput 0 testAddr.me 5
+                , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
+                ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.three)
+                , SendTo testAddr.you (Value.onlyToken cat.policyId cat.assetName Natural.three)
                 ]
             }
             (\error ->

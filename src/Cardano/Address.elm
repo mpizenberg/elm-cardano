@@ -203,6 +203,9 @@ extractStakeCredential address =
 
 {-| Convenient alias for a `Dict` with [Address] keys.
 When converting to a `List`, its keys are sorted by address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias Dict a =
     AnyDict String Address a
@@ -210,6 +213,9 @@ type alias Dict a =
 
 {-| Initialize an empty address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyDict : Dict a
 emptyDict =
@@ -218,6 +224,9 @@ emptyDict =
 
 {-| Create an address dictionary from a list.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 dictFromList : List ( Address, a ) -> Dict a
 dictFromList =
@@ -226,6 +235,9 @@ dictFromList =
 
 {-| Convenient alias for a `Dict` with [StakeAddress] keys.
 When converting to a `List`, its keys are sorted by stake address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias StakeDict a =
     AnyDict String StakeAddress a
@@ -233,6 +245,9 @@ type alias StakeDict a =
 
 {-| Initialize an empty stake address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
@@ -241,6 +256,9 @@ emptyStakeDict =
 
 {-| Create a stake address dictionary from a list.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
 stakeDictFromList =

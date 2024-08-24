@@ -1,9 +1,9 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , RefDict, emptyRefDict, refDictFromList
-    , fromLovelace
+    , fromLovelace, simpleOutput
     , lovelace, totalLovelace, compareLovelace, isAdaOnly
-    , minAda, checkMinAda
+    , minAda, checkMinAda, minAdaForAssets
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
     )
@@ -23,7 +23,7 @@ module Cardano.Utxo exposing
 
 ## Build
 
-@docs fromLovelace
+@docs fromLovelace, simpleOutput
 
 
 ## Query
@@ -33,7 +33,7 @@ module Cardano.Utxo exposing
 
 ## Compute
 
-@docs minAda, checkMinAda
+@docs minAda, checkMinAda, minAdaForAssets
 
 
 ## Convert
@@ -76,12 +76,18 @@ type TransactionId
 
 
 {-| Convenience type for `Dict` with [OutputReference] keys.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias RefDict a =
     AnyDict ( String, Int ) OutputReference a
 
 
 {-| Convenience empty initialization for `Dict` with [OutputReference] keys.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyRefDict : RefDict a
 emptyRefDict =
@@ -89,6 +95,9 @@ emptyRefDict =
 
 
 {-| Convenience function to create a `Dict` with [OutputReference] keys from a list.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 refDictFromList : List ( OutputReference, a ) -> RefDict a
 refDictFromList =
@@ -143,11 +152,14 @@ compareLovelace a b =
 -}
 fromLovelace : Address -> Natural -> Output
 fromLovelace address amount =
-    { address = address
-    , amount = Value.onlyLovelace amount
-    , datumOption = Nothing
-    , referenceScript = Nothing
-    }
+    simpleOutput address (Value.onlyLovelace amount)
+
+
+{-| Create a simple [Output] with just an [Address] and a [Value].
+-}
+simpleOutput : Address -> Value -> Output
+simpleOutput address value =
+    { address = address, amount = value, datumOption = Nothing, referenceScript = Nothing }
 
 
 {-| Extract the amount of lovelace in an `Output`
@@ -176,6 +188,9 @@ isAdaOnly { amount, datumOption, referenceScript } =
 
 {-| Compute minimum Ada lovelace for a given [Output].
 
+Since the size of the lovelace field may impact minAda,
+we adjust its value if it is too low before computation.
+
 The formula is given by CIP 55,
 with current value of `4310` for `coinsPerUTxOByte`.
 
@@ -183,25 +198,45 @@ TODO: provide `coinsPerUTxOByte` in function arguments?
 
 -}
 minAda : Output -> Natural
-minAda output =
-    E.encode (encodeOutput output)
+minAda ({ amount } as output) =
+    let
+        -- make sure lovelace is encoded with at least 32 bits (so >= 2^16)
+        updatedOutput =
+            if amount.lovelace |> N.isLessThan (N.fromSafeInt <| 2 ^ 16) then
+                { output | amount = { amount | lovelace = N.fromSafeInt <| 2 ^ 16 } }
+
+            else
+                output
+    in
+    E.encode (encodeOutput updatedOutput)
         |> (Bytes.fromBytes >> Bytes.width)
         |> (\w -> N.fromSafeInt ((160 + w) * 4310))
 
 
 {-| Check that an [Output] has enough ada to cover its size.
 -}
-checkMinAda : Output -> Result String ()
+checkMinAda : Output -> Result String Output
 checkMinAda output =
     let
         outputMinAda =
             minAda output
     in
     if lovelace output |> N.isGreaterThanOrEqual outputMinAda then
-        Ok ()
+        Ok output
 
     else
         Err ("Output has less ada than its required min ada (" ++ N.toString outputMinAda ++ "):\n" ++ Debug.toString output)
+
+
+{-| Compute minimum Ada lovelace for a given [MultiAsset] that would be sent to a given address.
+
+TODO: provide `coinsPerUTxOByte` in function arguments?
+
+-}
+minAdaForAssets : Address -> MultiAsset Natural -> Natural
+minAdaForAssets address assets =
+    simpleOutput address { lovelace = N.fromSafeInt <| 2 ^ 16, assets = assets }
+        |> minAda
 
 
 {-| CBOR encoder for [Output].
