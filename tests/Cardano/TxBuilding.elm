@@ -273,6 +273,20 @@ failTxBuilding =
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
+        , failTxTest "when there is insufficient manual fee (0.1 ada here)"
+            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , fee = ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = Natural.fromSafeInt 100000 } ]
+            , txOtherInfo = []
+            , txIntents = []
+            }
+            (\error ->
+                case error of
+                    InsufficientManualFee _ ->
+                        Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
         , failTxTest "when Tx intents are unbalanced (too much spend here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , fee = twoAdaFee

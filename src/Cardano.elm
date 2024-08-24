@@ -455,11 +455,13 @@ defaultAutoFee =
 -}
 type TxFinalizationError
     = UnbalancedIntents String
+    | InsufficientManualFee { declared : Natural, computed : Natural }
     | NotEnoughMinAda String
     | FailedToPerformCoinSelection CoinSelection.Error
     | CollateralSelectionError CoinSelection.Error
     | DuplicatedMetadataTags
     | IncorrectTimeValidityRange String
+    | FailurePleaseReportToElmCardano String
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -570,6 +572,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                 --   - adjust coin selection
                 --   - adjust redeemers
                 -- TODO: evaluate plutus script cost, and do a final round of above
+                |> Result.andThen (checkInsufficientFee fee)
                 |> identity
 
 
@@ -1441,6 +1444,29 @@ filterScriptVersion v =
             else
                 Nothing
         )
+
+
+{-| Final check for the Tx fees.
+-}
+checkInsufficientFee : Fee -> Transaction -> Result TxFinalizationError Transaction
+checkInsufficientFee fee tx =
+    let
+        declaredFee =
+            Maybe.withDefault Natural.zero tx.body.fee
+
+        computedFee =
+            Transaction.computeFees tx
+    in
+    if declaredFee |> Natural.isLessThan computedFee then
+        case fee of
+            ManualFee perAddressFee ->
+                Err <| InsufficientManualFee { declared = declaredFee, computed = computedFee }
+
+            AutoFee _ ->
+                Err <| FailurePleaseReportToElmCardano "Insufficient AutoFee. Maybe we need another buildTx round?"
+
+    else
+        Ok tx
 
 
 
