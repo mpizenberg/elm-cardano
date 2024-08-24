@@ -37,7 +37,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just <| Natural.fromSafeInt 2000000
+                            | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0 ]
                         }
                 }
@@ -426,12 +426,6 @@ globalStateUtxos =
         ]
 
 
-ada : Int -> Natural
-ada n =
-    Natural.fromSafeInt n
-        |> Natural.mul (Natural.fromSafeInt 1000000)
-
-
 testAddr =
     { me = makeWalletAddress "me"
     , you = makeWalletAddress "you"
@@ -461,7 +455,7 @@ cat =
 
 
 twoAdaFee =
-    ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = Natural.fromSafeInt 2000000 } ]
+    ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = ada 2 } ]
 
 
 autoFee =
@@ -508,10 +502,16 @@ makeAsset index address policyId name amount =
 makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
 makeAdaOutput index address amount =
     ( makeRef (String.fromInt index) index
-    , Utxo.fromLovelace address (Natural.fromSafeInt <| 1000000 * amount)
+    , Utxo.fromLovelace address (ada amount)
     )
 
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
     Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
+
+
+ada : Int -> Natural
+ada n =
+    Natural.fromSafeInt n
+        |> Natural.mul (Natural.fromSafeInt 1000000)
