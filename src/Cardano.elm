@@ -1396,22 +1396,17 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
-        dummyVKeyWitness : Maybe (List VKeyWitness)
+        dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
-            if List.isEmpty walletCredsInInputs && List.isEmpty processedIntents.requiredSigners then
-                Nothing
-
-            else
-                (walletCredsInInputs ++ processedIntents.requiredSigners)
-                    |> List.map (\cred -> ( cred, { vkey = dummyBytes 32, signature = dummyBytes 64 } ))
-                    -- Convert to a BytesMap to ensure credentials unicity
-                    |> Map.fromList
-                    |> Map.values
-                    |> Just
+            (walletCredsInInputs ++ processedIntents.requiredSigners)
+                |> List.map (\cred -> ( cred, { vkey = dummyBytes 32, signature = dummyBytes 64 } ))
+                -- Convert to a BytesMap to ensure credentials unicity
+                |> Map.fromList
+                |> Map.values
 
         txWitnessSet : WitnessSet
         txWitnessSet =
-            { vkeywitness = dummyVKeyWitness
+            { vkeywitness = nothingIfEmptyList dummyVKeyWitness
             , bootstrapWitness = Nothing -- TODO
             , plutusData = nothingIfEmptyList datumWitnessValues
             , nativeScripts = nothingIfEmptyList nativeScripts
