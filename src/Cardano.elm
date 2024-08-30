@@ -858,14 +858,13 @@ processIntents localStateUtxos txIntents =
                                 |> Map.fromList
                                 |> Map.keys
                     in
-                    -- TODO: Deduplicate eventual duplicate witnesses (both value and reference)
                     { freeInputs = preProcessedIntents.freeInputs
                     , freeOutputs = preProcessedIntents.freeOutputs
                     , preSelected = preSelected
                     , preCreated = preCreated
-                    , nativeScriptSources = preProcessedIntents.nativeScriptSources
-                    , plutusScriptSources = preProcessedIntents.plutusScriptSources
-                    , datumSources = preProcessedIntents.datumSources
+                    , nativeScriptSources = dedupWitnessSources Script.encodeNativeScript preProcessedIntents.nativeScriptSources
+                    , plutusScriptSources = dedupWitnessSources Script.encodePlutusScript preProcessedIntents.plutusScriptSources
+                    , datumSources = dedupWitnessSources Data.toCbor preProcessedIntents.datumSources
                     , requiredSigners = requiredSigners
                     , totalMinted = totalMintedAndBurned
                     , mintRedeemers =
@@ -876,6 +875,43 @@ processIntents localStateUtxos txIntents =
                             |> Address.stakeDictFromList
                     }
                 )
+
+
+{-| Helper function
+-}
+dedupWitnessSources : (a -> E.Encoder) -> List (WitnessSource a) -> List (WitnessSource a)
+dedupWitnessSources toCbor sources =
+    let
+        -- Split values and references in two lists
+        ( values, refs ) =
+            List.foldl
+                (\source ( vs, rs ) ->
+                    case source of
+                        WitnessValue v ->
+                            ( v :: vs, rs )
+
+                        WitnessReference ref ->
+                            ( vs, ref :: rs )
+                )
+                ( [], [] )
+                sources
+
+        -- Create the comparable function from the encoder
+        toComparable v =
+            E.encode (toCbor v) |> Bytes.fromBytes |> Bytes.toString
+
+        -- Dedup values
+        dedupedValues =
+            List.map (\v -> ( v, () )) values
+                |> Dict.Any.fromList toComparable
+                |> Dict.Any.keys
+
+        dedupedRefs =
+            List.map (\ref -> ( ref, () )) refs
+                |> Utxo.refDictFromList
+                |> Dict.Any.keys
+    in
+    List.map WitnessValue dedupedValues ++ List.map WitnessReference dedupedRefs
 
 
 {-| Helper function
