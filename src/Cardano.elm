@@ -1288,7 +1288,7 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
                 Dict.Any.map (\_ _ -> ()) selectedInputs
         in
         Dict.Any.keys (Dict.Any.union preSelected algoSelected)
-    , createdOutputs = .outputs (intents.preCreated old) ++ createdOutputs
+    , createdOutputs = (intents.preCreated old).outputs ++ createdOutputs
     }
 
 
