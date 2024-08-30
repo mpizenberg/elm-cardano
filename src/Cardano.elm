@@ -1276,7 +1276,8 @@ accumPerAddressSelection allSelections =
 -}
 updateInputsOutputs : ProcessedIntents -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output } -> InputsOutputs -> InputsOutputs
 updateInputsOutputs intents { selectedInputs, createdOutputs } old =
-    { referenceInputs = [] -- TODO: handle reference inputs
+    -- reference inputs do not change with UTxO selection, only spent inputs
+    { referenceInputs = old.referenceInputs
     , spentInputs =
         let
             preSelected : Utxo.RefDict ()
