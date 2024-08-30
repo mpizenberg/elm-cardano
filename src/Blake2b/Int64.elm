@@ -1,6 +1,6 @@
-module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, fromLeByteValues, maxValue, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toLeByteValues, toUnsigned, xor)
+module Blake2b.Int64 exposing (Int64(..), add, and, complement, decode, fromLeByteValues, maxValue, multiply, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toLeByteValues, toUnsigned, xor)
 
-import Bitwise
+import Bitwise exposing (shiftLeftBy, shiftRightZfBy)
 import Bytes exposing (Endianness(..))
 import Bytes.Decode as Decode exposing (Decoder)
 import Bytes.Encode as Encode exposing (Encoder)
@@ -147,6 +147,37 @@ rotateRightBy n (Int64 higher lower) =
                     |> Bitwise.or carry
         in
         Int64 (Bitwise.or p1 q1) (Bitwise.or p2 q2)
+
+
+multiplyHelper : Int64 -> Int64 -> Int64 -> Int64
+multiplyHelper a b acc =
+    if b == Int64 0 0 then
+        acc
+
+    else if b == Int64 0 1 then
+        acc
+
+    else
+        let
+            lsbOfBIsOne =
+                and b (Int64 0 1) == Int64 0 1
+
+            newA =
+                shiftLeftBy 1 a
+
+            newB =
+                shiftRightZfBy 1 b
+        in
+        if lsbOfBIsOne then
+            multiplyHelper (add a acc) newA newB
+
+        else
+            multiplyHelper acc newA newB
+
+
+multiply : Int64 -> Int64 -> Int64
+multiply a b =
+    multiplyHelper a b (Int64 0 0)
 
 
 toUnsigned : Int64 -> Int64

@@ -1,8 +1,132 @@
 module Blake2b exposing (blake2bIV, mixing, sigmaRound)
 
 import Bitwise
+import Blake2b.Int128 as Int128 exposing (Int128(..))
 import Blake2b.Int64 as Int64 exposing (Int64(..))
 import Extra.List as List
+
+
+
+-- BLAKE2-b hash function.
+--
+-- Key and data input are split and padded into "dd" message blocks
+-- d[0..dd-1], each consisting of 16 words (or "bb" bytes).
+--
+-- If a secret key is used (kk > 0), it is padded with zero bytes and
+-- set as d[0].  Otherwise, d[0] is the first data block.  The final
+-- data block d[dd-1] is also padded with zero to "bb" bytes (16 words).
+--
+-- The number of blocks is therefore dd = ceil(kk / bb) + ceil(ll / bb).
+-- However, in the special case of an unkeyed empty message (kk = 0 and
+-- ll = 0), we still set dd = 1 and d[0] consists of all zeros.
+--
+-- The following procedure processes the padded data blocks into an
+-- "nn"-byte final hash value.
+
+
+blake2b : List Int -> Maybe (List Int) -> Int64 -> Maybe (List Int)
+blake2b input mKey hashBytesLength =
+    if List.all (\i -> i >= 0 && i <= 255) input then
+        let
+            ll =
+                List.length input
+
+            endPad =
+                List.repeat (modBy 128 (128 - modBy 128 ll)) 0x00
+
+            ( preprocessedInput, kk ) =
+                case ( mKey, input ) of
+                    ( Nothing, [] ) ->
+                        ( List.repeat 128 0x00, Int64 0 0 )
+
+                    ( Nothing, _ ) ->
+                        ( input ++ endPad, Int64 0 0 )
+
+                    ( Just key, _ ) ->
+                        let
+                            keyLen =
+                                List.length key
+
+                            keyBlock =
+                                key ++ List.repeat (128 - keyLen) 0x00
+                        in
+                        ( List.concat [ keyBlock, input, endPad ], Int64 0 keyLen )
+
+            -- Make 128 bytes input blocks ("d[0..dd-1]")
+            inputBlocks =
+                List.chunksOf 128 preprocessedInput
+
+            -- Initialize the state ("h")
+            initialState =
+                blake2bIV
+                    |> List.updateAt 0
+                        (\w ->
+                            Int64.xor w (Int64 0x00 0x01010000)
+                                |> Int64.xor (Int64.shiftLeftBy 8 kk)
+                                |> Int64.xor hashBytesLength
+                        )
+
+            -- Help function to split counter into high and low U64 parts
+            split =
+                \(Int128 high low) ->
+                    { high = high, low = low }
+
+            zero64 =
+                Int64 0 0
+
+            one64 =
+                Int64 0 1
+
+            -- Process padded key and data blocks (except the last one)
+            mUpdatedState =
+                List.take (List.length inputBlocks - 1) inputBlocks
+                    |> List.foldl
+                        (\block ( mState, i ) ->
+                            ( mState
+                                |> Maybe.andThen
+                                    (\state ->
+                                        let
+                                            ctr =
+                                                Int128.multiply (Int128.add i (Int128 zero64 one64)) (Int128 zero64 (Int64 0 128))
+                                        in
+                                        compress state block (split ctr) False
+                                    )
+                            , Int128.add i (Int128 zero64 one64)
+                            )
+                        )
+                        ( Just initialState, Int128 zero64 zero64 )
+                    |> Tuple.first
+
+            -- Process final block
+            lastBlock =
+                List.last inputBlocks |> Maybe.withDefault []
+
+            lastCtr =
+                if kk == Int64 0 0 then
+                    -- TODO: Assuming `ll` fits in 32 bits.
+                    Int128 (Int64 0 0) (Int64 0 ll)
+
+                else
+                    -- TODO: Assuming `ll + 128` fits in 32 bits.
+                    Int128 (Int64 0 0) (Int64 0 <| ll + 128)
+
+            -- bb = 128 bytes
+        in
+        mUpdatedState
+            |> Maybe.andThen
+                (\updatedState ->
+                    compress updatedState lastBlock (split lastCtr) True
+                        |> Maybe.andThen
+                            (\compressed ->
+                                compressed
+                                    |> List.concatMap Int64.toLeByteValues
+                                    |> List.take64 hashBytesLength
+                                    |> Just
+                            )
+                )
+
+    else
+        Nothing
 
 
 

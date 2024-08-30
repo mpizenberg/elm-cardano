@@ -1,4 +1,4 @@
-module Blake2b.Int128 exposing (Int128(..), add, and, complement, decode, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toUnsigned, xor)
+module Blake2b.Int128 exposing (Int128(..), add, and, complement, decode, multiply, or, rotateRightBy, shiftLeftBy, shiftRightZfBy, toByteValues, toEncoder, toHex, toUnsigned, xor)
 
 import Blake2b.Int64 as Int64 exposing (Int64(..))
 import Bytes exposing (Endianness(..))
@@ -143,6 +143,48 @@ rotateRightBy n (Int128 higher lower) =
                     |> Int64.or carry
         in
         Int128 (Int64.or p1 q1) (Int64.or p2 q2)
+
+
+multiplyHelper : Int128 -> Int128 -> Int128 -> Int128
+multiplyHelper a b acc =
+    let
+        zero =
+            Int64 0 0
+
+        one =
+            Int64 0 1
+    in
+    if b == Int128 zero zero then
+        acc
+
+    else if b == Int128 zero one then
+        acc
+
+    else
+        let
+            lsbOfBIsOne =
+                and b (Int128 zero one) == Int128 zero one
+
+            newA =
+                shiftLeftBy 1 a
+
+            newB =
+                shiftRightZfBy 1 b
+        in
+        if lsbOfBIsOne then
+            multiplyHelper (add a acc) newA newB
+
+        else
+            multiplyHelper acc newA newB
+
+
+multiply : Int128 -> Int128 -> Int128
+multiply a b =
+    let
+        zero =
+            Int64 0 0
+    in
+    multiplyHelper a b (Int128 zero zero)
 
 
 toUnsigned : Int128 -> Int128

@@ -1,4 +1,4 @@
-module Extra.List exposing (chunksOf, get, get64, indexedMap64, sublist, updateAt)
+module Extra.List exposing (chunksOf, get, get64, indexedMap64, last, sublist, take64, updateAt)
 
 import Blake2b.Int64 as Int64 exposing (Int64(..))
 
@@ -31,6 +31,19 @@ get64 (Int64 iMS iLS) list =
         get iLS list
 
 
+take64 : Int64 -> List a -> List a
+take64 (Int64 iMS iLS) list =
+    if iMS > 0 then
+        let
+            chunked =
+                chunksOf 0xFFFFFFFF list
+        in
+        List.take iMS chunked |> List.concat |> List.take iLS
+
+    else
+        List.take iLS list
+
+
 indexedMap64 : (Int64 -> a -> b) -> List a -> List b
 indexedMap64 fn list =
     List.foldl
@@ -57,3 +70,13 @@ updateAt i fn =
 sublist : Int -> Int -> List a -> List a
 sublist start length =
     List.drop start >> List.take length
+
+
+last : List a -> Maybe a
+last list =
+    case List.drop (List.length list - 1) list of
+        [] ->
+            Nothing
+
+        x :: _ ->
+            Just x
