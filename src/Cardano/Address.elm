@@ -2,9 +2,9 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , enterprise, script, base, pointer
-    , extractPubKeyHash, extractStakeCredential
-    , Dict, emptyDict
-    , StakeDict, emptyStakeDict
+    , isShelleyWallet, extractPubKeyHash, extractStakeCredential
+    , Dict, emptyDict, dictFromList
+    , StakeDict, emptyStakeDict, stakeDictFromList
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
     , decode, decodeReward
     )
@@ -17,11 +17,11 @@ module Cardano.Address exposing
 
 @docs enterprise, script, base, pointer
 
-@docs extractPubKeyHash, extractStakeCredential
+@docs isShelleyWallet, extractPubKeyHash, extractStakeCredential
 
-@docs Dict, emptyDict
+@docs Dict, emptyDict, dictFromList
 
-@docs StakeDict, emptyStakeDict
+@docs StakeDict, emptyStakeDict, stakeDictFromList
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
@@ -155,6 +155,13 @@ pointer networkId paymentCredential p =
         }
 
 
+{-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.
+-}
+isShelleyWallet : Address -> Bool
+isShelleyWallet address =
+    extractPubKeyHash address /= Nothing
+
+
 {-| Extract the pubkey hash of a Shelley wallet address.
 -}
 extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
@@ -186,6 +193,9 @@ extractStakeCredential address =
 
 {-| Convenient alias for a `Dict` with [Address] keys.
 When converting to a `List`, its keys are sorted by address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias Dict a =
     AnyDict String Address a
@@ -193,14 +203,31 @@ type alias Dict a =
 
 {-| Initialize an empty address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyDict : Dict a
 emptyDict =
     Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
+{-| Create an address dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+dictFromList : List ( Address, a ) -> Dict a
+dictFromList =
+    Dict.Any.fromList (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
 {-| Convenient alias for a `Dict` with [StakeAddress] keys.
 When converting to a `List`, its keys are sorted by stake address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias StakeDict a =
     AnyDict String StakeAddress a
@@ -208,10 +235,24 @@ type alias StakeDict a =
 
 {-| Initialize an empty stake address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
     Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
+{-| Create a stake address dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
+stakeDictFromList =
+    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
 {-| Encode an [Address] to CBOR.

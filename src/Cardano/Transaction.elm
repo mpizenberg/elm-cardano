@@ -1,7 +1,7 @@
 module Cardano.Transaction exposing
-    ( Transaction
-    , TransactionBody, AuxiliaryDataHash, ScriptDataHash
-    , WitnessSet
+    ( Transaction, new
+    , TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
+    , WitnessSet, newWitnessSet
     , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion, noParamUpdate
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
@@ -9,16 +9,17 @@ module Cardano.Transaction exposing
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
+    , computeFees
     , deserialize, serialize
     )
 
 {-| Types and functions related to on-chain transactions.
 
-@docs Transaction
+@docs Transaction, new
 
-@docs TransactionBody, AuxiliaryDataHash, ScriptDataHash
+@docs TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
 
-@docs WitnessSet
+@docs WitnessSet, newWitnessSet
 
 @docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion, noParamUpdate
 
@@ -33,6 +34,8 @@ module Cardano.Transaction exposing
 @docs RationalNumber, UnitInterval, PositiveInterval
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
+
+@docs computeFees
 
 @docs deserialize, serialize
 
@@ -63,6 +66,17 @@ type alias Transaction =
     , witnessSet : WitnessSet -- 1
     , isValid : Bool -- 2 -- after alonzo
     , auxiliaryData : Maybe AuxiliaryData -- 3
+    }
+
+
+{-| Helper for empty [Transaction] initialization.
+-}
+new : Transaction
+new =
+    { body = newBody
+    , witnessSet = newWitnessSet
+    , isValid = True
+    , auxiliaryData = Nothing
     }
 
 
@@ -103,6 +117,30 @@ type ScriptDataHash
     = ScriptDataHash Never
 
 
+{-| Helper for empty transaction body initialization.
+-}
+newBody : TransactionBody
+newBody =
+    { inputs = []
+    , outputs = []
+    , fee = Nothing
+    , ttl = Nothing
+    , certificates = []
+    , withdrawals = []
+    , update = Nothing
+    , auxiliaryDataHash = Nothing
+    , validityIntervalStart = Nothing
+    , mint = MultiAsset.empty
+    , scriptDataHash = Nothing
+    , collateral = []
+    , requiredSigners = []
+    , networkId = Nothing
+    , collateralReturn = Nothing
+    , totalCollateral = Nothing
+    , referenceInputs = []
+    }
+
+
 {-| A Cardano transaction witness set.
 
 [Pallas alonzo implementation][pallas]
@@ -118,6 +156,20 @@ type alias WitnessSet =
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
     , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
+    }
+
+
+{-| Helper for empty witness set initialization.
+-}
+newWitnessSet : WitnessSet
+newWitnessSet =
+    { vkeywitness = Nothing
+    , nativeScripts = Nothing
+    , bootstrapWitness = Nothing
+    , plutusV1Script = Nothing
+    , plutusData = Nothing
+    , redeemer = Nothing
+    , plutusV2Script = Nothing
     }
 
 
@@ -430,6 +482,54 @@ otherwise the funds are given to the other accounting pot.
 type RewardTarget
     = StakeCredentials (List ( Credential, Natural ))
     | OtherAccountingPot Natural
+
+
+{-| Re-compute fees for a transaction (does not read `body.fee`).
+-}
+computeFees : Transaction -> Natural
+computeFees tx =
+    let
+        ( baseFee, feePerByte ) =
+            -- TODO: check those values
+            ( 155381, 44 )
+
+        priceStep =
+            { numerator = Natural.fromSafeInt 721 -- TODO: check those values
+            , denominator = Natural.fromSafeInt 10000000
+            }
+
+        priceMem =
+            { numerator = Natural.fromSafeInt 577 -- TODO: check those values
+            , denominator = Natural.fromSafeInt 10000
+            }
+
+        txSize =
+            Bytes.width (serialize tx)
+
+        ( totalSteps, totalMem ) =
+            tx.witnessSet.redeemer
+                |> Maybe.withDefault []
+                |> List.foldl
+                    (\r ( steps, mem ) ->
+                        ( Natural.add steps <| Natural.fromSafeInt r.exUnits.steps
+                        , Natural.add mem <| Natural.fromSafeInt r.exUnits.mem
+                        )
+                    )
+                    ( Natural.zero, Natural.zero )
+
+        totalStepsCost =
+            Natural.mul totalSteps priceStep.numerator
+                |> Natural.divBy priceStep.denominator
+                |> Maybe.withDefault Natural.zero
+
+        totalMemCost =
+            Natural.mul totalMem priceMem.numerator
+                |> Natural.divBy priceMem.denominator
+                |> Maybe.withDefault Natural.zero
+    in
+    Natural.fromSafeInt (baseFee + feePerByte * txSize)
+        |> Natural.add totalStepsCost
+        |> Natural.add totalMemCost
 
 
 
@@ -1370,40 +1470,6 @@ decodeNetworkId =
 
 
 -- Helper definitions
-
-
-newBody : TransactionBody
-newBody =
-    { inputs = []
-    , outputs = []
-    , fee = Nothing
-    , ttl = Nothing
-    , certificates = []
-    , withdrawals = []
-    , update = Nothing
-    , auxiliaryDataHash = Nothing
-    , validityIntervalStart = Nothing
-    , mint = MultiAsset.empty
-    , scriptDataHash = Nothing
-    , collateral = []
-    , requiredSigners = []
-    , networkId = Nothing
-    , collateralReturn = Nothing
-    , totalCollateral = Nothing
-    , referenceInputs = []
-    }
-
-
-newWitnessSet : WitnessSet
-newWitnessSet =
-    { vkeywitness = Nothing
-    , nativeScripts = Nothing
-    , bootstrapWitness = Nothing
-    , plutusV1Script = Nothing
-    , plutusData = Nothing
-    , redeemer = Nothing
-    , plutusV2Script = Nothing
-    }
 
 
 setInputs : List OutputReference -> TransactionBody -> TransactionBody

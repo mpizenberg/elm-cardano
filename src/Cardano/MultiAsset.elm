@@ -84,10 +84,10 @@ onlyToken policy name amount =
 
 {-| Remove assets with 0 amounts.
 -}
-normalize : MultiAsset Natural -> MultiAsset Natural
-normalize multiAsset =
+normalize : (int -> Bool) -> MultiAsset int -> MultiAsset int
+normalize deletionCheck multiAsset =
     multiAsset
-        |> Bytes.Map.map (Bytes.Map.filter (not << Natural.isZero))
+        |> Bytes.Map.map (Bytes.Map.filter (not << deletionCheck))
         |> Bytes.Map.filter (not << Bytes.Map.isEmpty)
 
 
