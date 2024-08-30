@@ -41,6 +41,10 @@ okTxBuilding =
                             | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0 ]
                         }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                        }
                 }
             )
         , okTxTest "with just auto fees"
@@ -64,6 +68,10 @@ okTxBuilding =
                             , inputs = [ makeRef "0" 0 ]
                             , outputs = [ Utxo.fromLovelace testAddr.me adaLeft ]
                         }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                        }
                 }
             )
         , okTxTest "with spending from, and sending to the same address"
@@ -82,6 +90,10 @@ okTxBuilding =
                             | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0 ]
                             , outputs = [ Utxo.fromLovelace testAddr.me (ada 3) ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
                         }
                 }
             )
@@ -104,6 +116,44 @@ okTxBuilding =
                                 [ Utxo.fromLovelace testAddr.you (ada 1)
                                 , Utxo.fromLovelace testAddr.me (ada 2)
                                 ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                        }
+                }
+            )
+        , okTxTest "I pay the fees for your ada transfer to me"
+            { localStateUtxos =
+                [ makeAdaOutput 0 testAddr.me 5
+                , makeAdaOutput 1 testAddr.you 7
+                ]
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| From testAddr.you (Value.onlyLovelace <| ada 1)
+                , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
+                            , outputs =
+                                [ Utxo.fromLovelace testAddr.you (ada 6)
+                                , Utxo.fromLovelace testAddr.me (ada 4)
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness =
+                                Just
+                                    -- Two keys since I pay the fee, and spend your utxo
+                                    [ { vkey = dummyBytes 32, signature = dummyBytes 64 }
+                                    , { vkey = dummyBytes 32, signature = dummyBytes 64 }
+                                    ]
                         }
                 }
             )
@@ -136,6 +186,10 @@ okTxBuilding =
                                 [ Utxo.simpleOutput testAddr.you threeCatOneAda
                                 , Utxo.fromLovelace testAddr.me (ada 2)
                                 ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
                         }
                 }
             )
@@ -171,6 +225,10 @@ okTxBuilding =
                                 [ Utxo.simpleOutput testAddr.you threeCatMinAda
                                 , Utxo.fromLovelace testAddr.me (Natural.sub (ada 3) minAda)
                                 ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
                         }
                 }
             )
@@ -224,6 +282,10 @@ okTxBuilding =
                                   , referenceScript = Nothing
                                   }
                                 ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
                         }
                 }
             )
@@ -544,3 +606,9 @@ ada : Int -> Natural
 ada n =
     Natural.fromSafeInt n
         |> Natural.mul (Natural.fromSafeInt 1000000)
+
+
+dummyBytes : Int -> Bytes a
+dummyBytes bytesLength =
+    -- Helper function to create dummy bytes, mostly for fee estimation
+    Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")

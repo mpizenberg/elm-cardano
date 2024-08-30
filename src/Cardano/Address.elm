@@ -159,17 +159,7 @@ pointer networkId paymentCredential p =
 -}
 isShelleyWallet : Address -> Bool
 isShelleyWallet address =
-    case address of
-        Shelley { paymentCredential } ->
-            case paymentCredential of
-                VKeyHash _ ->
-                    True
-
-                ScriptHash _ ->
-                    False
-
-        _ ->
-            False
+    extractPubKeyHash address /= Nothing
 
 
 {-| Extract the pubkey hash of a Shelley wallet address.

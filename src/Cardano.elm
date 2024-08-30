@@ -336,7 +336,7 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, WitnessSet)
+import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
@@ -556,7 +556,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                                 -- Aggregate with pre-selected inputs and pre-created outputs
                                 |> (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
                                 --> InputsOutputs
-                                |> buildTx feeAmount collateralSelection processedIntents processedOtherInfo
+                                |> buildTx localStateUtxos feeAmount collateralSelection processedIntents processedOtherInfo
                         )
                         (computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo)
                         (computeCollateralSelection localStateUtxos collateralSources collateralAmount)
@@ -1296,13 +1296,14 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
 buildTx :
-    Natural
+    Utxo.RefDict Output
+    -> Natural
     -> CoinSelection.Selection
     -> ProcessedIntents
     -> ProcessedOtherInfo
     -> InputsOutputs
     -> Transaction
-buildTx feeAmount collateralSelection processedIntents otherInfo inputsOutputs =
+buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo inputsOutputs =
     let
         -- WitnessSet ######################################
         --
@@ -1383,9 +1384,34 @@ buildTx feeAmount collateralSelection processedIntents otherInfo inputsOutputs =
         sortedCertRedeemers =
             []
 
+        -- Look for inputs at addresses that will need signatures
+        walletCredsInInputs : List (Bytes CredentialHash)
+        walletCredsInInputs =
+            inputsOutputs.spentInputs
+                |> List.filterMap
+                    (\ref ->
+                        Dict.Any.get ref localStateUtxos
+                            |> Maybe.andThen (Address.extractPubKeyHash << .address)
+                    )
+
+        -- Create a dummy VKey Witness for each input wallet address or required signer
+        -- so that fees are correctly estimated.
+        dummyVKeyWitness : Maybe (List VKeyWitness)
+        dummyVKeyWitness =
+            if List.isEmpty walletCredsInInputs && List.isEmpty processedIntents.requiredSigners then
+                Nothing
+
+            else
+                (walletCredsInInputs ++ processedIntents.requiredSigners)
+                    |> List.map (\cred -> ( cred, { vkey = dummyBytes 32, signature = dummyBytes 64 } ))
+                    -- Convert to a BytesMap to ensure credentials unicity
+                    |> Map.fromList
+                    |> Map.values
+                    |> Just
+
         txWitnessSet : WitnessSet
         txWitnessSet =
-            { vkeywitness = Nothing -- TODO
+            { vkeywitness = dummyVKeyWitness
             , bootstrapWitness = Nothing -- TODO
             , plutusData = nothingIfEmptyList datumWitnessValues
             , nativeScripts = nothingIfEmptyList nativeScripts
