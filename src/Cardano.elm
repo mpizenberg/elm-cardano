@@ -1407,7 +1407,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         txWitnessSet : WitnessSet
         txWitnessSet =
             { vkeywitness = nothingIfEmptyList dummyVKeyWitness
-            , bootstrapWitness = Nothing -- TODO
+            , bootstrapWitness = Nothing
             , plutusData = nothingIfEmptyList datumWitnessValues
             , nativeScripts = nothingIfEmptyList nativeScripts
             , plutusV1Script = nothingIfEmptyList <| filterScriptVersion PlutusV1 plutusScripts
@@ -1497,7 +1497,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , ttl = Maybe.map .end otherInfo.timeValidityRange
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
-            , update = Nothing -- TODO
+            , update = Nothing
             , auxiliaryDataHash =
                 case otherInfo.metadata of
                     [] ->
@@ -1510,7 +1510,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , scriptDataHash = scriptDataHash
             , collateral = List.map Tuple.first collateralSelection.selectedUtxos
             , requiredSigners = processedIntents.requiredSigners
-            , networkId = Nothing -- TODO
+            , networkId = Nothing -- not mandatory
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
@@ -1669,6 +1669,11 @@ prettyCred cred =
             "script:" ++ (Bytes.toText >> Maybe.withDefault "") b
 
 
+prettyWithdrawal : ( StakeAddress, Natural ) -> String
+prettyWithdrawal ( { stakeCredential }, amount ) =
+    "₳ " ++ Natural.toString amount ++ " @ stakeCred:" ++ prettyCred stakeCredential
+
+
 prettyValue : Value -> List String
 prettyValue { lovelace, assets } =
     if MultiAsset.isEmpty assets then
@@ -1756,6 +1761,13 @@ prettyMints sectionTitle multiAsset =
             :: List.map (indent 3) (prettyAssets Integer.toString multiAsset)
 
 
+prettyVKeyWitness { vkey, signature } =
+    String.join ", "
+        [ "vkey:" ++ Bytes.toString vkey
+        , "signature:" ++ Bytes.toString signature
+        ]
+
+
 prettyRedeemer redeemer =
     String.join " "
         [ Debug.toString redeemer.tag
@@ -1788,7 +1800,7 @@ prettyTx tx =
                 , List.concatMap prettyOutput tx.body.outputs
                     |> List.map (indent 3)
                 , prettyMints "Tx mints:" tx.body.mint
-                , [] -- TODO: witdrawals
+                , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
                     ("Tx collateral (total: ₳ " ++ String.fromInt (Maybe.withDefault 0 tx.body.totalCollateral) ++ "):")
@@ -1802,7 +1814,8 @@ prettyTx tx =
         witnessSet =
             List.concat <|
                 List.filterMap identity
-                    [ Nothing -- TODO: vkeywitness
+                    [ tx.witnessSet.vkeywitness
+                        |> Maybe.map (prettyList "Tx vkey witness:" prettyVKeyWitness)
                     , tx.witnessSet.nativeScripts
                         |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
                     , tx.witnessSet.plutusV1Script
@@ -1814,7 +1827,7 @@ prettyTx tx =
                     , Nothing -- TODO: plutusData
                     ]
 
-        -- TODO: pretty print auxiliary data
+        -- Pretty print auxiliary data
         auxiliaryData =
             case tx.auxiliaryData of
                 Nothing ->
