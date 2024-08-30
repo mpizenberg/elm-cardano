@@ -1504,6 +1504,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         Nothing
 
                     _ ->
+                        -- TODO: compute actual auxiliary data hash
                         Just (dummyBytes 32)
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
