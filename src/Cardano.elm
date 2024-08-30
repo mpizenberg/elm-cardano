@@ -850,6 +850,14 @@ processIntents localStateUtxos txIntents =
             |> Result.mapError NotEnoughMinAda
             |> Result.map
                 (\_ ->
+                    let
+                        -- Dedup required signers
+                        requiredSigners =
+                            List.concat preProcessedIntents.requiredSigners
+                                |> List.map (\signer -> ( signer, () ))
+                                |> Map.fromList
+                                |> Map.keys
+                    in
                     -- TODO: Deduplicate eventual duplicate witnesses (both value and reference)
                     { freeInputs = preProcessedIntents.freeInputs
                     , freeOutputs = preProcessedIntents.freeOutputs
@@ -858,9 +866,7 @@ processIntents localStateUtxos txIntents =
                     , nativeScriptSources = preProcessedIntents.nativeScriptSources
                     , plutusScriptSources = preProcessedIntents.plutusScriptSources
                     , datumSources = preProcessedIntents.datumSources
-
-                    -- TODO: dedup required signers
-                    , requiredSigners = List.concat preProcessedIntents.requiredSigners
+                    , requiredSigners = requiredSigners
                     , totalMinted = totalMintedAndBurned
                     , mintRedeemers =
                         List.map (\m -> ( m.policyId, m.redeemer )) preProcessedIntents.mints
