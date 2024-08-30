@@ -383,7 +383,7 @@ failTxBuilding =
             }
             (\error ->
                 case error of
-                    DuplicatedMetadataTags ->
+                    DuplicatedMetadataTags 0 ->
                         Expect.pass
 
                     _ ->

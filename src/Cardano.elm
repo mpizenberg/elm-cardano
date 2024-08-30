@@ -473,7 +473,7 @@ type TxFinalizationError
     | ReferenceOutputsMissingFromLocalState (List OutputReference)
     | FailedToPerformCoinSelection CoinSelection.Error
     | CollateralSelectionError CoinSelection.Error
-    | DuplicatedMetadataTags
+    | DuplicatedMetadataTags Int
     | IncorrectTimeValidityRange String
     | FailurePleaseReportToElmCardano String
 
@@ -964,7 +964,6 @@ type TxOtherInfoError
 
 processOtherInfo : List TxOtherInfo -> Result TxFinalizationError ProcessedOtherInfo
 processOtherInfo otherInfo =
-    -- TODO: after processing, check the time range is still valid
     let
         processedOtherInfo =
             List.foldl
@@ -1008,8 +1007,24 @@ processOtherInfo otherInfo =
                     Natural.fromSafeInt range.start |> Natural.isLessThan range.end
     in
     if hasDuplicatedMetadataTags then
-        -- TODO: more descriptive error
-        Err <| DuplicatedMetadataTags
+        let
+            findDuplicate current tags =
+                case tags of
+                    [] ->
+                        Nothing
+
+                    t :: biggerTags ->
+                        if t == current then
+                            Just t
+
+                        else
+                            findDuplicate t biggerTags
+
+            dupTag =
+                findDuplicate -1 (List.sort metadataTags)
+                    |> Maybe.withDefault -1
+        in
+        Err <| DuplicatedMetadataTags dupTag
 
     else if not validTimeRange then
         Err <| IncorrectTimeValidityRange <| "Invalid time range (or intersection of multiple time ranges). The time range end must be > than the start." ++ Debug.toString processedOtherInfo.timeValidityRange
