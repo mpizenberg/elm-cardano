@@ -6,6 +6,7 @@ import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinaliza
 import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Cardano.Script as Script
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
@@ -177,6 +178,8 @@ okTxBuilding =
             { localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
+                , ( dog.scriptRef, dog.refOutput )
+                , ( cat.scriptRef, cat.refOutput )
                 ]
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -283,6 +286,23 @@ failTxBuilding =
                 case error of
                     InsufficientManualFee _ ->
                         Expect.pass
+
+                    _ ->
+                        Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
+            )
+        , failTxTest "when inputs are missing from local state"
+            { localStateUtxos = []
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| FromWalletUtxo (makeRef "0" 0)
+                , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
+                ]
+            }
+            (\error ->
+                case error of
+                    ReferenceOutputsMissingFromLocalState [ ref ] ->
+                        Expect.equal ref (makeRef "0" 0)
 
                     _ ->
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
@@ -447,20 +467,32 @@ testAddr =
 
 
 dog =
-    { scriptRef = makeRef "dogScriptRef" 0
-    , policyId = Bytes.fromText "dog"
+    { policyId = Bytes.fromText "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
+    , scriptRef = makeRef "dogScriptRef" 0
+    , refOutput =
+        { address = makeAddress "dogScriptRefAddress"
+        , amount = Value.onlyLovelace (ada 5)
+        , datumOption = Nothing
+        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
+        }
     }
 
 
 cat =
-    { scriptRef = makeRef "catScriptRef" 0
-    , policyId = Bytes.fromText "cat"
+    { policyId = Bytes.fromText "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"
+    , scriptRef = makeRef "catScriptRef" 0
+    , refOutput =
+        { address = makeAddress "catScriptRefAddress"
+        , amount = Value.onlyLovelace (ada 6)
+        , datumOption = Nothing
+        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
+        }
     }
 
 

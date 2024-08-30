@@ -379,7 +379,7 @@ type TxIntent
 {-| -}
 type SpendSource
     = From Address Value
-      -- Eventually improve "From Address Value"" with variants like:
+      -- (Maybe) Eventually improve "From Address Value"" with variants like:
       -- FromAnywhere Value
       -- FromPaymentKey (Bytes CredentialHash)
     | FromWalletUtxo OutputReference
@@ -429,6 +429,19 @@ type WitnessSource a
     | WitnessReference OutputReference
 
 
+{-| Extract the [OutputReference] from a witness source,
+if passed by reference. Return [Nothing] if passed by value.
+-}
+extractWitnessRef : WitnessSource a -> Maybe OutputReference
+extractWitnessRef witnessSource =
+    case witnessSource of
+        WitnessValue _ ->
+            Nothing
+
+        WitnessReference ref ->
+            Just ref
+
+
 {-| -}
 type TxOtherInfo
     = TxReferenceInput OutputReference
@@ -457,6 +470,7 @@ type TxFinalizationError
     = UnbalancedIntents String
     | InsufficientManualFee { declared : Natural, computed : Natural }
     | NotEnoughMinAda String
+    | ReferenceOutputsMissingFromLocalState (List OutputReference)
     | FailedToPerformCoinSelection CoinSelection.Error
     | CollateralSelectionError CoinSelection.Error
     | DuplicatedMetadataTags
@@ -483,7 +497,6 @@ finalize :
     -> List TxIntent
     -> Result TxFinalizationError Transaction
 finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
-    -- TODO: Check that all spent referenced inputs are present in the local state
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -606,6 +619,11 @@ noIntent =
 
 
 {-| Initial processing step in order to categorize all intents.
+
+This pre-processing step does not need the local utxo state.
+It only aggregates all intents into relevant fields
+to make following processing steps easier.
+
 -}
 preProcessIntents : List TxIntent -> PreProcessedIntents
 preProcessIntents txIntents =
@@ -740,6 +758,24 @@ processIntents localStateUtxos txIntents =
         preProcessedIntents =
             preProcessIntents txIntents
 
+        -- Accumulate all output references from inputs and witnesses.
+        allOutputReferencesInIntents : Utxo.RefDict ()
+        allOutputReferencesInIntents =
+            List.concat
+                [ List.map .input preProcessedIntents.preSelected
+                , List.filterMap extractWitnessRef preProcessedIntents.nativeScriptSources
+                , List.filterMap extractWitnessRef preProcessedIntents.plutusScriptSources
+                , List.filterMap extractWitnessRef preProcessedIntents.datumSources
+                ]
+                |> List.map (\ref -> ( ref, () ))
+                |> Utxo.refDictFromList
+
+        -- Check that all referenced inputs are present in the local state
+        absentOutputReferencesInLocalState : Utxo.RefDict ()
+        absentOutputReferencesInLocalState =
+            Dict.Any.diff allOutputReferencesInIntents
+                (Dict.Any.map (\_ _ -> ()) localStateUtxos)
+
         totalMintedAndBurned : MultiAsset Integer
         totalMintedAndBurned =
             List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
@@ -795,7 +831,10 @@ processIntents localStateUtxos txIntents =
         totalOutput =
             Dict.Any.foldl (\_ -> Value.add) preCreatedOutputs.sum preProcessedIntents.freeOutputs
     in
-    if totalInput /= totalOutput then
+    if not <| Dict.Any.isEmpty absentOutputReferencesInLocalState then
+        Err <| ReferenceOutputsMissingFromLocalState (Dict.Any.keys absentOutputReferencesInLocalState)
+
+    else if totalInput /= totalOutput then
         let
             _ =
                 Debug.log "totalInput" totalInput
