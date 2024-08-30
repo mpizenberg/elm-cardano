@@ -443,23 +443,6 @@ newTx =
 -- Test data
 
 
-configGlobalLargest =
-    { localStateUtxos = globalStateUtxos
-    , coinSelectionAlgo = CoinSelection.largestFirst
-    }
-
-
-globalStateUtxos : Utxo.RefDict Output
-globalStateUtxos =
-    Utxo.refDictFromList
-        [ makeAdaOutput 0 testAddr.me 2 --   2 ada at my address
-        , makeAdaOutput 1 testAddr.me 10 -- 10 ada at my address
-        , makeAdaOutput 2 testAddr.me 5 --   5 ada at my address
-        , makeAsset 3 testAddr.me dog.policyIdStr dog.assetNameStr 2
-        , makeAsset 4 testAddr.me cat.policyIdStr cat.assetNameStr 5
-        ]
-
-
 testAddr =
     { me = makeWalletAddress "me"
     , you = makeWalletAddress "you"

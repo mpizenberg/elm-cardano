@@ -1814,20 +1814,32 @@ exAddr =
 
 
 dog =
-    { scriptRef = makeRef "dogScriptRef" 0
-    , policyId = Bytes.fromText "dog"
+    { policyId = Bytes.fromText "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
+    , scriptRef = makeRef "dogScriptRef" 0
+    , refOutput =
+        { address = makeAddress "dogScriptRefAddress"
+        , amount = ada.two
+        , datumOption = Nothing
+        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
+        }
     }
 
 
 cat =
-    { scriptRef = makeRef "catScriptRef" 0
-    , policyId = Bytes.fromText "cat"
+    { policyId = Bytes.fromText "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"
+    , scriptRef = makeRef "catScriptRef" 0
+    , refOutput =
+        { address = makeAddress "catScriptRefAddress"
+        , amount = ada.two
+        , datumOption = Nothing
+        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
+        }
     }
 
 
@@ -1839,6 +1851,8 @@ globalStateUtxos =
         , makeAdaOutput 2 exAddr.me 5 --   5 ada at my address
         , makeAsset 3 exAddr.me dog.policyIdStr dog.assetNameStr 2
         , makeAsset 4 exAddr.me cat.policyIdStr cat.assetNameStr 5
+        , ( dog.scriptRef, dog.refOutput )
+        , ( cat.scriptRef, cat.refOutput )
         ]
 
 
