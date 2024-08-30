@@ -577,14 +577,15 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                                 |> Debug.log "estimatedFee"
                                 |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
             in
+            -- Without estimating cost of plutus script exec, do few loops of:
+            --   - estimate Tx fees
+            --   - adjust coin selection
+            --   - adjust redeemers
             buildTxRound noInputsOutputs fee
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
-                -- TODO: without estimating cost of plutus script exec, do few loops of:
-                --   - estimate Tx fees
-                --   - adjust coin selection
-                --   - adjust redeemers
-                -- TODO: evaluate plutus script cost, and do a final round of above
+                -- TODO: Evaluate plutus script cost, and do a final round of above
+                -- Finally, check if final fees are correct
                 |> Result.andThen (checkInsufficientFee fee)
                 |> identity
 
