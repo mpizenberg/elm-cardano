@@ -1,9 +1,24 @@
-module Blake2b exposing (blake2bIV, mixing, sigmaRound)
+module Blake2b exposing (blake2b, blake2b224, blake2b256, blake2b512)
 
 import Bitwise
 import Blake2b.Int128 as Int128 exposing (Int128(..))
 import Blake2b.Int64 as Int64 exposing (Int64(..))
-import Extra.List as List
+import List.Extra as List
+
+
+blake2b224 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b224 mKey =
+    blake2b mKey (Int64 0 28)
+
+
+blake2b256 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b256 mKey =
+    blake2b mKey (Int64 0 32)
+
+
+blake2b512 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b512 mKey =
+    blake2b mKey (Int64 0 64)
 
 
 
@@ -24,8 +39,8 @@ import Extra.List as List
 -- "nn"-byte final hash value.
 
 
-blake2b : List Int -> Maybe (List Int) -> Int64 -> Maybe (List Int)
-blake2b input mKey hashBytesLength =
+blake2b : Maybe (List Int) -> Int64 -> List Int -> Maybe (List Int)
+blake2b mKey hashBytesLength input =
     if List.all (\i -> i >= 0 && i <= 255) input then
         let
             ll =

@@ -1,4 +1,4 @@
-module Extra.List exposing (chunksOf, get, get64, indexedMap64, last, sublist, take64, updateAt)
+module List.Extra exposing (chunksOf, get, get64, indexedMap64, last, sublist, take64, updateAt)
 
 import Blake2b.Int64 as Int64 exposing (Int64(..))
 
