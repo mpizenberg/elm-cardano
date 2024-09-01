@@ -2,23 +2,23 @@ module Blake2b exposing (blake2b, blake2b224, blake2b256, blake2b512)
 
 import Bitwise
 import Blake2b.Int128 as Int128 exposing (Int128(..))
-import Blake2b.Int64 as Int64 exposing (Int64(..))
 import List.Extra as List
+import UInt64 exposing (UInt64)
 
 
-blake2b224 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b224 : Maybe (List Int) -> List Int -> List Int
 blake2b224 mKey =
-    blake2b mKey (Int64 0 28)
+    blake2b mKey (UInt64.fromInt 28)
 
 
-blake2b256 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b256 : Maybe (List Int) -> List Int -> List Int
 blake2b256 mKey =
-    blake2b mKey (Int64 0 32)
+    blake2b mKey (UInt64.fromInt 32)
 
 
-blake2b512 : Maybe (List Int) -> List Int -> Maybe (List Int)
+blake2b512 : Maybe (List Int) -> List Int -> List Int
 blake2b512 mKey =
-    blake2b mKey (Int64 0 64)
+    blake2b mKey (UInt64.fromInt 64)
 
 
 
@@ -39,109 +39,85 @@ blake2b512 mKey =
 -- "nn"-byte final hash value.
 
 
-blake2b : Maybe (List Int) -> Int64 -> List Int -> Maybe (List Int)
+blake2b : Maybe (List Int) -> UInt64 -> List Int -> List Int
 blake2b mKey hashBytesLength input =
-    if List.all (\i -> i >= 0 && i <= 255) input then
-        let
-            ll =
-                List.length input
+    let
+        ll =
+            List.length input
 
-            endPad =
-                List.repeat (modBy 128 (128 - modBy 128 ll)) 0x00
+        endPad =
+            List.repeat (modBy 128 (128 - modBy 128 ll)) 0x00
 
-            ( preprocessedInput, kk ) =
-                case ( mKey, input ) of
-                    ( Nothing, [] ) ->
-                        ( List.repeat 128 0x00, Int64 0 0 )
+        ( preprocessedInput, kk ) =
+            case ( mKey, input ) of
+                ( Nothing, [] ) ->
+                    ( List.repeat 128 0x00, UInt64.zero )
 
-                    ( Nothing, _ ) ->
-                        ( input ++ endPad, Int64 0 0 )
+                ( Nothing, _ ) ->
+                    ( input ++ endPad, UInt64.zero )
 
-                    ( Just key, _ ) ->
+                ( Just key, _ ) ->
+                    let
+                        keyLen =
+                            List.length key
+
+                        keyBlock =
+                            key ++ List.repeat (128 - keyLen) 0x00
+                    in
+                    ( List.concat [ keyBlock, input, endPad ], UInt64.fromInt keyLen )
+
+        -- Make 128 bytes input blocks ("d[0..dd-1]")
+        inputBlocks =
+            List.chunksOf 128 preprocessedInput
+
+        -- Initialize the state ("h")
+        initialState =
+            blake2bIV
+                |> List.updateAt 0
+                    (\w ->
+                        UInt64.xor w (UInt64.fromInt 0x01010000)
+                            |> UInt64.xor (UInt64.shiftLeftBy 8 kk)
+                            |> UInt64.xor hashBytesLength
+                    )
+
+        -- Help function to split counter into high and low U64 parts
+        split =
+            \(Int128 high low) ->
+                { high = high, low = low }
+
+        -- Process padded key and data blocks (except the last one)
+        updatedState =
+            List.take (List.length inputBlocks - 1) inputBlocks
+                |> List.foldl
+                    (\block ( state, i ) ->
                         let
-                            keyLen =
-                                List.length key
-
-                            keyBlock =
-                                key ++ List.repeat (128 - keyLen) 0x00
+                            ctr =
+                                Int128.mul (UInt64.add i UInt64.one) (UInt64.fromInt 128)
                         in
-                        ( List.concat [ keyBlock, input, endPad ], Int64 0 keyLen )
-
-            -- Make 128 bytes input blocks ("d[0..dd-1]")
-            inputBlocks =
-                List.chunksOf 128 preprocessedInput
-
-            -- Initialize the state ("h")
-            initialState =
-                blake2bIV
-                    |> List.updateAt 0
-                        (\w ->
-                            Int64.xor w (Int64 0x00 0x01010000)
-                                |> Int64.xor (Int64.shiftLeftBy 8 kk)
-                                |> Int64.xor hashBytesLength
+                        ( compress state block (split ctr) False
+                        , UInt64.add i UInt64.one
                         )
+                    )
+                    ( initialState, UInt64.zero )
+                |> Tuple.first
 
-            -- Help function to split counter into high and low U64 parts
-            split =
-                \(Int128 high low) ->
-                    { high = high, low = low }
+        -- Process final block
+        lastBlock =
+            List.last inputBlocks |> Maybe.withDefault []
 
-            zero64 =
-                Int64 0 0
+        lastCtr =
+            case UInt64.compare kk UInt64.zero of
+                EQ ->
+                    Int128 UInt64.zero (UInt64.fromInt ll)
 
-            one64 =
-                Int64 0 1
+                _ ->
+                    Int128 UInt64.zero (UInt64.fromInt <| ll + 128)
 
-            -- Process padded key and data blocks (except the last one)
-            mUpdatedState =
-                List.take (List.length inputBlocks - 1) inputBlocks
-                    |> List.foldl
-                        (\block ( mState, i ) ->
-                            ( mState
-                                |> Maybe.andThen
-                                    (\state ->
-                                        let
-                                            ctr =
-                                                Int128.multiply (Int128.add i (Int128 zero64 one64)) (Int128 zero64 (Int64 0 128))
-                                        in
-                                        compress state block (split ctr) False
-                                    )
-                            , Int128.add i (Int128 zero64 one64)
-                            )
-                        )
-                        ( Just initialState, Int128 zero64 zero64 )
-                    |> Tuple.first
-
-            -- Process final block
-            lastBlock =
-                List.last inputBlocks |> Maybe.withDefault []
-
-            lastCtr =
-                if kk == Int64 0 0 then
-                    -- TODO: Assuming `ll` fits in 32 bits.
-                    Int128 (Int64 0 0) (Int64 0 ll)
-
-                else
-                    -- TODO: Assuming `ll + 128` fits in 32 bits.
-                    Int128 (Int64 0 0) (Int64 0 <| ll + 128)
-
-            -- bb = 128 bytes
-        in
-        mUpdatedState
-            |> Maybe.andThen
-                (\updatedState ->
-                    compress updatedState lastBlock (split lastCtr) True
-                        |> Maybe.andThen
-                            (\compressed ->
-                                compressed
-                                    |> List.concatMap Int64.toLeByteValues
-                                    |> List.take64 hashBytesLength
-                                    |> Just
-                            )
-                )
-
-    else
-        Nothing
+        -- bb = 128 bytes
+    in
+    compress updatedState lastBlock (split lastCtr) True
+        |> List.concatMap (UInt64.toBigEndianBytes >> List.reverse)
+        |> List.take64 hashBytesLength
 
 
 
@@ -152,42 +128,34 @@ blake2b mKey hashBytesLength input =
 -- and returns the new state vector.
 
 
-compress : List Int64 -> List Int -> { low : Int64, high : Int64 } -> Bool -> Maybe (List Int64)
+compress : List UInt64 -> List Int -> { low : UInt64, high : UInt64 } -> Bool -> List UInt64
 compress state block ctr finalBlockFlag =
     let
         -- Pad the block and convert to U64 words
-        -- blockWords =
-        mBlockWords : Maybe (List Int64)
-        mBlockWords =
+        blockWords : List UInt64
+        blockWords =
             (block ++ List.repeat (128 - List.length block) 0x00)
                 |> List.chunksOf 8
-                |> List.map Int64.fromLeByteValues
+                |> List.map (UInt64.fromBigEndianBytes << List.reverse)
                 |> List.foldr
-                    (\mByte mAcc ->
-                        case ( mByte, mAcc ) of
-                            ( Just b, Just acc ) ->
-                                Just (b :: acc)
-
-                            _ ->
-                                Nothing
-                    )
-                    (Just [])
+                    (\b acc -> b :: acc)
+                    []
 
         -- Initialize local vector with state and IV
-        vInit : List Int64
+        vInit : List UInt64
         vInit =
             (state ++ blake2bIV)
                 |> List.indexedMap
                     (\i word ->
                         if i == 12 then
-                            Int64.or word ctr.low
+                            UInt64.or word ctr.low
 
                         else if i == 13 then
-                            Int64.or word ctr.high
+                            UInt64.or word ctr.high
 
                         else if i == 14 then
                             if finalBlockFlag then
-                                Int64.or word Int64.maxValue
+                                UInt64.or word UInt64.maxValue
 
                             else
                                 word
@@ -197,111 +165,101 @@ compress state block ctr finalBlockFlag =
                     )
 
         -- Cryptographic mixing step
-        mSigmaMixingStep : Quadruple64 -> Int64 -> Int64 -> List Int64 -> Maybe (List Int64)
-        mSigmaMixingStep { a, b, c, d } si sj v =
-            mBlockWords
-                |> Maybe.andThen
-                    (\blockWords ->
-                        let
-                            x =
-                                blockWords |> List.get64 si |> Maybe.withDefault (Int64 0 0)
+        sigmaMixingStep : Quadruple64 -> UInt64 -> UInt64 -> List UInt64 -> List UInt64
+        sigmaMixingStep { a, b, c, d } si sj v =
+            let
+                x =
+                    blockWords |> List.get64 si |> Maybe.withDefault UInt64.zero
 
-                            y =
-                                blockWords |> List.get64 sj |> Maybe.withDefault (Int64 0 0)
+                y =
+                    blockWords |> List.get64 sj |> Maybe.withDefault UInt64.zero
 
-                            va =
-                                List.get64 a v |> Maybe.withDefault (Int64 0 0)
+                va =
+                    List.get64 a v |> Maybe.withDefault UInt64.zero
 
-                            vb =
-                                List.get64 b v |> Maybe.withDefault (Int64 0 0)
+                vb =
+                    List.get64 b v |> Maybe.withDefault UInt64.zero
 
-                            vc =
-                                List.get64 c v |> Maybe.withDefault (Int64 0 0)
+                vc =
+                    List.get64 c v |> Maybe.withDefault UInt64.zero
 
-                            vd =
-                                List.get64 d v |> Maybe.withDefault (Int64 0 0)
+                vd =
+                    List.get64 d v |> Maybe.withDefault UInt64.zero
 
-                            -- { vaNew, vbNew, vcNew, vdNew } =
-                            newVsQuad =
-                                mixing va vb vc vd x y
-                        in
-                        v
-                            |> List.indexedMap64
-                                (\i v0 ->
-                                    if i == a then
-                                        newVsQuad.a
+                -- { vaNew, vbNew, vcNew, vdNew } =
+                newVsQuad =
+                    mixing va vb vc vd x y
+            in
+            v
+                |> List.indexedMap64
+                    (\i v0 ->
+                        if i == a then
+                            newVsQuad.a
 
-                                    else if i == b then
-                                        newVsQuad.b
+                        else if i == b then
+                            newVsQuad.b
 
-                                    else if i == c then
-                                        newVsQuad.c
+                        else if i == c then
+                            newVsQuad.c
 
-                                    else if i == d then
-                                        newVsQuad.d
+                        else if i == d then
+                            newVsQuad.d
 
-                                    else
-                                        v0
-                                )
-                            |> Just
+                        else
+                            v0
                     )
 
         -- Cryptographic mixing round
-        mSigmaMixingRound : Int -> List Int64 -> Maybe (List Int64)
-        mSigmaMixingRound round v =
+        sigmaMixingRound : Int -> List UInt64 -> List UInt64
+        sigmaMixingRound round v =
             let
                 s =
                     sigmaRound round
             in
-            mSigmaMixingStep (q64FromInts 0 4 8 12) s.i00 s.i01 v
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 1 5 9 13) s.i02 s.i03)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 2 6 10 14) s.i04 s.i05)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 3 7 11 15) s.i06 s.i07)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 0 5 10 15) s.i08 s.i09)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 1 6 11 12) s.i10 s.i11)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 2 7 8 13) s.i12 s.i13)
-                |> Maybe.andThen (mSigmaMixingStep (q64FromInts 3 4 9 14) s.i14 s.i15)
+            sigmaMixingStep (q64FromInts 0 4 8 12) s.i00 s.i01 v
+                |> sigmaMixingStep (q64FromInts 1 5 9 13) s.i02 s.i03
+                |> sigmaMixingStep (q64FromInts 2 6 10 14) s.i04 s.i05
+                |> sigmaMixingStep (q64FromInts 3 7 11 15) s.i06 s.i07
+                |> sigmaMixingStep (q64FromInts 0 5 10 15) s.i08 s.i09
+                |> sigmaMixingStep (q64FromInts 1 6 11 12) s.i10 s.i11
+                |> sigmaMixingStep (q64FromInts 2 7 8 13) s.i12 s.i13
+                |> sigmaMixingStep (q64FromInts 3 4 9 14) s.i14 s.i15
 
         -- Apply 12 mixing rounds to the local vector
-        mNewV =
-            mSigmaMixingRound 0 vInit
-                |> Maybe.andThen (mSigmaMixingRound 1)
-                |> Maybe.andThen (mSigmaMixingRound 2)
-                |> Maybe.andThen (mSigmaMixingRound 3)
-                |> Maybe.andThen (mSigmaMixingRound 4)
-                |> Maybe.andThen (mSigmaMixingRound 5)
-                |> Maybe.andThen (mSigmaMixingRound 6)
-                |> Maybe.andThen (mSigmaMixingRound 7)
-                |> Maybe.andThen (mSigmaMixingRound 8)
-                |> Maybe.andThen (mSigmaMixingRound 9)
-                |> Maybe.andThen (mSigmaMixingRound 10)
-                |> Maybe.andThen (mSigmaMixingRound 11)
+        newV =
+            sigmaMixingRound 0 vInit
+                |> sigmaMixingRound 1
+                |> sigmaMixingRound 2
+                |> sigmaMixingRound 3
+                |> sigmaMixingRound 4
+                |> sigmaMixingRound 5
+                |> sigmaMixingRound 6
+                |> sigmaMixingRound 7
+                |> sigmaMixingRound 8
+                |> sigmaMixingRound 9
+                |> sigmaMixingRound 10
+                |> sigmaMixingRound 11
     in
-    mNewV
-        |> Maybe.andThen
-            (\newV ->
-                -- XOR the two halves of v
-                List.map3
-                    (\hi vi vii ->
-                        Int64.xor hi vi |> Int64.xor vii
-                    )
-                    state
-                    (List.sublist 0 8 newV)
-                    (List.sublist 8 8 newV)
-                    |> Just
-            )
+    -- XOR the two halves of v
+    List.map3
+        (\hi vi vii ->
+            UInt64.xor hi vi |> UInt64.xor vii
+        )
+        state
+        (List.sublist 0 8 newV)
+        (List.sublist 8 8 newV)
 
 
-blake2bIV : List Int64
+blake2bIV : List UInt64
 blake2bIV =
-    [ Int64 0x6A09E667 0xF3BCC908
-    , Int64 0xBB67AE85 0x84CAA73B
-    , Int64 0x3C6EF372 0xFE94F82B
-    , Int64 0xA54FF53A 0x5F1D36F1
-    , Int64 0x510E527F 0xADE682D1
-    , Int64 0x9B05688C 0x2B3E6C1F
-    , Int64 0x1F83D9AB 0xFB41BD6B
-    , Int64 0x5BE0CD19 0x137E2179
+    [ UInt64.fromInt32s 0x6A09E667 0xF3BCC908
+    , UInt64.fromInt32s 0xBB67AE85 0x84CAA73B
+    , UInt64.fromInt32s 0x3C6EF372 0xFE94F82B
+    , UInt64.fromInt32s 0xA54FF53A 0x5F1D36F1
+    , UInt64.fromInt32s 0x510E527F 0xADE682D1
+    , UInt64.fromInt32s 0x9B05688C 0x2B3E6C1F
+    , UInt64.fromInt32s 0x1F83D9AB 0xFB41BD6B
+    , UInt64.fromInt32s 0x5BE0CD19 0x137E2179
     ]
 
 
@@ -314,99 +272,91 @@ blake2bIV =
 
 
 type alias Quadruple64 =
-    { a : Int64
-    , b : Int64
-    , c : Int64
-    , d : Int64
+    { a : UInt64
+    , b : UInt64
+    , c : UInt64
+    , d : UInt64
     }
 
 
 q64FromInts : Int -> Int -> Int -> Int -> Quadruple64
 q64FromInts a b c d =
-    let
-        int64 =
-            Int64 0
-    in
-    Quadruple64 (int64 a) (int64 b) (int64 c) (int64 d)
+    Quadruple64 (UInt64.fromInt a) (UInt64.fromInt b) (UInt64.fromInt c) (UInt64.fromInt d)
 
 
-mixing : Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Int64 -> Quadruple64
+mixing : UInt64 -> UInt64 -> UInt64 -> UInt64 -> UInt64 -> UInt64 -> Quadruple64
 mixing va vb vc vd x y =
     let
         vaTemp =
-            Int64.add va vb |> Int64.add x
+            UInt64.add va vb |> UInt64.add x
 
         -- R1 = 32
         vdTemp =
-            Int64.xor vd vaTemp |> Int64.rotateRightBy 32
+            UInt64.xor vd vaTemp |> UInt64.rotateRightBy 32
 
         vcTemp =
-            Int64.add vc vdTemp
+            UInt64.add vc vdTemp
 
         -- R2 = 24
         vbTemp =
-            Int64.xor vb vcTemp |> Int64.rotateRightBy 24
+            UInt64.xor vb vcTemp |> UInt64.rotateRightBy 24
 
         vaNew =
-            Int64.add vaTemp vbTemp |> Int64.add y
+            UInt64.add vaTemp vbTemp |> UInt64.add y
 
         -- R3 = 16
         vdNew =
-            Int64.xor vdTemp vaNew |> Int64.rotateRightBy 16
+            UInt64.xor vdTemp vaNew |> UInt64.rotateRightBy 16
 
         vcNew =
-            Int64.add vcTemp vdNew
+            UInt64.add vcTemp vdNew
 
         -- R4 = 63
         vbNew =
-            Int64.xor vbTemp vcNew |> Int64.rotateRightBy 63
+            UInt64.xor vbTemp vcNew |> UInt64.rotateRightBy 63
     in
     Quadruple64 vaNew vbNew vcNew vdNew
 
 
 type alias SigmaRound =
-    { i00 : Int64
-    , i01 : Int64
-    , i02 : Int64
-    , i03 : Int64
-    , i04 : Int64
-    , i05 : Int64
-    , i06 : Int64
-    , i07 : Int64
-    , i08 : Int64
-    , i09 : Int64
-    , i10 : Int64
-    , i11 : Int64
-    , i12 : Int64
-    , i13 : Int64
-    , i14 : Int64
-    , i15 : Int64
+    { i00 : UInt64
+    , i01 : UInt64
+    , i02 : UInt64
+    , i03 : UInt64
+    , i04 : UInt64
+    , i05 : UInt64
+    , i06 : UInt64
+    , i07 : UInt64
+    , i08 : UInt64
+    , i09 : UInt64
+    , i10 : UInt64
+    , i11 : UInt64
+    , i12 : UInt64
+    , i13 : UInt64
+    , i14 : UInt64
+    , i15 : UInt64
     }
 
 
 intsToSigmaRound : Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> Int -> SigmaRound
 intsToSigmaRound i00 i01 i02 i03 i04 i05 i06 i07 i08 i09 i10 i11 i12 i13 i14 i15 =
-    let
-        int64 =
-            Int64 0
-    in
     SigmaRound
-        (int64 i00)
-        (int64 i01)
-        (int64 i02)
-        (int64 i03)
-        (int64 i04)
-        (int64 i05)
-        (int64 i06)
-        (int64 i07)
-        (int64 i08)
-        (int64 i09)
-        (int64 i10)
-        (int64 i11)
-        (int64 i12)
-        (int64 i13)
-        (int64 i14)
-        (int64 i15)
+        (UInt64.fromInt i00)
+        (UInt64.fromInt i01)
+        (UInt64.fromInt i02)
+        (UInt64.fromInt i03)
+        (UInt64.fromInt i04)
+        (UInt64.fromInt i05)
+        (UInt64.fromInt i06)
+        (UInt64.fromInt i07)
+        (UInt64.fromInt i08)
+        (UInt64.fromInt i09)
+        (UInt64.fromInt i10)
+        (UInt64.fromInt i11)
+        (UInt64.fromInt i12)
+        (UInt64.fromInt i13)
+        (UInt64.fromInt i14)
+        (UInt64.fromInt i15)
 
 
 

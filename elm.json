@@ -28,6 +28,7 @@
     ],
     "elm-version": "0.19.1 <= v < 0.20.0",
     "dependencies": {
+        "MartinSStewart/elm-uint64": "2.0.0 <= v < 3.0.0",
         "dwayne/elm-integer": "1.0.0 <= v < 2.0.0",
         "dwayne/elm-natural": "1.1.1 <= v < 2.0.0",
         "elm/bytes": "1.0.8 <= v < 2.0.0",

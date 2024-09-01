@@ -1,6 +1,6 @@
 module List.Extra exposing (chunksOf, get, get64, indexedMap64, last, sublist, take64, updateAt)
 
-import Blake2b.Int64 as Int64 exposing (Int64(..))
+import UInt64 as U64 exposing (UInt64)
 
 
 chunksOf : Int -> List a -> List (List a)
@@ -17,40 +17,48 @@ get n =
     List.drop n >> List.head
 
 
-get64 : Int64 -> List a -> Maybe a
-get64 (Int64 iMS iLS) list =
-    if iMS > 0 then
-        let
-            chunked =
-                chunksOf 0xFFFFFFFF list
-        in
-        get iMS chunked
-            |> Maybe.andThen (get iLS)
+get64 : UInt64 -> List a -> Maybe a
+get64 u64 list =
+    case U64.toInt31 u64 of
+        Just u31 ->
+            get u31 list
 
-    else
-        get iLS list
+        Nothing ->
+            let
+                ( iMS, iLS ) =
+                    U64.toInt32s u64
 
-
-take64 : Int64 -> List a -> List a
-take64 (Int64 iMS iLS) list =
-    if iMS > 0 then
-        let
-            chunked =
-                chunksOf 0xFFFFFFFF list
-        in
-        List.take iMS chunked |> List.concat |> List.take iLS
-
-    else
-        List.take iLS list
+                chunked =
+                    chunksOf 0xFFFFFFFF list
+            in
+            get iMS chunked
+                |> Maybe.andThen (get iLS)
 
 
-indexedMap64 : (Int64 -> a -> b) -> List a -> List b
+take64 : UInt64 -> List a -> List a
+take64 u64 list =
+    case U64.toInt31 u64 of
+        Just u31 ->
+            List.take u31 list
+
+        Nothing ->
+            let
+                ( iMS, iLS ) =
+                    U64.toInt32s u64
+
+                chunked =
+                    chunksOf 0xFFFFFFFF list
+            in
+            List.take iMS chunked |> List.concat |> List.take iLS
+
+
+indexedMap64 : (UInt64 -> a -> b) -> List a -> List b
 indexedMap64 fn list =
     List.foldl
         (\x ( acc, i ) ->
-            ( acc ++ [ fn i x ], Int64.add i (Int64 0 1) )
+            ( acc ++ [ fn i x ], U64.add i U64.one )
         )
-        ( [], Int64 0 0 )
+        ( [], U64.zero )
         list
         |> Tuple.first
 

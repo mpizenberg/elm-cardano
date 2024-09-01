@@ -1,21 +1,24 @@
 module Blake2b.Int64Tests exposing (suite)
 
-import Blake2b.Int64 as Int64 exposing (Int64(..))
 import Expect
 import Test exposing (Test, describe, test)
+import UInt64 exposing (UInt64)
 
 
 suite : Test
 suite =
     let
-        roundtrip =
-            Int64.toLeByteValues >> Int64.fromLeByteValues
+        zero =
+            UInt64.zero
 
-        unchangedAfterRoundtrip x =
-            \_ -> Expect.equal (roundtrip x) (Just x)
+        one =
+            UInt64.one
+
+        u64 =
+            UInt64.fromInt
 
         toHexEquals int64 correctHex =
-            \_ -> Expect.equal (Int64.toHex int64 |> String.toLower) correctHex
+            \_ -> Expect.equal (UInt64.toHexString int64 |> String.toLower) correctHex
 
         tests =
             [ test "Int64 0x6A09E667 0xF3BCC908"
@@ -32,23 +35,7 @@ suite =
             ]
     in
     describe "Int64"
-        [ describe "Roundtrip `Int64.toLeByteValues >> Int64.fromLeByteValues`" <|
-            List.map2
-                (<|)
-                tests
-                [ unchangedAfterRoundtrip sampleInt64_0
-                , unchangedAfterRoundtrip sampleInt64_1
-                , unchangedAfterRoundtrip sampleInt64_2
-                , unchangedAfterRoundtrip sampleInt64_3
-                , unchangedAfterRoundtrip sampleInt64_4
-                , unchangedAfterRoundtrip sampleInt64_5
-                , unchangedAfterRoundtrip sampleInt64_6
-                , unchangedAfterRoundtrip sampleInt64_7
-                , unchangedAfterRoundtrip sampleInt64_8
-                , unchangedAfterRoundtrip sampleInt64_9
-                , unchangedAfterRoundtrip sampleInt64_10
-                ]
-        , describe "toHex" <|
+        [ describe "toHex" <|
             List.map2
                 (<|)
                 tests
@@ -64,59 +51,86 @@ suite =
                 , toHexEquals sampleInt64_9 "ffffffffffffffff"
                 , toHexEquals sampleInt64_10 "0000000000000001"
                 ]
+        , describe "multiply" <|
+            [ test "0x00 x 0x01" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul zero one)
+                        zero
+            , test "0x01 x 0x01" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul one one)
+                        one
+            , test "0x01 x 0xFFFFFFFF" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul one (u64 0xFFFFFFFF))
+                        (u64 0xFFFFFFFF)
+            , test "0x02 x 0xFFFFFFFF" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul UInt64.two (u64 0xFFFFFFFF))
+                        (UInt64.fromInt32s 1 0xFFFFFFFE)
+            , test "0xFFFFFFFF x 0xFFFFFFFF" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul (u64 0xFFFFFFFF) (u64 0xFFFFFFFF))
+                        (UInt64.fromInt32s 0xFFFFFFFE 0)
+            ]
         ]
 
 
-sampleInt64_0 : Int64
+sampleInt64_0 : UInt64
 sampleInt64_0 =
-    Int64 0x6A09E667 0xF3BCC908
+    UInt64.fromInt32s 0x6A09E667 0xF3BCC908
 
 
-sampleInt64_1 : Int64
+sampleInt64_1 : UInt64
 sampleInt64_1 =
-    Int64 0xBB67AE85 0x84CAA73B
+    UInt64.fromInt32s 0xBB67AE85 0x84CAA73B
 
 
-sampleInt64_2 : Int64
+sampleInt64_2 : UInt64
 sampleInt64_2 =
-    Int64 0x3C6EF372 0xFE94F82B
+    UInt64.fromInt32s 0x3C6EF372 0xFE94F82B
 
 
-sampleInt64_3 : Int64
+sampleInt64_3 : UInt64
 sampleInt64_3 =
-    Int64 0xA54FF53A 0x5F1D36F1
+    UInt64.fromInt32s 0xA54FF53A 0x5F1D36F1
 
 
-sampleInt64_4 : Int64
+sampleInt64_4 : UInt64
 sampleInt64_4 =
-    Int64 0x510E527F 0xADE682D1
+    UInt64.fromInt32s 0x510E527F 0xADE682D1
 
 
-sampleInt64_5 : Int64
+sampleInt64_5 : UInt64
 sampleInt64_5 =
-    Int64 0x9B05688C 0x2B3E6C1F
+    UInt64.fromInt32s 0x9B05688C 0x2B3E6C1F
 
 
-sampleInt64_6 : Int64
+sampleInt64_6 : UInt64
 sampleInt64_6 =
-    Int64 0x1F83D9AB 0xFB41BD6B
+    UInt64.fromInt32s 0x1F83D9AB 0xFB41BD6B
 
 
-sampleInt64_7 : Int64
+sampleInt64_7 : UInt64
 sampleInt64_7 =
-    Int64 0x5BE0CD19 0x137E2179
+    UInt64.fromInt32s 0x5BE0CD19 0x137E2179
 
 
-sampleInt64_8 : Int64
+sampleInt64_8 : UInt64
 sampleInt64_8 =
-    Int64 0x00 0x00
+    UInt64.fromInt32s 0x00 0x00
 
 
-sampleInt64_9 : Int64
+sampleInt64_9 : UInt64
 sampleInt64_9 =
-    Int64 0xFFFFFFFF 0xFFFFFFFF
+    UInt64.fromInt32s 0xFFFFFFFF 0xFFFFFFFF
 
 
-sampleInt64_10 : Int64
+sampleInt64_10 : UInt64
 sampleInt64_10 =
-    Int64 0x00 0x01
+    UInt64.fromInt32s 0x00 0x01
