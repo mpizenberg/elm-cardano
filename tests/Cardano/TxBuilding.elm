@@ -9,6 +9,7 @@ import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Script as Script
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
+import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
@@ -313,7 +314,7 @@ okTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectTran
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalize defaultVmConfig buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     Expect.fail (Debug.toString error)
 
@@ -489,7 +490,7 @@ failTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expected
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalize defaultVmConfig buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     expectedFailure error
 
@@ -503,6 +504,13 @@ newTx =
 
 
 -- Test data
+
+
+defaultVmConfig =
+    { budget = Uplc.conwayDefaultBudget
+    , slotConfig = Uplc.slotConfigMainnet
+    , costModels = { plutusV1 = Nothing, plutusV2 = Nothing }
+    }
 
 
 testAddr =

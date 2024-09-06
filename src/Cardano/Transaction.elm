@@ -9,7 +9,7 @@ module Cardano.Transaction exposing
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
-    , computeFees
+    , computeFees, allInputs
     , deserialize, serialize
     )
 
@@ -35,7 +35,7 @@ module Cardano.Transaction exposing
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
-@docs computeFees
+@docs computeFees, allInputs
 
 @docs deserialize, serialize
 
@@ -530,6 +530,20 @@ computeFees tx =
     Natural.fromSafeInt (baseFee + feePerByte * txSize)
         |> Natural.add totalStepsCost
         |> Natural.add totalMemCost
+
+
+{-| Extract all inputs that are used in the transaction,
+from inputs, collateral and reference inputs.
+-}
+allInputs : Transaction -> Utxo.RefDict ()
+allInputs tx =
+    List.concat
+        [ tx.body.inputs
+        , tx.body.collateral
+        , tx.body.referenceInputs
+        ]
+        |> List.map (\ref -> ( ref, () ))
+        |> Utxo.refDictFromList
 
 
 
