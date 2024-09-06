@@ -1,11 +1,13 @@
 module Cardano.Uplc exposing (..)
 
 import Bytes.Comparable as Bytes
-import Cardano.Redeemer exposing (ExUnits, Redeemer)
+import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import Cardano.Transaction as Transaction exposing (CostModels, Transaction)
 import Cardano.Utxo as Utxo exposing (Output)
+import Cbor.Decode
 import Cbor.Encode
 import Dict.Any
+import Json.Decode as JD
 import Json.Encode as JE
 import Natural exposing (Natural)
 
@@ -51,14 +53,40 @@ evalScriptsCosts vmConfig localStateUtxos tx =
                     [ ( "tx_bytes", JE.string <| Bytes.toString <| Transaction.serialize tx )
                     , ( "utxos_refs_bytes", JE.list (jsEncode Utxo.encodeOutputReference) refs )
                     , ( "utxos_outputs_bytes", JE.list (jsEncode Utxo.encodeOutput) outputs )
+                    , ( "cost_mdls_bytes", jsEncode Transaction.encodeCostModels vmConfig.costModels )
+                    , ( "cpu_budget", JE.int vmConfig.budget.steps )
+                    , ( "mem_budget", JE.int vmConfig.budget.mem )
+                    , ( "slot_config_zero_time", JE.int (Natural.toInt vmConfig.slotConfig.zeroTime) )
+                    , ( "slot_config_zero_slot", JE.int (Natural.toInt vmConfig.slotConfig.zeroSlot) )
+                    , ( "slot_config_slot_length", JE.int vmConfig.slotConfig.slotLengthMs )
                     ]
+
+            kernelResult =
+                evalScriptsCostsKernel jsArguments
+
+            decodeKernelResult : JE.Value -> Result String (List (Maybe Redeemer))
+            decodeKernelResult jsValue =
+                -- Each redeemer is provided in CBOR, in a hex-encoded string
+                JD.decodeValue (JD.list JD.string) jsValue
+                    |> Result.mapError Debug.toString
+                    |> Result.map
+                        (List.map
+                            -- Convert the hex strings to bytes
+                            (Bytes.fromStringUnchecked
+                                >> Bytes.toBytes
+                                -- Decode the bytes into redeemers
+                                >> Cbor.Decode.decode Redeemer.fromCbor
+                            )
+                        )
         in
         evalScriptsCostsKernel jsArguments
+            |> Result.andThen decodeKernelResult
+            |> Result.map (List.filterMap identity)
 
 
 {-| Kernel function (needs patching by elm-cardano) to run phase 2 evaluation (WASM code).
 -}
-evalScriptsCostsKernel : JE.Value -> Result String (List Redeemer)
+evalScriptsCostsKernel : JE.Value -> Result String JE.Value
 evalScriptsCostsKernel _ =
     Err "evalScriptsCostsKernel"
 

@@ -11,6 +11,7 @@ module Cardano.Transaction exposing
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , computeFees, allInputs
     , deserialize, serialize
+    , encodeCostModels
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -38,6 +39,8 @@ module Cardano.Transaction exposing
 @docs computeFees, allInputs
 
 @docs deserialize, serialize
+
+@docs encodeCostModels
 
 -}
 
@@ -833,6 +836,8 @@ encodeExUnitPrices =
             >> E.elem encodeRationalNumber .stepPrice
 
 
+{-| Encode [CostModels] to CBOR.
+-}
 encodeCostModels : CostModels -> E.Encoder
 encodeCostModels =
     E.record E.int <|
