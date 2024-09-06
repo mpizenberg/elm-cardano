@@ -1934,7 +1934,7 @@ globalStateUtxos =
 defaultVmConfig =
     { budget = Uplc.conwayDefaultBudget
     , slotConfig = Uplc.slotConfigMainnet
-    , costModels = { plutusV1 = Nothing, plutusV2 = Nothing }
+    , costModels = Uplc.conwayDefaultCostModels
     }
 
 
