@@ -340,7 +340,7 @@ import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction,
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
-import Cardano.Uplc as Uplc exposing (VmConfig)
+import Cardano.Uplc as Uplc exposing (VmConfig, evalScriptsCosts)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
@@ -491,16 +491,15 @@ Analyze all intents and perform the following actions:
 
 -}
 finalize :
-    Uplc.VmConfig
-    ->
-        { localStateUtxos : Utxo.RefDict Output
-        , coinSelectionAlgo : CoinSelection.Algorithm
-        }
+    { localStateUtxos : Utxo.RefDict Output
+    , coinSelectionAlgo : CoinSelection.Algorithm
+    , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
+    }
     -> Fee
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalize vmConfig { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
+finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -589,7 +588,7 @@ finalize vmConfig { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txInten
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 -- TODO: Evaluate plutus script cost, and do a final round of above
-                |> Result.andThen (adjustExecutionCosts vmConfig localStateUtxos)
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (checkInsufficientFee fee)
                 |> identity
@@ -1573,9 +1572,9 @@ filterScriptVersion v =
 
 {-| Adjust the steps/mem scripts execution costs with UPLC phase 2 evaluation of the transaction.
 -}
-adjustExecutionCosts : VmConfig -> Utxo.RefDict Output -> Transaction -> Result TxFinalizationError Transaction
-adjustExecutionCosts vmConfig localStateUtxos tx =
-    Uplc.evalScriptsCosts vmConfig localStateUtxos tx
+adjustExecutionCosts : (Transaction -> Result String (List Redeemer)) -> Transaction -> Result TxFinalizationError Transaction
+adjustExecutionCosts evalScriptsCosts tx =
+    evalScriptsCosts tx
         |> Result.mapError UplcVmError
         |> Result.map
             (\redeemers ->
@@ -1932,10 +1931,22 @@ globalStateUtxos =
         ]
 
 
-configGlobalLargest =
+defaultVmConfig =
+    { budget = Uplc.conwayDefaultBudget
+    , slotConfig = Uplc.slotConfigMainnet
+    , costModels = { plutusV1 = Nothing, plutusV2 = Nothing }
+    }
+
+
+globalConfig =
     { localStateUtxos = globalStateUtxos
     , coinSelectionAlgo = CoinSelection.largestFirst
+    , evalScriptsCosts = Uplc.evalScriptsCosts defaultVmConfig
     }
+
+
+globalConfigNoPlutus =
+    { globalConfig | evalScriptsCosts = \_ _ -> Ok [] }
 
 
 twoAdaFee =
@@ -1946,13 +1957,6 @@ autoFee =
     AutoFee { paymentSource = exAddr.me }
 
 
-defaultVmConfig =
-    { budget = Uplc.conwayDefaultBudget
-    , slotConfig = Uplc.slotConfigMainnet
-    , costModels = { plutusV1 = Nothing, plutusV2 = Nothing }
-    }
-
-
 
 -- EXAMPLE 1: Simple transfer
 
@@ -1961,7 +1965,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize defaultVmConfig configGlobalLargest autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
+        |> finalize globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
@@ -1985,7 +1989,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize defaultVmConfig configGlobalLargest autoFee []
+        |> finalize globalConfigNoPlutus autoFee []
 
 
 
@@ -2049,7 +2053,7 @@ example3 _ =
 
         -- Add to local state utxos some previously sent 2 ada.
         localStateUtxos =
-            configGlobalLargest.localStateUtxos
+            globalConfig.localStateUtxos
                 |> Dict.Any.insert utxoBeingSpent
                     (makeLockedOutput ada.two)
     in
@@ -2069,4 +2073,4 @@ example3 _ =
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
     , SendToOutput (\_ -> makeLockedOutput ada.one)
     ]
-        |> finalize defaultVmConfig { configGlobalLargest | localStateUtxos = localStateUtxos } autoFee []
+        |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []
