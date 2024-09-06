@@ -58,7 +58,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
 {-| Kernel function (needs patching by elm-cardano) to run phase 2 evaluation (WASM code).
 -}
 evalScriptsCostsKernel : JE.Value -> Result String (List Redeemer)
-evalScriptsCostsKernel args =
+evalScriptsCostsKernel _ =
     Err "evalScriptsCostsKernel"
 
 

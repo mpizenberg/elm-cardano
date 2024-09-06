@@ -126,7 +126,7 @@ let evalScriptsCostsKernel = (_) => {
 };
     "#;
     let old_body = "return $elm$core$Result$Err('evalScriptsCostsKernel');";
-    let new_body = "return evalScriptsCostsKernel(args);";
+    let new_body = "return evalScriptsCostsKernel(_v0);";
     let footer = r#"
 export const elmCardanoKernelPatching = (uplc_wasm) => {
   evalScriptsCostsKernel = (_) => {
