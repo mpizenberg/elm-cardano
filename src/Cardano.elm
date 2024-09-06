@@ -1828,7 +1828,7 @@ prettyTx tx =
                 , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
-                    ("Tx collateral (total: ₳ " ++ String.fromInt (Maybe.withDefault 0 tx.body.totalCollateral) ++ "):")
+                    ("Tx collateral (total: ₳ " ++ (Maybe.withDefault "not set" <| Maybe.map String.fromInt tx.body.totalCollateral) ++ "):")
                     prettyInput
                     tx.body.collateral
                 , Maybe.map prettyOutput tx.body.collateralReturn

@@ -36,7 +36,9 @@ evalScriptsCosts vmConfig localStateUtxos tx =
                 |> Dict.Any.keys
     in
     if not (List.isEmpty missingUtxos) then
-        Err "Missing UTxOs in local state: (TODO details)"
+        String.join ", " (List.map Utxo.refAsString missingUtxos)
+            |> (++) "Missing UTxOs in local state: "
+            |> Err
 
     else
         let

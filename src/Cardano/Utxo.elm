@@ -2,6 +2,7 @@ module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , RefDict, emptyRefDict, refDictFromList
     , fromLovelace, simpleOutput
+    , refAsString
     , lovelace, totalLovelace, compareLovelace, isAdaOnly
     , minAda, checkMinAda, minAdaForAssets
     , encodeOutputReference, encodeOutput, encodeDatumOption
@@ -24,6 +25,11 @@ module Cardano.Utxo exposing
 ## Build
 
 @docs fromLovelace, simpleOutput
+
+
+## Display
+
+@docs refAsString
 
 
 ## Query
@@ -160,6 +166,13 @@ fromLovelace address amount =
 simpleOutput : Address -> Value -> Output
 simpleOutput address value =
     { address = address, amount = value, datumOption = Nothing, referenceScript = Nothing }
+
+
+{-| Display the [OutputReference] as a String.
+-}
+refAsString : OutputReference -> String
+refAsString { transactionId, outputIndex } =
+    Bytes.toString transactionId ++ " #" ++ String.fromInt outputIndex
 
 
 {-| Extract the amount of lovelace in an `Output`
