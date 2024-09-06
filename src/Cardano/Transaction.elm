@@ -9,8 +9,9 @@ module Cardano.Transaction exposing
     , CostModels, ExUnitPrices
     , RationalNumber, UnitInterval, PositiveInterval
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
-    , computeFees
+    , computeFees, allInputs
     , deserialize, serialize
+    , encodeCostModels
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -35,9 +36,11 @@ module Cardano.Transaction exposing
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
-@docs computeFees
+@docs computeFees, allInputs
 
 @docs deserialize, serialize
+
+@docs encodeCostModels
 
 -}
 
@@ -532,6 +535,20 @@ computeFees tx =
         |> Natural.add totalMemCost
 
 
+{-| Extract all inputs that are used in the transaction,
+from inputs, collateral and reference inputs.
+-}
+allInputs : Transaction -> Utxo.RefDict ()
+allInputs tx =
+    List.concat
+        [ tx.body.inputs
+        , tx.body.collateral
+        , tx.body.referenceInputs
+        ]
+        |> List.map (\ref -> ( ref, () ))
+        |> Utxo.refDictFromList
+
+
 
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
@@ -819,6 +836,8 @@ encodeExUnitPrices =
             >> E.elem encodeRationalNumber .stepPrice
 
 
+{-| Encode [CostModels] to CBOR.
+-}
 encodeCostModels : CostModels -> E.Encoder
 encodeCostModels =
     E.record E.int <|

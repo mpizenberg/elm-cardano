@@ -340,6 +340,7 @@ import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction,
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
+import Cardano.Uplc as Uplc exposing (VmConfig, evalScriptsCosts)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
@@ -475,6 +476,7 @@ type TxFinalizationError
     | CollateralSelectionError CoinSelection.Error
     | DuplicatedMetadataTags Int
     | IncorrectTimeValidityRange String
+    | UplcVmError String
     | FailurePleaseReportToElmCardano String
 
 
@@ -491,12 +493,13 @@ Analyze all intents and perform the following actions:
 finalize :
     { localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
+    , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
     }
     -> Fee
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
+finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -585,6 +588,7 @@ finalize { localStateUtxos, coinSelectionAlgo } fee txOtherInfo txIntents =
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 -- TODO: Evaluate plutus script cost, and do a final round of above
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (checkInsufficientFee fee)
                 |> identity
@@ -1566,6 +1570,26 @@ filterScriptVersion v =
         )
 
 
+{-| Adjust the steps/mem scripts execution costs with UPLC phase 2 evaluation of the transaction.
+-}
+adjustExecutionCosts : (Transaction -> Result String (List Redeemer)) -> Transaction -> Result TxFinalizationError Transaction
+adjustExecutionCosts evalScriptsCosts tx =
+    evalScriptsCosts tx
+        |> Result.mapError UplcVmError
+        |> Result.map
+            (\redeemers ->
+                if List.isEmpty redeemers then
+                    tx
+
+                else
+                    let
+                        witnessSet =
+                            tx.witnessSet
+                    in
+                    { tx | witnessSet = { witnessSet | redeemer = Just redeemers } }
+            )
+
+
 {-| Final check for the Tx fees.
 -}
 checkInsufficientFee : Fee -> Transaction -> Result TxFinalizationError Transaction
@@ -1804,7 +1828,7 @@ prettyTx tx =
                 , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
-                    ("Tx collateral (total: ₳ " ++ String.fromInt (Maybe.withDefault 0 tx.body.totalCollateral) ++ "):")
+                    ("Tx collateral (total: ₳ " ++ (Maybe.withDefault "not set" <| Maybe.map String.fromInt tx.body.totalCollateral) ++ "):")
                     prettyInput
                     tx.body.collateral
                 , Maybe.map prettyOutput tx.body.collateralReturn
@@ -1907,10 +1931,22 @@ globalStateUtxos =
         ]
 
 
-configGlobalLargest =
+defaultVmConfig =
+    { budget = Uplc.conwayDefaultBudget
+    , slotConfig = Uplc.slotConfigMainnet
+    , costModels = Uplc.conwayDefaultCostModels
+    }
+
+
+globalConfig =
     { localStateUtxos = globalStateUtxos
     , coinSelectionAlgo = CoinSelection.largestFirst
+    , evalScriptsCosts = Uplc.evalScriptsCosts defaultVmConfig
     }
+
+
+globalConfigNoPlutus =
+    { globalConfig | evalScriptsCosts = \_ _ -> Ok [] }
 
 
 twoAdaFee =
@@ -1929,7 +1965,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize configGlobalLargest autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
+        |> finalize globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
@@ -1953,7 +1989,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize configGlobalLargest autoFee []
+        |> finalize globalConfigNoPlutus autoFee []
 
 
 
@@ -2017,7 +2053,7 @@ example3 _ =
 
         -- Add to local state utxos some previously sent 2 ada.
         localStateUtxos =
-            configGlobalLargest.localStateUtxos
+            globalConfig.localStateUtxos
                 |> Dict.Any.insert utxoBeingSpent
                     (makeLockedOutput ada.two)
     in
@@ -2037,4 +2073,4 @@ example3 _ =
     -- Return the other 1 ada to the lock script (there was 2 ada initially)
     , SendToOutput (\_ -> makeLockedOutput ada.one)
     ]
-        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } autoFee []
+        |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []

@@ -6,9 +6,11 @@ import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinaliza
 import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script as Script
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
+import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
@@ -30,6 +32,7 @@ okTxBuilding =
     describe "Successfull"
         [ okTxTest "with just manual fees"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents = []
@@ -49,6 +52,7 @@ okTxBuilding =
             )
         , okTxTest "with just auto fees"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = autoFee
             , txOtherInfo = []
             , txIntents = []
@@ -76,6 +80,7 @@ okTxBuilding =
             )
         , okTxTest "with spending from, and sending to the same address"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -99,6 +104,7 @@ okTxBuilding =
             )
         , okTxTest "send 1 ada from me to you"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -128,6 +134,7 @@ okTxBuilding =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAdaOutput 1 testAddr.you 7
                 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -169,6 +176,7 @@ okTxBuilding =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -208,6 +216,7 @@ okTxBuilding =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -239,6 +248,7 @@ okTxBuilding =
                 , ( dog.scriptRef, dog.refOutput )
                 , ( cat.scriptRef, cat.refOutput )
                 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -298,19 +308,21 @@ okTxTest :
     String
     ->
         { localStateUtxos : List ( OutputReference, Output )
+        , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
         , txIntents : List TxIntent
         }
     -> (Transaction -> Transaction)
     -> Test
-okTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectTransaction =
+okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectTransaction =
     test description <|
         \_ ->
             let
                 buildingConfig =
                     { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
+                    , evalScriptsCosts = evalScriptsCosts
                     }
             in
             case finalize buildingConfig fee txOtherInfo txIntents of
@@ -326,6 +338,7 @@ failTxBuilding =
     describe "Detected failure"
         [ failTxTest "when there is no utxo in local state"
             { localStateUtxos = []
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents = []
@@ -340,6 +353,7 @@ failTxBuilding =
             )
         , failTxTest "when there is insufficient manual fee (0.1 ada here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = Natural.fromSafeInt 100000 } ]
             , txOtherInfo = []
             , txIntents = []
@@ -354,6 +368,7 @@ failTxBuilding =
             )
         , failTxTest "when inputs are missing from local state"
             { localStateUtxos = []
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -371,6 +386,7 @@ failTxBuilding =
             )
         , failTxTest "when Tx intents are unbalanced (too much spend here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents = [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1) ]
@@ -385,6 +401,7 @@ failTxBuilding =
             )
         , failTxTest "when Tx intents are unbalanced (too much send here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents = [ SendTo testAddr.me (Value.onlyLovelace <| ada 1) ]
@@ -399,6 +416,7 @@ failTxBuilding =
             )
         , failTxTest "when there is not enough minAda in created output (100 lovelaces here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -419,6 +437,7 @@ failTxBuilding =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
                 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
@@ -436,6 +455,7 @@ failTxBuilding =
             )
         , failTxTest "when there are duplicated metadata tags (tag 0 here)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo =
                 [ TxMetadata { tag = Natural.zero, metadata = Metadatum.Int Integer.one }
@@ -453,6 +473,7 @@ failTxBuilding =
             )
         , failTxTest "when validity range is incorrect (start > end)"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = [ TxTimeValidityRange { start = 1, end = Natural.zero } ]
             , txIntents = []
@@ -474,19 +495,21 @@ failTxTest :
     String
     ->
         { localStateUtxos : List ( OutputReference, Output )
+        , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
         , txIntents : List TxIntent
         }
     -> (TxFinalizationError -> Expectation)
     -> Test
-failTxTest description { localStateUtxos, fee, txOtherInfo, txIntents } expectedFailure =
+failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectedFailure =
     test description <|
         \_ ->
             let
                 buildingConfig =
                     { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
+                    , evalScriptsCosts = evalScriptsCosts
                     }
             in
             case finalize buildingConfig fee txOtherInfo txIntents of
@@ -503,6 +526,13 @@ newTx =
 
 
 -- Test data
+
+
+defaultVmConfig =
+    { budget = Uplc.conwayDefaultBudget
+    , slotConfig = Uplc.slotConfigMainnet
+    , costModels = Uplc.conwayDefaultCostModels
+    }
 
 
 testAddr =
