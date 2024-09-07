@@ -88,8 +88,8 @@ new =
 type alias TransactionBody =
     { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
-    , fee : Maybe Natural -- 2
-    , ttl : Maybe Natural -- 3
+    , fee : Maybe Natural -- 2 TODO: remove the Maybe
+    , ttl : Maybe Natural -- 3 a slot number
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Natural ) -- 5
     , update : Maybe Update -- 6
@@ -370,17 +370,31 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = StakeRegistration { delegator : Credential }
-    | StakeDeregistration { delegator : Credential }
-    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId }
-    | PoolRegistration PoolParams
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural }
+    = StakeRegistration { delegator : Credential } -- 0 (will be deprecated after Conway)
+    | StakeDeregistration { delegator : Credential } -- 1 (will be deprecated after Conway)
+    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId } -- 2
+    | PoolRegistration PoolParams -- 3
+    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural } -- 4
     | GenesisKeyDelegation
+        -- 5 (deprecated in Conway)
         { genesisHash : Bytes GenesisHash
         , genesisDelegateHash : Bytes GenesisDelegateHash
         , vrfKeyHash : Bytes VrfKeyHash
         }
-    | MoveInstantaneousRewardsCert MoveInstantaneousReward
+    | MoveInstantaneousRewardsCert MoveInstantaneousReward -- 6 (deprecated in Conway)
+      -- New Conway era certificates: https://sancho.network/tools-resources/faq/
+    | RegCert { delegator : Credential, deposit : Natural } -- 7 Registers stake credentials
+    | UnregCert { delegator : Credential, refund : Natural } -- 8 Unregisters stake credentials
+    | VoteDelegCert { delegator : Credential, drep : Drep } -- 9 Delegates votes
+    | StakeVoteDelegCert { delegator : Credential, poolId : Bytes PoolId, drep : Drep } -- 10 Delegates to a stake pool and a DRep from the same certificate
+    | StakeRegDelegCert { delegator : Credential, poolId : Bytes PoolId, deposit : Natural } -- 11 Registers stake credentials and delegates to a stake pool
+    | VoteRegDelegCert { delegator : Credential, drep : Drep, deposit : Natural } -- 12 Registers stake credentials and delegates to a DRep
+    | StakeVoteRegDelegCert { delegator : Credential, poolId : Bytes PoolId, drep : Drep, deposit : Natural } -- 13 Registers stake credentials, delegates to a pool, and to a DRep
+    | AuthCommitteeHotCert { commiteeColdCredential : Credential, comiteeHotCredential : Credential } -- 14 Authorizes the constitutional committee hot credential
+    | ResignCommitteeColdCert { commiteeColdCredential : Credential, anchor : Maybe Anchor } -- 15 Resigns the constitutional committee cold credential
+    | RegDrepCert { drepCredential : Credential, deposit : Natural, anchor : Maybe Anchor } -- 16 Registers DRep's credentials
+    | UnregDrepCert { drepCredential : Credential, refund : Natural } -- 17 Unregisters (retires) DRep's credentials
+    | UpdateDrepCert { drepCredential : Credential, anchor : Maybe Anchor } -- 18 Updates DRep's metadata anchor
 
 
 {-| Phantom type for pool ID.
@@ -485,6 +499,25 @@ otherwise the funds are given to the other accounting pot.
 type RewardTarget
     = StakeCredentials (List ( Credential, Natural ))
     | OtherAccountingPot Natural
+
+
+{-| Delegate representative.
+-}
+type Drep
+    = DrepCredential Credential -- 0, 1
+    | AlwaysAbstain -- 2
+    | AlwaysNoConfidence -- 3
+
+
+type alias Anchor =
+    { url : String, dataHash : Bytes AnchorDataHash }
+
+
+{-| Opaque phantom type for an [Anchor] data hash.
+It is 32-bytes long.
+-}
+type AnchorDataHash
+    = AnchorDataHash
 
 
 {-| Re-compute fees for a transaction (does not read `body.fee`).
@@ -717,6 +750,54 @@ encodeCertificate certificate =
                 [ E.int 6
                 , encodeMoveInstantaneousReward moveInstantaneousReward
                 ]
+
+            -- 7 Registers stake credentials
+            RegCert { delegator, deposit } ->
+                Debug.todo "cert"
+
+            -- 8 Unregisters stake credentials
+            UnregCert { delegator, refund } ->
+                Debug.todo "cert"
+
+            -- 9 Delegates votes
+            VoteDelegCert { delegator, drep } ->
+                Debug.todo "cert"
+
+            -- 10 Delegates to a stake pool and a DRep from the same certificate
+            StakeVoteDelegCert { delegator, poolId, drep } ->
+                Debug.todo "cert"
+
+            -- 11 Registers stake credentials and delegates to a stake pool
+            StakeRegDelegCert { delegator, poolId, deposit } ->
+                Debug.todo "cert"
+
+            -- 12 Registers stake credentials and delegates to a DRep
+            VoteRegDelegCert { delegator, drep, deposit } ->
+                Debug.todo "cert"
+
+            -- 13 Registers stake credentials, delegates to a pool, and to a DRep
+            StakeVoteRegDelegCert { delegator, poolId, drep, deposit } ->
+                Debug.todo "cert"
+
+            -- 14 Authorizes the constitutional committee hot credential
+            AuthCommitteeHotCert { commiteeColdCredential, comiteeHotCredential } ->
+                Debug.todo "cert"
+
+            -- 15 Resigns the constitutional committee cold credential
+            ResignCommitteeColdCert { commiteeColdCredential, anchor } ->
+                Debug.todo "cert"
+
+            -- 16 Registers DRep's credentials
+            RegDrepCert { drepCredential, deposit, anchor } ->
+                Debug.todo "cert"
+
+            -- 17 Unregisters (retires) DRep's credentials
+            UnregDrepCert { drepCredential, refund } ->
+                Debug.todo "cert"
+
+            -- 18 Updates DRep's metadata anchor
+            UpdateDrepCert { drepCredential, anchor } ->
+                Debug.todo "cert"
 
 
 encodeRelay : Relay -> E.Encoder
