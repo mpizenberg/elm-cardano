@@ -4,9 +4,10 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data as Data exposing (Data(..))
+import Cardano.Gov exposing (Nonce(..))
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, newBody, newWitnessSet, noParamUpdate)
+import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet, noParamUpdate)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Utxo as Utxo exposing (DatumOption(..))

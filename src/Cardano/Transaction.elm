@@ -2,16 +2,13 @@ module Cardano.Transaction exposing
     ( Transaction, new
     , TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
     , WitnessSet, newWitnessSet
-    , Update, ProtocolParamUpdate, Nonce(..), ProtocolVersion, noParamUpdate
+    , Update, noParamUpdate
     , ScriptContext, ScriptPurpose(..)
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
-    , CostModels, ExUnitPrices
-    , RationalNumber, UnitInterval, PositiveInterval
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , computeFees, allInputs
     , deserialize, serialize
-    , encodeCostModels
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -48,6 +45,7 @@ import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.Data as Data exposing (Data)
+import Cardano.Gov as Gov exposing (ActionDict, ActionId, Anchor, Drep(..), ProposalProcedure, ProtocolParamUpdate, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
@@ -103,6 +101,10 @@ type alias TransactionBody =
     , collateralReturn : Maybe Output -- 16
     , totalCollateral : Maybe Int -- 17
     , referenceInputs : List OutputReference -- 18
+
+    -- New in Conway
+    , votingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -- 19 Voting procedures
+    , proposalProcedures : List ProposalProcedure -- 20 Proposal procedures
     }
 
 
@@ -141,6 +143,8 @@ newBody =
     , collateralReturn = Nothing
     , totalCollateral = Nothing
     , referenceInputs = []
+    , votingProcedures = []
+    , proposalProcedures = []
     }
 
 
@@ -181,83 +185,6 @@ newWitnessSet =
 type alias Update =
     { proposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate
     , epoch : Natural
-    }
-
-
-{-| Adjustable parameters that power key aspects of the network.
--}
-type alias ProtocolParamUpdate =
-    { minFeeA : Maybe Natural -- 0
-    , minFeeB : Maybe Natural -- 1
-    , maxBlockBodySize : Maybe Int -- 2
-    , maxTransactionSize : Maybe Int -- 3
-    , maxBlockHeaderSize : Maybe Int -- 4
-    , keyDeposit : Maybe Natural -- 5
-    , poolDeposit : Maybe Natural -- 6
-    , maximumEpoch : Maybe Natural -- 7
-    , desiredNumberOfStakePools : Maybe Int -- 8
-    , poolPledgeInfluence : Maybe RationalNumber -- 9
-    , expansionRate : Maybe UnitInterval -- 10
-    , treasuryGrowthRate : Maybe UnitInterval -- 11
-    , decentralizationConstant : Maybe UnitInterval -- 12 (deprecated)
-    , extraEntropy : Maybe Nonce -- 13 (deprecated)
-    , protocolVersion : Maybe ProtocolVersion -- 14
-    , minUtxoValue : Maybe Natural -- 15 (deprecated)
-    , minPoolCost : Maybe Natural -- 16
-    , adaPerUtxoByte : Maybe Natural -- 17
-    , costModelsForScriptLanguages : Maybe CostModels -- 18
-    , executionCosts : Maybe ExUnitPrices -- 19
-    , maxTxExUnits : Maybe ExUnits -- 20
-    , maxBlockExUnits : Maybe ExUnits -- 21
-    , maxValueSize : Maybe Int -- 22
-    , collateralPercentage : Maybe Int -- 23
-    , maxCollateralInputs : Maybe Int -- 24
-    }
-
-
-{-| -}
-type Nonce
-    = Just0
-    | RandomBytes (Bytes Any)
-
-
-{-| -}
-type alias CostModels =
-    { plutusV1 : Maybe (List Int) -- 0
-    , plutusV2 : Maybe (List Int) -- 1
-    }
-
-
-{-| -}
-type alias ExUnitPrices =
-    { memPrice : PositiveInterval -- 0
-    , stepPrice : PositiveInterval -- 1
-    }
-
-
-{-| -}
-type alias ProtocolVersion =
-    ( Int, Int )
-
-
-{-| -}
-type alias UnitInterval =
-    RationalNumber
-
-
-{-| -}
-type alias PositiveInterval =
-    RationalNumber
-
-
-
--- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
-
-
-{-| -}
-type alias RationalNumber =
-    { numerator : Int
-    , denominator : Int
     }
 
 
@@ -399,6 +326,9 @@ type Certificate
 
 {-| Phantom type for pool ID.
 This is a 28-bytes Blake2b-224 hash.
+
+-- TODO: Move Pool stuff into its own module
+
 -}
 type PoolId
     = PoolId Never
@@ -499,25 +429,6 @@ otherwise the funds are given to the other accounting pot.
 type RewardTarget
     = StakeCredentials (List ( Credential, Natural ))
     | OtherAccountingPot Natural
-
-
-{-| Delegate representative.
--}
-type Drep
-    = DrepCredential Credential -- 0, 1
-    | AlwaysAbstain -- 2
-    | AlwaysNoConfidence -- 3
-
-
-type alias Anchor =
-    { url : String, dataHash : Bytes AnchorDataHash }
-
-
-{-| Opaque phantom type for an [Anchor] data hash.
-It is 32-bytes long.
--}
-type AnchorDataHash
-    = AnchorDataHash
 
 
 {-| Re-compute fees for a transaction (does not read `body.fee`).
@@ -726,7 +637,7 @@ encodeCertificate certificate =
                 , Bytes.toCbor poolParams.vrfKeyHash
                 , E.natural poolParams.pledge
                 , E.natural poolParams.cost
-                , encodeRationalNumber poolParams.margin
+                , Gov.encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
                 , E.ledgerList Bytes.toCbor poolParams.poolOwners
                 , E.ledgerList encodeRelay poolParams.relays
@@ -894,46 +805,19 @@ encodeProtocolParamUpdate =
             >> E.optionalField 6 E.natural .poolDeposit
             >> E.optionalField 7 E.natural .maximumEpoch
             >> E.optionalField 8 E.int .desiredNumberOfStakePools
-            >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
-            >> E.optionalField 10 encodeRationalNumber .expansionRate
-            >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
+            >> E.optionalField 9 Gov.encodeRationalNumber .poolPledgeInfluence
+            >> E.optionalField 10 Gov.encodeRationalNumber .expansionRate
+            >> E.optionalField 11 Gov.encodeRationalNumber .treasuryGrowthRate
             >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
             >> E.optionalField 16 E.natural .minPoolCost
             >> E.optionalField 17 E.natural .adaPerUtxoByte
-            >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
-            >> E.optionalField 19 encodeExUnitPrices .executionCosts
+            >> E.optionalField 18 Gov.encodeCostModels .costModelsForScriptLanguages
+            >> E.optionalField 19 Gov.encodeExUnitPrices .executionCosts
             >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
             >> E.optionalField 21 Redeemer.encodeExUnits .maxBlockExUnits
             >> E.optionalField 22 E.int .maxValueSize
             >> E.optionalField 23 E.int .collateralPercentage
             >> E.optionalField 24 E.int .maxCollateralInputs
-
-
-encodeExUnitPrices : ExUnitPrices -> E.Encoder
-encodeExUnitPrices =
-    E.tuple <|
-        E.elems
-            >> E.elem encodeRationalNumber .memPrice
-            >> E.elem encodeRationalNumber .stepPrice
-
-
-{-| Encode [CostModels] to CBOR.
--}
-encodeCostModels : CostModels -> E.Encoder
-encodeCostModels =
-    E.record E.int <|
-        E.fields
-            >> E.optionalField 0 (E.ledgerList E.int) .plutusV1
-            >> E.optionalField 1 (E.ledgerList E.int) .plutusV2
-
-
-encodeRationalNumber : RationalNumber -> E.Encoder
-encodeRationalNumber =
-    E.tagged (Tag.Unknown 30) <|
-        E.tuple <|
-            E.elems
-                >> E.elem E.int .numerator
-                >> E.elem E.int .denominator
 
 
 {-| -}
@@ -983,6 +867,8 @@ decodeBody =
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = referenceInputs |> Maybe.withDefault []
+            , votingProcedures = Debug.todo "votingProcedures"
+            , proposalProcedures = Debug.todo "proposalProcedures"
             }
     in
     D.record D.int buildTxBody <|
@@ -1282,28 +1168,11 @@ decodePoolParams =
         |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode vrfkeyhash" ])
         |> D.keep (D.oneOf [ D.natural, D.failWith "Failed to decode pledge" ])
         |> D.keep D.natural
-        |> D.keep (D.oneOf [ decodeRational, D.failWith "Failed to decode rational" ])
+        |> D.keep (D.oneOf [ Gov.decodeRational, D.failWith "Failed to decode rational" ])
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
         |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])
         |> D.keep (D.oneOf [ D.maybe decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
-
-
-decodeRational : D.Decoder RationalNumber
-decodeRational =
-    D.tag
-        |> D.andThen
-            (\tag ->
-                case tag of
-                    Tag.Unknown 30 ->
-                        D.tuple RationalNumber <|
-                            D.elems
-                                >> D.elem D.int
-                                >> D.elem D.int
-
-                    _ ->
-                        D.fail
-            )
 
 
 decodeRelay : D.Decoder Relay
@@ -1412,17 +1281,17 @@ decodeProtocolParamUpdate =
             -- ? 8: uint                ; n_opt: desired number of stake pools
             >> D.optionalField 8 D.int
             -- ? 9: rational            ; pool pledge influence
-            >> D.optionalField 9 decodeRational
+            >> D.optionalField 9 Gov.decodeRational
             -- ? 10: unit_interval      ; expansion rate
-            >> D.optionalField 10 decodeRational
+            >> D.optionalField 10 Gov.decodeRational
             -- ? 11: unit_interval      ; treasury growth rate
-            >> D.optionalField 11 decodeRational
+            >> D.optionalField 11 Gov.decodeRational
             -- ? 12: unit_interval      ; d. decentralization constant (deprecated)
-            >> D.optionalField 12 decodeRational
+            >> D.optionalField 12 Gov.decodeRational
             -- ? 13: $nonce             ; extra entropy (deprecated)
-            >> D.optionalField 13 decodeExtraEntropy
+            >> D.optionalField 13 Gov.decodeExtraEntropy
             -- ? 14: [protocol_version] ; protocol version
-            >> D.optionalField 14 decodeProtocolVersion
+            >> D.optionalField 14 Gov.decodeProtocolVersion
             -- ? 15: coin               ; min utxo value (deprecated)
             >> D.optionalField 15 D.natural
             -- ? 16: coin                ; min pool cost
@@ -1430,9 +1299,9 @@ decodeProtocolParamUpdate =
             -- ? 17: coin                ; ada per utxo byte
             >> D.optionalField 17 D.natural
             -- ? 18: costmdls            ; cost models for script languages
-            >> D.optionalField 18 decodeCostModels
+            >> D.optionalField 18 Gov.decodeCostModels
             -- ? 19: ex_unit_prices      ; execution costs
-            >> D.optionalField 19 decodeExecutionCosts
+            >> D.optionalField 19 Gov.decodeExecutionCosts
             -- ? 20: ex_units            ; max tx ex units
             >> D.optionalField 20 Redeemer.exUnitsFromCbor
             -- ? 21: ex_units            ; max block ex units
@@ -1443,55 +1312,6 @@ decodeProtocolParamUpdate =
             >> D.optionalField 23 D.int
             -- ? 24: uint                ; max collateral inputs
             >> D.optionalField 24 D.int
-
-
-decodeExtraEntropy : D.Decoder Nonce
-decodeExtraEntropy =
-    D.length
-        |> D.andThen
-            (\l ->
-                -- $nonce /= [ 0 // 1, bytes .size 32 ]
-                case l of
-                    1 ->
-                        -- Remark: we don’t check that the value is 0
-                        -- We just assume its correct and do not validate.
-                        D.map (always Just0) D.int
-
-                    2 ->
-                        -- Remark: we don’t check that the value is 1
-                        -- We just assume its correct and do not validate.
-                        D.int |> D.ignoreThen (D.map (RandomBytes << Bytes.fromBytes) D.bytes)
-
-                    _ ->
-                        D.fail
-            )
-
-
-decodeProtocolVersion : D.Decoder ProtocolVersion
-decodeProtocolVersion =
-    D.tuple Tuple.pair <|
-        D.elems
-            >> D.elem D.int
-            >> D.elem D.int
-
-
-decodeCostModels : D.Decoder CostModels
-decodeCostModels =
-    -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
-    D.record D.int (\v1costs v2costs -> { plutusV1 = v1costs, plutusV2 = v2costs }) <|
-        D.fields
-            -- plutusV1
-            >> D.optionalField 0 (D.list D.int)
-            -- plutusV2
-            >> D.optionalField 1 (D.list D.int)
-
-
-decodeExecutionCosts : D.Decoder ExUnitPrices
-decodeExecutionCosts =
-    D.tuple ExUnitPrices <|
-        D.elems
-            >> D.elem decodeRational
-            >> D.elem decodeRational
 
 
 

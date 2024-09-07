@@ -2,11 +2,11 @@ module Cardano.Uplc exposing (..)
 
 import Bytes.Comparable as Bytes
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import Cardano.Transaction as Transaction exposing (CostModels, Transaction)
+import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo exposing (Output)
-import Cbor.Decode
-import Cbor.Encode
-import Cbor.Encode.Extra
+import Cbor.Decode as CD
+import Cbor.Encode as CE
+import Cbor.Encode.Extra as CE
 import Dict.Any
 import Json.Decode as JD
 import Json.Encode as JE
@@ -18,9 +18,9 @@ import Natural exposing (Natural)
 evalScriptsCosts : VmConfig -> Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
 evalScriptsCosts vmConfig localStateUtxos tx =
     let
-        jsEncode : (a -> Cbor.Encode.Encoder) -> a -> JE.Value
+        jsEncode : (a -> CE.Encoder) -> a -> JE.Value
         jsEncode cborEncoder v =
-            Cbor.Encode.encode (cborEncoder v)
+            CE.encode (cborEncoder v)
                 |> Bytes.fromBytes
                 |> Bytes.toString
                 |> JE.string
@@ -76,7 +76,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
                             (Bytes.fromStringUnchecked
                                 >> Bytes.toBytes
                                 -- Decode the bytes into redeemers
-                                >> Cbor.Decode.decode Redeemer.fromCbor
+                                >> CD.decode Redeemer.fromCbor
                             )
                         )
         in
@@ -155,10 +155,10 @@ conwayDefaultCostModels =
     }
 
 
-encodeV3CostModels : V3CostModels -> Cbor.Encode.Encoder
+encodeV3CostModels : V3CostModels -> CE.Encoder
 encodeV3CostModels =
-    Cbor.Encode.record Cbor.Encode.int <|
-        Cbor.Encode.fields
-            >> Cbor.Encode.optionalField 0 (Cbor.Encode.Extra.ledgerList Cbor.Encode.int) .plutusV1
-            >> Cbor.Encode.optionalField 1 (Cbor.Encode.Extra.ledgerList Cbor.Encode.int) .plutusV2
-            >> Cbor.Encode.optionalField 2 (Cbor.Encode.Extra.ledgerList Cbor.Encode.int) .plutusV3
+    CE.record CE.int <|
+        CE.fields
+            >> CE.optionalField 0 (CE.ledgerList CE.int) .plutusV1
+            >> CE.optionalField 1 (CE.ledgerList CE.int) .plutusV2
+            >> CE.optionalField 2 (CE.ledgerList CE.int) .plutusV3
