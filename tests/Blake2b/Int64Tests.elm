@@ -76,7 +76,12 @@ suite =
                 \_ ->
                     Expect.equal
                         (UInt64.mul (u64 0xFFFFFFFF) (u64 0xFFFFFFFF))
-                        (UInt64.fromInt32s 0xFFFFFFFE 0)
+                        (UInt64.fromInt32s 0xFFFFFFFE 0x01)
+            , test "0x6A09E667 x 0xF3BCC908" <|
+                \_ ->
+                    Expect.equal
+                        (UInt64.mul (u64 0x6A09E667) (u64 0xF3BCC908))
+                        (UInt64.fromInt32s 0x64F5983E 0x0EDA1238)
             ]
         ]
 
