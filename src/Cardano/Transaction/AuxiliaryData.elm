@@ -25,6 +25,7 @@ type alias AuxiliaryData =
     , nativeScripts : List NativeScript
     , plutusV1Scripts : List (Bytes ScriptCbor)
     , plutusV2Scripts : List (Bytes ScriptCbor)
+    , plutusV3Scripts : List (Bytes ScriptCbor)
     }
 
 
@@ -40,6 +41,7 @@ toCbor data =
                     >> E.field 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
                     >> E.field 2 (E.ledgerList Bytes.toCbor) .plutusV1Scripts
                     >> E.field 3 (E.ledgerList Bytes.toCbor) .plutusV2Scripts
+                    >> E.field 4 (E.ledgerList Bytes.toCbor) .plutusV3Scripts
                 )
             )
 
@@ -50,11 +52,11 @@ fromCbor : D.Decoder AuxiliaryData
 fromCbor =
     D.oneOf
         -- Shelley variant
-        [ D.map (\labels -> { labels = labels, nativeScripts = [], plutusV1Scripts = [], plutusV2Scripts = [] }) <|
+        [ D.map (\labels -> { labels = labels, nativeScripts = [], plutusV1Scripts = [], plutusV2Scripts = [], plutusV3Scripts = [] }) <|
             D.associativeList D.natural Metadatum.fromCbor
 
         -- Allegra variant
-        , D.tuple (\txMetadata auxiliaryScripts -> { labels = txMetadata, nativeScripts = auxiliaryScripts, plutusV1Scripts = [], plutusV2Scripts = [] }) <|
+        , D.tuple (\txMetadata auxiliaryScripts -> { labels = txMetadata, nativeScripts = auxiliaryScripts, plutusV1Scripts = [], plutusV2Scripts = [], plutusV3Scripts = [] }) <|
             D.elems
                 >> D.elem (D.associativeList D.natural Metadatum.fromCbor)
                 >> D.elem (D.list Script.decodeNativeScript)
@@ -66,11 +68,12 @@ fromCbor =
                     case tag of
                         Tag.Unknown 259 ->
                             let
-                                optionalAuxiliaryData maybeMetadata maybeNativeScripts maybePlutusV1Scripts maybePlutusV2Scripts =
+                                optionalAuxiliaryData maybeMetadata maybeNativeScripts maybePlutusV1Scripts maybePlutusV2Scripts maybePlutusV3Scripts =
                                     { labels = Maybe.withDefault [] maybeMetadata
                                     , nativeScripts = Maybe.withDefault [] maybeNativeScripts
                                     , plutusV1Scripts = Maybe.withDefault [] maybePlutusV1Scripts
                                     , plutusV2Scripts = Maybe.withDefault [] maybePlutusV2Scripts
+                                    , plutusV3Scripts = Maybe.withDefault [] maybePlutusV3Scripts
                                     }
                             in
                             D.record D.int optionalAuxiliaryData <|
@@ -79,6 +82,7 @@ fromCbor =
                                     >> D.optionalField 1 (D.list Script.decodeNativeScript)
                                     >> D.optionalField 2 (D.list (D.map Bytes.fromBytes D.bytes))
                                     >> D.optionalField 3 (D.list (D.map Bytes.fromBytes D.bytes))
+                                    >> D.optionalField 4 (D.list (D.map Bytes.fromBytes D.bytes))
 
                         _ ->
                             D.fail

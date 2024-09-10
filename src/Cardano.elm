@@ -1416,6 +1416,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , nativeScripts = nothingIfEmptyList nativeScripts
             , plutusV1Script = nothingIfEmptyList <| filterScriptVersion PlutusV1 plutusScripts
             , plutusV2Script = nothingIfEmptyList <| filterScriptVersion PlutusV2 plutusScripts
+            , plutusV3Script = nothingIfEmptyList <| filterScriptVersion PlutusV3 plutusScripts
             , redeemer =
                 nothingIfEmptyList <|
                     List.concat
@@ -1440,6 +1441,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         , nativeScripts = []
                         , plutusV1Scripts = []
                         , plutusV2Scripts = []
+                        , plutusV3Scripts = []
                         }
 
         -- TransactionBody #################################

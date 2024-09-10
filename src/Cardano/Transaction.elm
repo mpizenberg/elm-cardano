@@ -167,6 +167,7 @@ type alias WitnessSet =
     , plutusData : Maybe (List Data) -- 4
     , redeemer : Maybe (List Redeemer) -- 5
     , plutusV2Script : Maybe (List (Bytes ScriptCbor)) -- 6
+    , plutusV3Script : Maybe (List (Bytes ScriptCbor)) -- 7
     }
 
 
@@ -181,6 +182,7 @@ newWitnessSet =
     , plutusData = Nothing
     , redeemer = Nothing
     , plutusV2Script = Nothing
+    , plutusV3Script = Nothing
     }
 
 
@@ -564,6 +566,7 @@ encodeWitnessSet =
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
             >> E.optionalField 5 (E.ledgerList Redeemer.encode) .redeemer
             >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
+            >> E.optionalField 7 (E.ledgerList Bytes.toCbor) .plutusV3Script
 
 
 {-| -}
@@ -1377,6 +1380,8 @@ decodeWitness =
             >> D.optionalField 5 (D.oneOf [ D.list Redeemer.fromCbor, D.failWith "Failed to decode redeemer" ])
             -- plutus_v2_script
             >> D.optionalField 6 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v2 script" ])
+            -- plutus_v3_script
+            >> D.optionalField 7 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v3 script" ])
 
 
 decodeVKeyWitness : D.Decoder VKeyWitness

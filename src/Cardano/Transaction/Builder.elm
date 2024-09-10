@@ -97,6 +97,7 @@ newWitnessSet =
     , plutusData = Nothing
     , redeemer = Nothing
     , plutusV2Script = Nothing
+    , plutusV3Script = Nothing
     }
 
 

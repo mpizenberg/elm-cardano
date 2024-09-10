@@ -75,6 +75,7 @@ auxiliaryData8a8f8dfe =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 
@@ -307,6 +308,7 @@ auxiliaryData9c91bdbb =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 

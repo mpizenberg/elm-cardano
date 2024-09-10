@@ -74,6 +74,7 @@ type alias PlutusScript =
 type PlutusVersion
     = PlutusV1
     | PlutusV2
+    | PlutusV3
 
 
 {-| Phantom type describing the kind of bytes within a [PlutusScript] object.
@@ -154,6 +155,9 @@ encodePlutusVersion version =
 
             PlutusV2 ->
                 2
+
+            PlutusV3 ->
+                3
 
 
 
