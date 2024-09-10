@@ -902,7 +902,7 @@ decodeBody =
             -- certificates
             >> D.optionalField 4
                 (D.oneOf
-                    [ D.list decodeCertificate
+                    [ D.set decodeCertificate
                     , D.failWith "Failed to decode certificate (4)"
                     ]
                 )
@@ -935,14 +935,14 @@ decodeBody =
             -- collateral
             >> D.optionalField 13
                 (D.oneOf
-                    [ D.list Utxo.decodeOutputReference
+                    [ D.set Utxo.decodeOutputReference
                     , D.failWith "Failed to decode collateral (13)"
                     ]
                 )
             -- required signers
             >> D.optionalField 14
                 (D.oneOf
-                    [ D.list (D.map Bytes.fromBytes D.bytes)
+                    [ D.set (D.map Bytes.fromBytes D.bytes)
                     , D.failWith "Failed to decode required signers (14)"
                     ]
                 )
@@ -958,7 +958,7 @@ decodeBody =
             -- reference inputs
             >> D.optionalField 18
                 (D.oneOf
-                    [ D.list Utxo.decodeOutputReference
+                    [ D.set Utxo.decodeOutputReference
                     , D.failWith "Failed to decode reference inputs (18)"
                     ]
                 )
@@ -1363,19 +1363,20 @@ decodeWitness =
     D.record D.int WitnessSet <|
         D.fields
             -- vkeywitness
-            >> D.optionalField 0 (D.oneOf [ D.list decodeVKeyWitness, D.failWith "Failed to decode KVeyWitness list" ])
+            >> D.optionalField 0 (D.oneOf [ D.set decodeVKeyWitness, D.failWith "Failed to decode KVeyWitness list" ])
             -- multisig_script
-            >> D.optionalField 1 (D.oneOf [ D.list Script.decodeNativeScript, D.failWith "Failed to decode NativeScript list" ])
+            >> D.optionalField 1 (D.oneOf [ D.set Script.decodeNativeScript, D.failWith "Failed to decode NativeScript list" ])
             -- bootstrap_witness
-            >> D.optionalField 2 (D.oneOf [ D.list decodeBootstrapWitness, D.failWith "Failed to decode bootstrap witness" ])
+            >> D.optionalField 2 (D.oneOf [ D.set decodeBootstrapWitness, D.failWith "Failed to decode bootstrap witness" ])
             -- plutus_v1_script
-            >> D.optionalField 3 (D.oneOf [ D.list (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v1 script" ])
+            >> D.optionalField 3 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v1 script" ])
             -- plutus_data
-            >> D.optionalField 4 (D.oneOf [ D.list Data.fromCbor, D.failWith "Failed to decode plutus data" ])
+            >> D.optionalField 4 (D.oneOf [ D.set Data.fromCbor, D.failWith "Failed to decode plutus data" ])
             -- redeemer
+            -- TODO: decode as either array or maps in conway
             >> D.optionalField 5 (D.oneOf [ D.list Redeemer.fromCbor, D.failWith "Failed to decode redeemer" ])
             -- plutus_v2_script
-            >> D.optionalField 6 (D.oneOf [ D.list (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v2 script" ])
+            >> D.optionalField 6 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v2 script" ])
 
 
 decodeVKeyWitness : D.Decoder VKeyWitness
