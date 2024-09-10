@@ -1519,10 +1519,10 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
-            , votingProcedures = Debug.todo "votingProcedures"
-            , proposalProcedures = Debug.todo "proposalProcedures"
-            , currentTreasuryValue = Debug.todo "currentTreasuryValue"
-            , treasuryDonation = Debug.todo "treasuryDonation"
+            , votingProcedures = [] -- TODO votingProcedures
+            , proposalProcedures = [] -- TODO proposalProcedures
+            , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
+            , treasuryDonation = Nothing -- TODO treasuryDonation
             }
     in
     { body = txBody
