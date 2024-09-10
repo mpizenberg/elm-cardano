@@ -105,6 +105,8 @@ type alias TransactionBody =
     -- New in Conway
     , votingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -- 19 Voting procedures
     , proposalProcedures : List ProposalProcedure -- 20 Proposal procedures
+    , currentTreasuryValue : Maybe Natural -- 21 Current treasury value
+    , treasuryDonation : Maybe Natural -- 22 Donation
     }
 
 
@@ -145,6 +147,8 @@ newBody =
     , referenceInputs = []
     , votingProcedures = []
     , proposalProcedures = []
+    , currentTreasuryValue = Nothing
+    , treasuryDonation = Nothing
     }
 
 
@@ -869,6 +873,8 @@ decodeBody =
             , referenceInputs = referenceInputs |> Maybe.withDefault []
             , votingProcedures = Debug.todo "votingProcedures"
             , proposalProcedures = Debug.todo "proposalProcedures"
+            , currentTreasuryValue = Debug.todo "currentTreasuryValue"
+            , treasuryDonation = Debug.todo "treasuryDonation"
             }
     in
     D.record D.int buildTxBody <|

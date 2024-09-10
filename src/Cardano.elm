@@ -1521,6 +1521,8 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , referenceInputs = allReferenceInputs
             , votingProcedures = Debug.todo "votingProcedures"
             , proposalProcedures = Debug.todo "proposalProcedures"
+            , currentTreasuryValue = Debug.todo "currentTreasuryValue"
+            , treasuryDonation = Debug.todo "treasuryDonation"
             }
     in
     { body = txBody

@@ -81,6 +81,8 @@ newBody =
     , referenceInputs = []
     , votingProcedures = []
     , proposalProcedures = []
+    , currentTreasuryValue = Nothing
+    , treasuryDonation = Nothing
     }
 
 
