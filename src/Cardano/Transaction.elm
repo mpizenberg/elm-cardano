@@ -882,7 +882,7 @@ decodeBody =
             -- inputs
             >> D.field 0
                 (D.oneOf
-                    [ D.list Utxo.decodeOutputReference
+                    [ D.set Utxo.decodeOutputReference
                     , D.failWith "Failed to decode inputs (0)"
                     ]
                 )
@@ -1209,7 +1209,7 @@ decodePoolParams =
         |> D.keep D.natural
         |> D.keep (D.oneOf [ Gov.decodeRational, D.failWith "Failed to decode rational" ])
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
-        |> D.keep (D.list (D.map Bytes.fromBytes D.bytes))
+        |> D.keep (D.set (D.map Bytes.fromBytes D.bytes))
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])
         |> D.keep (D.oneOf [ D.maybe decodePoolMetadata, D.failWith "Failed to decode pool metadata" ])
 
