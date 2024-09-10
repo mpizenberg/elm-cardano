@@ -32,6 +32,11 @@ type Voter
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
 
 
+voterFromCbor : D.Decoder Voter
+voterFromCbor =
+    D.failWith "Failed to decode voter"
+
+
 type Vote
     = VoteNo -- 0
     | VoteYes -- 1
@@ -39,7 +44,14 @@ type Vote
 
 
 type alias VotingProcedure =
-    { vote : Vote, anchor : Maybe Anchor }
+    { vote : Vote
+    , anchor : Maybe Anchor
+    }
+
+
+votingProcedureFromCbor : D.Decoder VotingProcedure
+votingProcedureFromCbor =
+    D.failWith "Failed to decode voting procedure"
 
 
 type alias ProposalProcedure =
@@ -48,6 +60,11 @@ type alias ProposalProcedure =
     , govAction : Action
     , anchor : Anchor
     }
+
+
+proposalProcedureFromCbor : D.Decoder ProposalProcedure
+proposalProcedureFromCbor =
+    D.failWith "Failed to decode proposal procedure"
 
 
 type Action
@@ -68,6 +85,11 @@ type alias ActionId =
     { transactionId : Bytes TransactionId
     , govActionIndex : Int
     }
+
+
+actionIdFromCbor : D.Decoder ActionId
+actionIdFromCbor =
+    D.failWith "Failed to decode action id"
 
 
 {-| Convenience type for `Dict` with [ActionId] keys.

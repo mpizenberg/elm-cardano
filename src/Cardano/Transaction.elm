@@ -853,7 +853,7 @@ decodeTransaction =
 decodeBody : D.Decoder TransactionBody
 decodeBody =
     let
-        buildTxBody inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash validityIntervalStart mint scriptDataHash collateral requiredSigners networkId collateralReturn totalCollateral referenceInputs =
+        buildTxBody inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash validityIntervalStart mint scriptDataHash collateral requiredSigners networkId collateralReturn totalCollateral referenceInputs votingProcedures proposalProcedures currentTreasuryValue treasuryDonation =
             { inputs = inputs
             , outputs = outputs
             , fee = Just fee
@@ -871,10 +871,10 @@ decodeBody =
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = referenceInputs |> Maybe.withDefault []
-            , votingProcedures = Debug.todo "votingProcedures"
-            , proposalProcedures = Debug.todo "proposalProcedures"
-            , currentTreasuryValue = Debug.todo "currentTreasuryValue"
-            , treasuryDonation = Debug.todo "treasuryDonation"
+            , votingProcedures = votingProcedures |> Maybe.withDefault []
+            , proposalProcedures = proposalProcedures |> Maybe.withDefault []
+            , currentTreasuryValue = currentTreasuryValue
+            , treasuryDonation = treasuryDonation
             }
     in
     D.record D.int buildTxBody <|
@@ -962,6 +962,39 @@ decodeBody =
                     , D.failWith "Failed to decode reference inputs (18)"
                     ]
                 )
+            -- votingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -- 19 Voting procedures
+            >> D.optionalField 19
+                (D.oneOf
+                    [ D.list
+                        (D.tuple Tuple.pair <|
+                            D.elems
+                                >> D.elem Gov.voterFromCbor
+                                >> D.elem
+                                    (D.list
+                                        (D.tuple Tuple.pair
+                                            (D.elems
+                                                >> D.elem Gov.actionIdFromCbor
+                                                >> D.elem Gov.votingProcedureFromCbor
+                                            )
+                                        )
+                                    )
+                        )
+                    , D.failWith "Failed to decode voting procedures (19)"
+                    ]
+                )
+            -- proposalProcedures : List ProposalProcedure -- 20 Proposal procedures
+            >> D.optionalField 20
+                (D.oneOf
+                    [ D.list Gov.proposalProcedureFromCbor
+                    , D.failWith "Failed to decode proposal procedures (20)"
+                    ]
+                )
+            -- currentTreasuryValue : Maybe Natural -- 21 Current treasury value
+            >> D.optionalField 21
+                (D.oneOf [ D.natural, D.failWith "Failed to decode current treasury value (21)" ])
+            -- treasuryDonation : Maybe Natural -- 22 Donation
+            >> D.optionalField 22
+                (D.oneOf [ D.natural, D.failWith "Failed to decode treasury donation (22)" ])
 
 
 decodeBodyFold : D.Decoder TransactionBody
