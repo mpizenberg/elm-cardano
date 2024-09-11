@@ -1,7 +1,7 @@
 module Cardano.Gov exposing (..)
 
-import Bytes.Comparable as Bytes exposing (Any, Bytes)
-import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
+import Bytes.Comparable as Bytes exposing (Any, Bytes, width)
+import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
 import Cardano.MultiAsset exposing (PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits)
 import Cardano.Utxo exposing (TransactionId)
@@ -34,7 +34,28 @@ type Voter
 
 voterFromCbor : D.Decoder Voter
 voterFromCbor =
-    D.failWith "Failed to decode voter"
+    D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.map (VoterCommitteeHotCred << Address.VKeyHash) (D.map Bytes.fromBytes D.bytes)
+
+                    1 ->
+                        D.map (VoterCommitteeHotCred << Address.ScriptHash) (D.map Bytes.fromBytes D.bytes)
+
+                    2 ->
+                        D.map (VoterDrepCred << Address.VKeyHash) (D.map Bytes.fromBytes D.bytes)
+
+                    3 ->
+                        D.map (VoterDrepCred << Address.ScriptHash) (D.map Bytes.fromBytes D.bytes)
+
+                    4 ->
+                        D.map VoterPoolId (D.map Bytes.fromBytes D.bytes)
+
+                    _ ->
+                        D.failWith ("Invalid voter tag: " ++ String.fromInt tag)
+            )
 
 
 type Vote
@@ -51,7 +72,28 @@ type alias VotingProcedure =
 
 votingProcedureFromCbor : D.Decoder VotingProcedure
 votingProcedureFromCbor =
-    D.failWith "Failed to decode voting procedure"
+    D.tuple VotingProcedure
+        (D.elems
+            >> D.elem
+                (D.int
+                    |> D.andThen
+                        (\v ->
+                            case v of
+                                0 ->
+                                    D.succeed VoteNo
+
+                                1 ->
+                                    D.succeed VoteYes
+
+                                2 ->
+                                    D.succeed VoteAbstain
+
+                                _ ->
+                                    D.failWith ("Invalid vote value: " ++ String.fromInt v)
+                        )
+                )
+            >> D.elem (D.maybe decodeAnchor)
+        )
 
 
 type alias ProposalProcedure =
@@ -64,7 +106,13 @@ type alias ProposalProcedure =
 
 proposalProcedureFromCbor : D.Decoder ProposalProcedure
 proposalProcedureFromCbor =
-    D.failWith "Failed to decode proposal procedure"
+    D.tuple ProposalProcedure
+        (D.elems
+            >> D.elem D.natural
+            >> D.elem Address.decodeReward
+            >> D.elem decodeAction
+            >> D.elem decodeAnchor
+        )
 
 
 type Action
@@ -73,12 +121,38 @@ type Action
         , protocolParamUpdate : ProtocolParamUpdate
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
-    | HardForkInitiation TODO
-    | TreasuryWithdrawals TODO
-    | NoConfidence TODO
-    | UpdateCommittee TODO
-    | NewConstitution TODO
+    | HardForkInitiation
+        { govActionId : Maybe ActionId
+        , protocolVersion : ProtocolVersion
+        }
+    | TreasuryWithdrawals
+        { withdrawals : List ( StakeAddress, Natural )
+        , guardrailsPolicy : Maybe (Bytes PolicyId)
+        }
+    | NoConfidence
+        { govActionId : Maybe ActionId
+        }
+    | UpdateCommittee
+        { govActionId : Maybe ActionId
+        , removedMembers : List Credential
+        , addedMembers : List { newMember : Credential, expirationEpoch : Natural }
+        , quorumThreshold : UnitInterval
+        }
+    | NewConstitution
+        { govActionId : Maybe ActionId
+        , constitution : Constitution
+        }
     | Info TODO
+
+
+type alias Constitution =
+    { anchor : Anchor
+    , scripthash : Maybe (Bytes ScriptHash)
+    }
+
+
+type alias ScriptHash =
+    CredentialHash
 
 
 type alias ActionId =
@@ -89,7 +163,212 @@ type alias ActionId =
 
 actionIdFromCbor : D.Decoder ActionId
 actionIdFromCbor =
-    D.failWith "Failed to decode action id"
+    D.tuple ActionId
+        (D.elems
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+            >> D.elem D.int
+        )
+
+
+decodeAnchor : D.Decoder Anchor
+decodeAnchor =
+    D.tuple Anchor
+        (D.elems
+            >> D.elem D.string
+            >> D.elem (D.map Bytes.fromBytes D.bytes)
+        )
+
+
+decodeAction : D.Decoder Action
+decodeAction =
+    D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.map3
+                            (\govActionId update policy ->
+                                ParameterChange
+                                    { govActionId = govActionId
+                                    , protocolParamUpdate = update
+                                    , guardrailsPolicy = policy
+                                    }
+                            )
+                            (D.maybe actionIdFromCbor)
+                            decodeProtocolParamUpdate
+                            (D.maybe (D.map Bytes.fromBytes D.bytes))
+
+                    1 ->
+                        D.map2
+                            (\govActionId version ->
+                                HardForkInitiation
+                                    { govActionId = govActionId
+                                    , protocolVersion = version
+                                    }
+                            )
+                            (D.maybe actionIdFromCbor)
+                            decodeProtocolVersion
+
+                    2 ->
+                        D.map2
+                            (\withdrawals policy ->
+                                TreasuryWithdrawals
+                                    { withdrawals = withdrawals
+                                    , guardrailsPolicy = policy
+                                    }
+                            )
+                            (D.associativeList Address.decodeReward D.natural)
+                            (D.maybe (D.map Bytes.fromBytes D.bytes))
+
+                    3 ->
+                        D.map
+                            (\govActionId ->
+                                NoConfidence { govActionId = govActionId }
+                            )
+                            (D.maybe actionIdFromCbor)
+
+                    4 ->
+                        D.map4
+                            (\govActionId removed added threshold ->
+                                UpdateCommittee
+                                    { govActionId = govActionId
+                                    , removedMembers = removed
+                                    , addedMembers = added
+                                    , quorumThreshold = threshold
+                                    }
+                            )
+                            (D.maybe actionIdFromCbor)
+                            (D.set Address.decodeCredential)
+                            (D.associativeList Address.decodeCredential D.natural
+                                |> D.map (List.map (\( member, epoch ) -> { newMember = member, expirationEpoch = epoch }))
+                            )
+                            decodeRational
+
+                    5 ->
+                        D.map2
+                            (\govActionId constitution ->
+                                NewConstitution
+                                    { govActionId = govActionId
+                                    , constitution = constitution
+                                    }
+                            )
+                            (D.maybe actionIdFromCbor)
+                            decodeConstitution
+
+                    6 ->
+                        D.succeed (Info TODO)
+
+                    _ ->
+                        D.failWith ("Invalid action tag: " ++ String.fromInt tag)
+            )
+
+
+decodeConstitution : D.Decoder Constitution
+decodeConstitution =
+    D.tuple Constitution
+        (D.elems
+            >> D.elem decodeAnchor
+            >> D.elem (D.maybe (D.map Bytes.fromBytes D.bytes))
+        )
+
+
+decodeProtocolParamUpdate : D.Decoder ProtocolParamUpdate
+decodeProtocolParamUpdate =
+    -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
+    D.record D.int ProtocolParamUpdate <|
+        D.fields
+            -- ? 0:  uint               ; minfee A
+            >> D.optionalField 0 D.natural
+            -- ? 1:  uint               ; minfee B
+            >> D.optionalField 1 D.natural
+            -- ? 2:  uint               ; max block body size
+            >> D.optionalField 2 D.int
+            -- ? 3:  uint               ; max transaction size
+            >> D.optionalField 3 D.int
+            -- ? 4:  uint               ; max block header size
+            >> D.optionalField 4 D.int
+            -- ? 5:  coin               ; key deposit
+            >> D.optionalField 5 D.natural
+            -- ? 6:  coin               ; pool deposit
+            >> D.optionalField 6 D.natural
+            -- ? 7: epoch               ; maximum epoch
+            >> D.optionalField 7 D.natural
+            -- ? 8: uint                ; n_opt: desired number of stake pools
+            >> D.optionalField 8 D.int
+            -- ? 9: rational            ; pool pledge influence
+            >> D.optionalField 9 decodeRational
+            -- ? 10: unit_interval      ; expansion rate
+            >> D.optionalField 10 decodeRational
+            -- ? 11: unit_interval      ; treasury growth rate
+            >> D.optionalField 11 decodeRational
+            -- ? 12: unit_interval      ; d. decentralization constant (deprecated)
+            >> D.optionalField 12 decodeRational
+            -- ? 13: $nonce             ; extra entropy (deprecated)
+            >> D.optionalField 13 decodeExtraEntropy
+            -- ? 14: [protocol_version] ; protocol version
+            >> D.optionalField 14 decodeProtocolVersion
+            -- ? 15: coin               ; min utxo value (deprecated)
+            >> D.optionalField 15 D.natural
+            -- ? 16: coin                ; min pool cost
+            >> D.optionalField 16 D.natural
+            -- ? 17: coin                ; ada per utxo byte
+            >> D.optionalField 17 D.natural
+            -- ? 18: costmdls            ; cost models for script languages
+            >> D.optionalField 18 decodeCostModels
+            -- ? 19: ex_unit_prices      ; execution costs
+            >> D.optionalField 19 decodeExecutionCosts
+            -- ? 20: ex_units            ; max tx ex units
+            >> D.optionalField 20 Redeemer.exUnitsFromCbor
+            -- ? 21: ex_units            ; max block ex units
+            >> D.optionalField 21 Redeemer.exUnitsFromCbor
+            -- ? 22: uint                ; max value size
+            >> D.optionalField 22 D.int
+            -- ? 23: uint                ; collateral percentage
+            >> D.optionalField 23 D.int
+            -- ? 24: uint                ; max collateral inputs
+            >> D.optionalField 24 D.int
+            -- Conway params
+            >> D.optionalField 25 decodePoolVotingThresholds
+            >> D.optionalField 26 decodeDrepVotingThresholds
+            >> D.optionalField 27 D.int
+            >> D.optionalField 28 D.natural
+            >> D.optionalField 29 D.natural
+            >> D.optionalField 30 D.natural
+            >> D.optionalField 31 D.natural
+            >> D.optionalField 32 D.natural
+            >> D.optionalField 33 D.int
+
+
+decodePoolVotingThresholds : D.Decoder PoolVotingThresholds
+decodePoolVotingThresholds =
+    D.tuple PoolVotingThresholds
+        (D.elems
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+        )
+
+
+decodeDrepVotingThresholds : D.Decoder DrepVotingThresholds
+decodeDrepVotingThresholds =
+    D.tuple DrepVotingThresholds
+        (D.elems
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+            >> D.elem decodeRational
+        )
 
 
 {-| Convenience type for `Dict` with [ActionId] keys.
@@ -129,7 +408,7 @@ type alias ProtocolParamUpdate =
     , treasuryGrowthRate : Maybe UnitInterval -- 11
     , decentralizationConstant : Maybe UnitInterval -- 12 (deprecated)
     , extraEntropy : Maybe Nonce -- 13 (deprecated)
-    , protocolVersion : Maybe ProtocolVersion -- 14
+    , protocolVersion : Maybe ProtocolVersion -- 14 (deprecated)
     , minUtxoValue : Maybe Natural -- 15 (deprecated)
     , minPoolCost : Maybe Natural -- 16
     , adaPerUtxoByte : Maybe Natural -- 17
@@ -140,6 +419,80 @@ type alias ProtocolParamUpdate =
     , maxValueSize : Maybe Int -- 22
     , collateralPercentage : Maybe Int -- 23
     , maxCollateralInputs : Maybe Int -- 24
+    , poolVotingThresholds : Maybe PoolVotingThresholds -- 25
+    , drepVotingThresholds : Maybe DrepVotingThresholds -- 26
+    , minCommitteeSize : Maybe Int -- 27
+    , committeeTermLimit : Maybe Natural -- 28
+    , governanceActionValidityPeriod : Maybe Natural -- 29
+    , governanceActionDeposit : Maybe Natural -- 30
+    , drepDeposit : Maybe Natural -- 31
+    , drepActivity : Maybe Natural -- 32
+    , constitutionalCommitteeMinSize : Maybe Int -- 33
+    }
+
+
+emptyProtocolParamUpdate : ProtocolParamUpdate
+emptyProtocolParamUpdate =
+    { minFeeA = Nothing -- 0
+    , minFeeB = Nothing -- 1
+    , maxBlockBodySize = Nothing -- 2
+    , maxTransactionSize = Nothing -- 3
+    , maxBlockHeaderSize = Nothing -- 4
+    , keyDeposit = Nothing -- 5
+    , poolDeposit = Nothing -- 6
+    , maximumEpoch = Nothing -- 7
+    , desiredNumberOfStakePools = Nothing -- 8
+    , poolPledgeInfluence = Nothing -- 9
+    , expansionRate = Nothing -- 10
+    , treasuryGrowthRate = Nothing -- 11
+    , decentralizationConstant = Nothing -- 12 (deprecated)
+    , extraEntropy = Nothing -- 13 (deprecated)
+    , protocolVersion = Nothing -- 14 (deprecated)
+    , minUtxoValue = Nothing -- 15 (deprecated)
+    , minPoolCost = Nothing -- 16
+    , adaPerUtxoByte = Nothing -- 17
+    , costModelsForScriptLanguages = Nothing -- 18
+    , executionCosts = Nothing -- 19
+    , maxTxExUnits = Nothing -- 20
+    , maxBlockExUnits = Nothing -- 21
+    , maxValueSize = Nothing -- 22
+    , collateralPercentage = Nothing -- 23
+    , maxCollateralInputs = Nothing -- 24
+    , poolVotingThresholds = Nothing -- 25
+    , drepVotingThresholds = Nothing -- 26
+    , minCommitteeSize = Nothing -- 27
+    , committeeTermLimit = Nothing -- 28
+    , governanceActionValidityPeriod = Nothing -- 29
+    , governanceActionDeposit = Nothing -- 30
+    , drepDeposit = Nothing -- 31
+    , drepActivity = Nothing -- 32
+    , constitutionalCommitteeMinSize = Nothing -- 33
+    }
+
+
+type alias PoolVotingThresholds =
+    { ppProposalVotingPeriod : UnitInterval
+    , ppProposalPassThreshold : UnitInterval
+    , committeeNormalVotingPeriod : UnitInterval
+    , committeeNormalPassThreshold : UnitInterval
+    , committeeNoConfidenceVotingPeriod : UnitInterval
+    , committeeNoConfidencePassThreshold : UnitInterval
+    , hardForkInitiationThreshold : UnitInterval
+    , poolActiveSlotCoeff : UnitInterval
+    }
+
+
+type alias DrepVotingThresholds =
+    { drepProposalVotingPeriod : UnitInterval
+    , drepProposalPassThreshold : UnitInterval
+    , drepNormalVotingPeriod : UnitInterval
+    , drepNormalPassThreshold : UnitInterval
+    , drepNoConfidenceVotingPeriod : UnitInterval
+    , drepNoConfidencePassThreshold : UnitInterval
+    , drepUpdatedConstitutionPassThreshold : UnitInterval
+    , drepHardForkInitiationPassThreshold : UnitInterval
+    , drepPPEconomicVotingPeriod : UnitInterval
+    , drepPPEconomicPassThreshold : UnitInterval
     }
 
 
@@ -220,6 +573,58 @@ encodeRationalNumber =
                 >> E.elem E.int .denominator
 
 
+encodeDrep : Drep -> E.Encoder
+encodeDrep drep =
+    case drep of
+        DrepCredential cred ->
+            Address.credentialToCbor cred
+
+        AlwaysAbstain ->
+            E.int 2
+
+        AlwaysNoConfidence ->
+            E.int 3
+
+
+encodeAnchor : Anchor -> E.Encoder
+encodeAnchor =
+    E.tuple
+        (E.elems
+            >> E.elem E.string .url
+            >> E.elem Bytes.toCbor .dataHash
+        )
+
+
+encodePoolVotingThresholds : PoolVotingThresholds -> E.Encoder
+encodePoolVotingThresholds thresholds =
+    E.ledgerList encodeRationalNumber
+        [ thresholds.ppProposalVotingPeriod
+        , thresholds.ppProposalPassThreshold
+        , thresholds.committeeNormalVotingPeriod
+        , thresholds.committeeNormalPassThreshold
+        , thresholds.committeeNoConfidenceVotingPeriod
+        , thresholds.committeeNoConfidencePassThreshold
+        , thresholds.hardForkInitiationThreshold
+        , thresholds.poolActiveSlotCoeff
+        ]
+
+
+encodeDrepVotingThresholds : DrepVotingThresholds -> E.Encoder
+encodeDrepVotingThresholds thresholds =
+    E.ledgerList encodeRationalNumber
+        [ thresholds.drepProposalVotingPeriod
+        , thresholds.drepProposalPassThreshold
+        , thresholds.drepNormalVotingPeriod
+        , thresholds.drepNormalPassThreshold
+        , thresholds.drepNoConfidenceVotingPeriod
+        , thresholds.drepNoConfidencePassThreshold
+        , thresholds.drepUpdatedConstitutionPassThreshold
+        , thresholds.drepHardForkInitiationPassThreshold
+        , thresholds.drepPPEconomicVotingPeriod
+        , thresholds.drepPPEconomicPassThreshold
+        ]
+
+
 
 -- DECODERS
 
@@ -287,4 +692,27 @@ decodeRational =
 
                     _ ->
                         D.fail
+            )
+
+
+decodeDrep : D.Decoder Drep
+decodeDrep =
+    D.int
+        |> D.andThen
+            (\tag ->
+                case tag of
+                    0 ->
+                        D.map (DrepCredential << Address.VKeyHash) (D.map Bytes.fromBytes D.bytes)
+
+                    1 ->
+                        D.map (DrepCredential << Address.ScriptHash) (D.map Bytes.fromBytes D.bytes)
+
+                    2 ->
+                        D.succeed AlwaysAbstain
+
+                    3 ->
+                        D.succeed AlwaysNoConfidence
+
+                    _ ->
+                        D.failWith ("Invalid Drep tag: " ++ String.fromInt tag)
             )

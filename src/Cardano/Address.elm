@@ -6,7 +6,7 @@ module Cardano.Address exposing
     , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
-    , decode, decodeReward
+    , decode, decodeReward, decodeCredential
     )
 
 {-| Handling Cardano addresses.
@@ -25,7 +25,7 @@ module Cardano.Address exposing
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
-@docs decode, decodeReward
+@docs decode, decodeReward, decodeCredential
 
 -}
 
@@ -530,3 +530,32 @@ networkIdFromHeader header =
 
         n ->
             Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
+
+
+{-| Decode [Credential] which is either from a key or a script.
+-}
+decodeCredential : D.Decoder Credential
+decodeCredential =
+    D.length
+        |> D.andThen
+            (\length ->
+                -- A stake credential contains 2 elements
+                if length == 2 then
+                    D.int
+                        |> D.andThen
+                            (\id ->
+                                if id == 0 then
+                                    -- If the id is 0, it's a vkey hash
+                                    D.map (VKeyHash << Bytes.fromBytes) D.bytes
+
+                                else if id == 1 then
+                                    -- If the id is 1, it's a script hash
+                                    D.map (ScriptHash << Bytes.fromBytes) D.bytes
+
+                                else
+                                    D.fail
+                            )
+
+                else
+                    D.fail
+            )
