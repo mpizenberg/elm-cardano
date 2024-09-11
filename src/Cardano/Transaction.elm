@@ -520,6 +520,41 @@ encodeTransactionBody =
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
+            >> E.nonEmptyField 19 List.isEmpty encodeVotingProcedures .votingProcedures
+            >> E.nonEmptyField 20 List.isEmpty (E.ledgerList encodeProposalProcedure) .proposalProcedures
+            >> E.optionalField 21 E.natural .currentTreasuryValue
+            >> E.optionalField 22 E.natural .treasuryDonation
+
+
+encodeVotingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -> E.Encoder
+encodeVotingProcedures =
+    E.ledgerList
+        (E.tuple
+            (E.elems
+                >> E.elem Gov.encodeVoter Tuple.first
+                >> E.elem
+                    (E.ledgerList
+                        (E.tuple
+                            (E.elems
+                                >> E.elem Gov.encodeActionId Tuple.first
+                                >> E.elem Gov.encodeVotingProcedure Tuple.second
+                            )
+                        )
+                    )
+                    Tuple.second
+            )
+        )
+
+
+encodeProposalProcedure : ProposalProcedure -> E.Encoder
+encodeProposalProcedure =
+    E.tuple
+        (E.elems
+            >> E.elem E.natural .deposit
+            >> E.elem Address.stakeAddressToCbor .rewardAccount
+            >> E.elem Gov.encodeAction .govAction
+            >> E.elem Gov.encodeAnchor .anchor
+        )
 
 
 {-| -}
@@ -823,45 +858,7 @@ encodeUpdate =
 {-| -}
 encodeProposedProtocolParameterUpdates : BytesMap GenesisHash ProtocolParamUpdate -> E.Encoder
 encodeProposedProtocolParameterUpdates =
-    Bytes.Map.toCbor encodeProtocolParamUpdate
-
-
-encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
-encodeProtocolParamUpdate =
-    E.record E.int <|
-        E.fields
-            >> E.optionalField 0 E.natural .minFeeA
-            >> E.optionalField 1 E.natural .minFeeB
-            >> E.optionalField 2 E.int .maxBlockBodySize
-            >> E.optionalField 3 E.int .maxTransactionSize
-            >> E.optionalField 4 E.int .maxBlockHeaderSize
-            >> E.optionalField 5 E.natural .keyDeposit
-            >> E.optionalField 6 E.natural .poolDeposit
-            >> E.optionalField 7 E.natural .maximumEpoch
-            >> E.optionalField 8 E.int .desiredNumberOfStakePools
-            >> E.optionalField 9 Gov.encodeRationalNumber .poolPledgeInfluence
-            >> E.optionalField 10 Gov.encodeRationalNumber .expansionRate
-            >> E.optionalField 11 Gov.encodeRationalNumber .treasuryGrowthRate
-            >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
-            >> E.optionalField 16 E.natural .minPoolCost
-            >> E.optionalField 17 E.natural .adaPerUtxoByte
-            >> E.optionalField 18 Gov.encodeCostModels .costModelsForScriptLanguages
-            >> E.optionalField 19 Gov.encodeExUnitPrices .executionCosts
-            >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
-            >> E.optionalField 21 Redeemer.encodeExUnits .maxBlockExUnits
-            >> E.optionalField 22 E.int .maxValueSize
-            >> E.optionalField 23 E.int .collateralPercentage
-            >> E.optionalField 24 E.int .maxCollateralInputs
-            -- Conway fields
-            >> E.optionalField 25 Gov.encodePoolVotingThresholds .poolVotingThresholds
-            >> E.optionalField 26 Gov.encodeDrepVotingThresholds .drepVotingThresholds
-            >> E.optionalField 27 E.int .minCommitteeSize
-            >> E.optionalField 28 E.natural .committeeTermLimit
-            >> E.optionalField 29 E.natural .governanceActionValidityPeriod
-            >> E.optionalField 30 E.natural .governanceActionDeposit
-            >> E.optionalField 31 E.natural .drepDeposit
-            >> E.optionalField 32 E.natural .drepInactivityPeriod
-            >> E.optionalField 33 E.int .minFeeRefScriptCostPerByte
+    Bytes.Map.toCbor Gov.encodeProtocolParamUpdate
 
 
 {-| -}

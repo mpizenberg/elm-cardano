@@ -629,6 +629,163 @@ encodeDrepVotingThresholds thresholds =
         ]
 
 
+encodeAction : Action -> E.Encoder
+encodeAction action =
+    case action of
+        ParameterChange { govActionId, protocolParamUpdate, guardrailsPolicy } ->
+            E.ledgerList identity
+                [ E.int 0
+                , E.maybe encodeActionId govActionId
+                , encodeProtocolParamUpdate protocolParamUpdate
+                , E.maybe Bytes.toCbor guardrailsPolicy
+                ]
+
+        HardForkInitiation { govActionId, protocolVersion } ->
+            E.ledgerList identity
+                [ E.int 1
+                , E.maybe encodeActionId govActionId
+                , encodeProtocolVersion protocolVersion
+                ]
+
+        TreasuryWithdrawals { withdrawals, guardrailsPolicy } ->
+            E.ledgerList identity
+                [ E.int 2
+                , E.ledgerAssociativeList Address.stakeAddressToCbor E.natural withdrawals
+                , E.maybe Bytes.toCbor guardrailsPolicy
+                ]
+
+        NoConfidence { govActionId } ->
+            E.ledgerList identity
+                [ E.int 3
+                , E.maybe encodeActionId govActionId
+                ]
+
+        UpdateCommittee { govActionId, removedMembers, addedMembers, quorumThreshold } ->
+            E.ledgerList identity
+                [ E.int 4
+                , E.maybe encodeActionId govActionId
+                , E.ledgerList Address.credentialToCbor removedMembers
+                , E.ledgerAssociativeList Address.credentialToCbor E.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
+                , encodeRationalNumber quorumThreshold
+                ]
+
+        NewConstitution { govActionId, constitution } ->
+            E.ledgerList identity
+                [ E.int 5
+                , E.maybe encodeActionId govActionId
+                , encodeConstitution constitution
+                ]
+
+        Info _ ->
+            E.int 6
+
+
+encodeActionId : ActionId -> E.Encoder
+encodeActionId =
+    E.tuple
+        (E.elems
+            >> E.elem Bytes.toCbor .transactionId
+            >> E.elem E.int .govActionIndex
+        )
+
+
+encodeConstitution : Constitution -> E.Encoder
+encodeConstitution =
+    E.tuple
+        (E.elems
+            >> E.elem encodeAnchor .anchor
+            >> E.optionalElem Bytes.toCbor .scripthash
+        )
+
+
+encodeProtocolVersion : ProtocolVersion -> E.Encoder
+encodeProtocolVersion ( major, minor ) =
+    E.ledgerList E.int [ major, minor ]
+
+
+encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
+encodeProtocolParamUpdate =
+    E.record E.int <|
+        E.fields
+            >> E.optionalField 0 E.natural .minFeeA
+            >> E.optionalField 1 E.natural .minFeeB
+            >> E.optionalField 2 E.int .maxBlockBodySize
+            >> E.optionalField 3 E.int .maxTransactionSize
+            >> E.optionalField 4 E.int .maxBlockHeaderSize
+            >> E.optionalField 5 E.natural .keyDeposit
+            >> E.optionalField 6 E.natural .poolDeposit
+            >> E.optionalField 7 E.natural .maximumEpoch
+            >> E.optionalField 8 E.int .desiredNumberOfStakePools
+            >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
+            >> E.optionalField 10 encodeRationalNumber .expansionRate
+            >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
+            >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
+            >> E.optionalField 16 E.natural .minPoolCost
+            >> E.optionalField 17 E.natural .adaPerUtxoByte
+            >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
+            >> E.optionalField 19 encodeExUnitPrices .executionCosts
+            >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
+            >> E.optionalField 21 Redeemer.encodeExUnits .maxBlockExUnits
+            >> E.optionalField 22 E.int .maxValueSize
+            >> E.optionalField 23 E.int .collateralPercentage
+            >> E.optionalField 24 E.int .maxCollateralInputs
+            -- Conway fields
+            >> E.optionalField 25 encodePoolVotingThresholds .poolVotingThresholds
+            >> E.optionalField 26 encodeDrepVotingThresholds .drepVotingThresholds
+            >> E.optionalField 27 E.int .minCommitteeSize
+            >> E.optionalField 28 E.natural .committeeTermLimit
+            >> E.optionalField 29 E.natural .governanceActionValidityPeriod
+            >> E.optionalField 30 E.natural .governanceActionDeposit
+            >> E.optionalField 31 E.natural .drepDeposit
+            >> E.optionalField 32 E.natural .drepInactivityPeriod
+            >> E.optionalField 33 E.int .minFeeRefScriptCostPerByte
+
+
+encodeVoter : Voter -> E.Encoder
+encodeVoter voter =
+    case voter of
+        VoterCommitteeHotCred cred ->
+            case cred of
+                Address.VKeyHash hash ->
+                    E.ledgerList identity [ E.int 0, Bytes.toCbor hash ]
+
+                Address.ScriptHash hash ->
+                    E.ledgerList identity [ E.int 1, Bytes.toCbor hash ]
+
+        VoterDrepCred cred ->
+            case cred of
+                Address.VKeyHash hash ->
+                    E.ledgerList identity [ E.int 2, Bytes.toCbor hash ]
+
+                Address.ScriptHash hash ->
+                    E.ledgerList identity [ E.int 3, Bytes.toCbor hash ]
+
+        VoterPoolId poolId ->
+            E.ledgerList identity [ E.int 4, Bytes.toCbor poolId ]
+
+
+encodeVotingProcedure : VotingProcedure -> E.Encoder
+encodeVotingProcedure =
+    E.tuple
+        (E.elems
+            >> E.elem encodeVote .vote
+            >> E.elem (E.maybe encodeAnchor) .anchor
+        )
+
+
+encodeVote : Vote -> E.Encoder
+encodeVote vote =
+    case vote of
+        VoteNo ->
+            E.int 0
+
+        VoteYes ->
+            E.int 1
+
+        VoteAbstain ->
+            E.int 2
+
+
 
 -- DECODERS
 
