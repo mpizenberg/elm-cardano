@@ -528,22 +528,9 @@ encodeTransactionBody =
 
 encodeVotingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -> E.Encoder
 encodeVotingProcedures =
-    E.ledgerList
-        (E.tuple
-            (E.elems
-                >> E.elem Gov.encodeVoter Tuple.first
-                >> E.elem
-                    (E.ledgerList
-                        (E.tuple
-                            (E.elems
-                                >> E.elem Gov.encodeActionId Tuple.first
-                                >> E.elem Gov.encodeVotingProcedure Tuple.second
-                            )
-                        )
-                    )
-                    Tuple.second
-            )
-        )
+    E.ledgerAssociativeList
+        Gov.encodeVoter
+        (E.ledgerAssociativeList Gov.encodeActionId Gov.encodeVotingProcedure)
 
 
 encodeProposalProcedure : ProposalProcedure -> E.Encoder
@@ -1002,20 +989,9 @@ decodeBody =
             -- votingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -- 19 Voting procedures
             >> D.optionalField 19
                 (D.oneOf
-                    [ D.list
-                        (D.tuple Tuple.pair <|
-                            D.elems
-                                >> D.elem Gov.voterFromCbor
-                                >> D.elem
-                                    (D.list
-                                        (D.tuple Tuple.pair
-                                            (D.elems
-                                                >> D.elem Gov.actionIdFromCbor
-                                                >> D.elem Gov.votingProcedureFromCbor
-                                            )
-                                        )
-                                    )
-                        )
+                    [ D.associativeList
+                        Gov.voterFromCbor
+                        (D.associativeList Gov.actionIdFromCbor Gov.votingProcedureFromCbor)
                     , D.failWith "Failed to decode voting procedures (19)"
                     ]
                 )
