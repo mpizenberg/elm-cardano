@@ -532,7 +532,7 @@ encodeWitnessSet =
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (E.ledgerList Bytes.toCbor) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
-            >> E.optionalField 5 (E.ledgerList Redeemer.encode) .redeemer
+            >> E.optionalField 5 encodeRedeemersAsMap .redeemer
             >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
             >> E.optionalField 7 (E.ledgerList Bytes.toCbor) .plutusV3Script
 
@@ -565,6 +565,23 @@ encodeBootstrapWitness =
         E.elems
             >> E.elem Bytes.toCbor .publicKey
             >> E.elem Bytes.toCbor .signature
+
+
+{-| -}
+encodeRedeemersAsMap : List Redeemer -> E.Encoder
+encodeRedeemersAsMap redeemers =
+    List.map (\r -> ( ( r.tag, r.index ), ( r.data, r.exUnits ) )) redeemers
+        |> E.associativeList
+            (E.tuple <|
+                E.elems
+                    >> E.elem Redeemer.encodeTag Tuple.first
+                    >> E.elem E.int Tuple.second
+            )
+            (E.tuple <|
+                E.elems
+                    >> E.elem Data.toCbor Tuple.first
+                    >> E.elem Redeemer.encodeExUnits Tuple.second
+            )
 
 
 {-| -}
@@ -1401,9 +1418,27 @@ decodeWitness =
             >> D.optionalField 3 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v1 script" ])
             -- plutus_data
             >> D.optionalField 4 (D.oneOf [ D.set Data.fromCbor, D.failWith "Failed to decode plutus data" ])
-            -- redeemer
-            -- TODO: decode as either array or maps in conway
-            >> D.optionalField 5 (D.oneOf [ D.list Redeemer.fromCbor, D.failWith "Failed to decode redeemer" ])
+            -- redeemer: decode as either array or maps in conway
+            >> D.optionalField 5
+                (D.oneOf
+                    [ D.list Redeemer.fromCborArray
+                    , D.associativeList
+                        -- [tag, index]
+                        (D.tuple Tuple.pair <|
+                            D.elems
+                                >> D.elem Redeemer.tagFromCbor
+                                >> D.elem D.int
+                        )
+                        -- [data, exUnits]
+                        (D.tuple Tuple.pair <|
+                            D.elems
+                                >> D.elem Data.fromCbor
+                                >> D.elem Redeemer.exUnitsFromCbor
+                        )
+                        |> D.map (List.map (\( ( tag, index ), ( data, exUnits ) ) -> Redeemer tag index data exUnits))
+                    , D.failWith "Failed to decode redeemer"
+                    ]
+                )
             -- plutus_v2_script
             >> D.optionalField 6 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v2 script" ])
             -- plutus_v3_script

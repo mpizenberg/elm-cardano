@@ -77,7 +77,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
                             (Bytes.fromStringUnchecked
                                 >> Bytes.toBytes
                                 -- Decode the bytes into redeemers
-                                >> CD.decode Redeemer.fromCbor
+                                >> CD.decode Redeemer.fromCborArray
                             )
                         )
         in
