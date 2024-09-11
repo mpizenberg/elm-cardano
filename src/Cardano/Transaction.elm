@@ -927,7 +927,7 @@ decodeBody =
             >> D.optionalField 4
                 (D.oneOf
                     [ D.set decodeCertificate
-                    , D.failWith "Failed to decode certificate (4)"
+                    , D.failWith "Failed to decode certificates (4)"
                     ]
                 )
             -- withdrawals
@@ -1177,28 +1177,28 @@ decodeCertificateHelper length id =
         ( 2, 6 ) ->
             D.map MoveInstantaneousRewardsCert decodeMoveInstantaneousRewards
 
-        -- reg_cert = (7, stake_credential, coin)
+        -- reg_cert = (7, credential, coin)
         ( 3, 7 ) ->
             D.map2
                 (\cred deposit -> RegCert { delegator = cred, deposit = deposit })
                 decodeCredential
                 D.natural
 
-        -- unreg_cert = (8, stake_credential, coin)
+        -- unreg_cert = (8, credential, coin)
         ( 3, 8 ) ->
             D.map2
                 (\cred refund -> UnregCert { delegator = cred, refund = refund })
                 decodeCredential
                 D.natural
 
-        -- vote_deleg_cert = (9, stake_credential, drep)
+        -- vote_deleg_cert = (9, credential, drep)
         ( 3, 9 ) ->
             D.map2
                 (\cred drep -> VoteDelegCert { delegator = cred, drep = drep })
-                decodeCredential
-                Gov.decodeDrep
+                (D.oneOf [ decodeCredential, D.failWith "decodeCredential failed" ])
+                (D.oneOf [ Gov.decodeDrep, D.failWith "decodeDrep failed" ])
 
-        -- stake_vote_deleg_cert = (10, stake_credential, pool_keyhash, drep)
+        -- stake_vote_deleg_cert = (10, credential, pool_keyhash, drep)
         ( 4, 10 ) ->
             D.map3
                 (\cred poolId drep -> StakeVoteDelegCert { delegator = cred, poolId = poolId, drep = drep })
@@ -1206,7 +1206,7 @@ decodeCertificateHelper length id =
                 (D.map Bytes.fromBytes D.bytes)
                 Gov.decodeDrep
 
-        -- stake_reg_deleg_cert = (11, stake_credential, pool_keyhash, coin)
+        -- stake_reg_deleg_cert = (11, credential, pool_keyhash, coin)
         ( 4, 11 ) ->
             D.map3
                 (\cred poolId deposit -> StakeRegDelegCert { delegator = cred, poolId = poolId, deposit = deposit })
@@ -1214,7 +1214,7 @@ decodeCertificateHelper length id =
                 (D.map Bytes.fromBytes D.bytes)
                 D.natural
 
-        -- vote_reg_deleg_cert = (12, stake_credential, drep, coin)
+        -- vote_reg_deleg_cert = (12, credential, drep, coin)
         ( 4, 12 ) ->
             D.map3
                 (\cred drep deposit -> VoteRegDelegCert { delegator = cred, drep = drep, deposit = deposit })
@@ -1222,7 +1222,7 @@ decodeCertificateHelper length id =
                 Gov.decodeDrep
                 D.natural
 
-        -- stake_vote_reg_deleg_cert = (13, stake_credential, pool_keyhash, drep, coin)
+        -- stake_vote_reg_deleg_cert = (13, credential, pool_keyhash, drep, coin)
         ( 5, 13 ) ->
             D.map4
                 (\cred poolId drep deposit -> StakeVoteRegDelegCert { delegator = cred, poolId = poolId, drep = drep, deposit = deposit })

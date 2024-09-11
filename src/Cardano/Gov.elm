@@ -860,22 +860,31 @@ decodeRational =
 
 decodeDrep : D.Decoder Drep
 decodeDrep =
-    D.int
+    D.length
         |> D.andThen
-            (\tag ->
-                case tag of
-                    0 ->
-                        D.map (DrepCredential << Address.VKeyHash) (D.map Bytes.fromBytes D.bytes)
+            (\length ->
+                -- A stake credential contains 2 elements
+                if length == 2 then
+                    D.int
+                        |> D.andThen
+                            (\tag ->
+                                case tag of
+                                    0 ->
+                                        D.map (DrepCredential << Address.VKeyHash) (D.map Bytes.fromBytes D.bytes)
 
-                    1 ->
-                        D.map (DrepCredential << Address.ScriptHash) (D.map Bytes.fromBytes D.bytes)
+                                    1 ->
+                                        D.map (DrepCredential << Address.ScriptHash) (D.map Bytes.fromBytes D.bytes)
 
-                    2 ->
-                        D.succeed AlwaysAbstain
+                                    2 ->
+                                        D.succeed AlwaysAbstain
 
-                    3 ->
-                        D.succeed AlwaysNoConfidence
+                                    3 ->
+                                        D.succeed AlwaysNoConfidence
 
-                    _ ->
-                        D.failWith ("Invalid Drep tag: " ++ String.fromInt tag)
+                                    _ ->
+                                        D.failWith ("Invalid Drep tag: " ++ String.fromInt tag)
+                            )
+
+                else
+                    D.fail
             )
