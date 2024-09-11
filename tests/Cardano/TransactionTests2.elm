@@ -38,6 +38,7 @@ suite =
             , decodeef45fe8e
             , decode4385b3d8
             , decode1e5dd53b
+            , decode15f82a36
             ]
         , decodeInputs
         , decodeOutputs
@@ -634,6 +635,25 @@ witnessSet1e5dd53b =
                   }
                 ]
     }
+
+
+{-| Next Conway failure.
+
+Tx id: 15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916
+Block height: 10789298
+Previous block intersection:
+
+  - slot: 133826442
+  - id: 3e48cc2f707bda35bd2cffd4b3624f4ac4b20334dc5c348ff7ac037ced9bc49f
+
+-}
+decode15f82a36 : Test
+decode15f82a36 =
+    test "Tx id 15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a400d9010281825820a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d000181825839014dd37a5e94e082f9096e4e498f36686b58df4a6d8eeb0f918c854d6c45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba71a03e9befe021a0002af3914d9010281841b000000174876e800581de145dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba78106827835697066733a2f2f516d576a6348737271396b4b485a5a37615050466a714e36774c75784839643862637173736d724537483463766258202f98f57c4149fdfed2b73cbd821226fe417ef5ed49d8f836a37b31edf14dea47a100d9010281825820a47afdef5fd0f70a7dc394fe540ddddd86cbaf28f2353acedbd9c6e6f71714db584004980038691b87592a7b66546b30f760bee4f778905a6ca7de9aa1687c8b5dcf199ba671475c9379f74000e09498324f44755a7aca3658f742a6f1ab06f6400ef5f6"
+                |> Transaction.deserialize
+                |> Expect.notEqual Nothing
 
 
 
