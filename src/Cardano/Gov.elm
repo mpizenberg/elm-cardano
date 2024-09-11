@@ -344,7 +344,7 @@ decodeProtocolParamUpdate =
             >> D.optionalField 31 D.natural
             -- drepActivity : Maybe Natural -- 32
             >> D.optionalField 32 D.natural
-            -- constitutionalCommitteeMinSize : Maybe Int -- 33
+            -- minFeeRefScriptCostPerByte : Maybe Int -- 33
             >> D.optionalField 33 D.int
 
 
@@ -435,13 +435,15 @@ type alias ProtocolParamUpdate =
     , governanceActionValidityPeriod : Maybe Natural -- 29
     , governanceActionDeposit : Maybe Natural -- 30
     , drepDeposit : Maybe Natural -- 31
-    , drepActivity : Maybe Natural -- 32
-    , constitutionalCommitteeMinSize : Maybe Int -- 33
+    , drepInactivityPeriod : Maybe Natural -- 32
+    , minFeeRefScriptCostPerByte : Maybe Int -- 33
     }
 
 
-emptyProtocolParamUpdate : ProtocolParamUpdate
-emptyProtocolParamUpdate =
+{-| Default (no update) for [ProtocolParamUpdate].
+-}
+noParamUpdate : ProtocolParamUpdate
+noParamUpdate =
     { minFeeA = Nothing -- 0
     , minFeeB = Nothing -- 1
     , maxBlockBodySize = Nothing -- 2
@@ -474,8 +476,8 @@ emptyProtocolParamUpdate =
     , governanceActionValidityPeriod = Nothing -- 29
     , governanceActionDeposit = Nothing -- 30
     , drepDeposit = Nothing -- 31
-    , drepActivity = Nothing -- 32
-    , constitutionalCommitteeMinSize = Nothing -- 33
+    , drepInactivityPeriod = Nothing -- 32
+    , minFeeRefScriptCostPerByte = Nothing -- 33
     }
 
 

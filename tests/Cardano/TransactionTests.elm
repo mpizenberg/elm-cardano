@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
-import Cardano.Gov exposing (Nonce(..), emptyProtocolParamUpdate)
+import Cardano.Gov exposing (Nonce(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet)
@@ -1747,13 +1747,13 @@ txBodyfc863a44 =
                 , proposedProtocolParameterUpdates =
                     bytesMap
                         (Dict.fromList
-                            [ ( "162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819b", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "ad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950c", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "b9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
-                            , ( "f7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757", { emptyProtocolParamUpdate | extraEntropy = Just Just0 } )
+                            [ ( "162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819b", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "ad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950c", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "b9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "f7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757", { noParamUpdate | extraEntropy = Just Just0 } )
                             ]
                         )
                 }
