@@ -572,7 +572,68 @@ decode1e5dd53b =
         \_ ->
             Bytes.fromStringUnchecked "84a70081825820856073e491ed7b92134da94468bd4b68f971d338718241f98ca326f1782aef2901018182583901944831b82cfe62d8255294b6ae383afb983b0d720f25556662462a10ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc1a9ac28304021a0002a515031a07f7ad42048183098200581cad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc810205a1581de1ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc1a29467fac0800a10082825820cb473de65fc943326373fa47c35e99ece246e58fe8cdf325973e2224b8a8a7d25840d96ce06880b7bd41d195dbec2a36ac2011d074f84d22a25646c9232c49359ac9da12d5267ab7e98ae0c13b5ad665dfc9a4c352fe0c61b6195653831181927006825820e61a7b67c311ad9de99100803567641356e9a16b3a318e902feb3ff2518f38dd584094cb537a291d96030c00468d55e579924695beb99fea2039796b56cd84a1acec0de3dbdfc0b41ce9989ea2da43710eec42877ef9a22fc000b175db33fe41470cf5f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = body1e5dd53b
+                        , witnessSet = witnessSet1e5dd53b
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body1e5dd53b : TransactionBody
+body1e5dd53b =
+    { newBody
+        | certificates =
+            [ VoteDelegCert
+                { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")
+                , drep = AlwaysAbstain
+                }
+            ]
+        , fee = Just (N.fromSafeInt 173333)
+        , inputs =
+            [ { outputIndex = 1
+              , transactionId = Bytes.fromStringUnchecked "856073e491ed7b92134da94468bd4b68f971d338718241f98ca326f1782aef29"
+              }
+            ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "944831b82cfe62d8255294b6ae383afb983b0d720f25556662462a10")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")))
+                        }
+              , amount = Value.onlyLovelace (bigNat [ 46301956, 38 ])
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , ttl = Just (bigNat [ 66563394, 1 ])
+        , validityIntervalStart = Just 0
+        , withdrawals =
+            [ ( { networkId = Mainnet
+                , stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")
+                }
+              , bigNat [ 21397420, 10 ]
+              )
+            ]
+    }
+
+
+witnessSet1e5dd53b : WitnessSet
+witnessSet1e5dd53b =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "d96ce06880b7bd41d195dbec2a36ac2011d074f84d22a25646c9232c49359ac9da12d5267ab7e98ae0c13b5ad665dfc9a4c352fe0c61b6195653831181927006"
+                  , vkey = Bytes.fromStringUnchecked "cb473de65fc943326373fa47c35e99ece246e58fe8cdf325973e2224b8a8a7d2"
+                  }
+                , { signature = Bytes.fromStringUnchecked "94cb537a291d96030c00468d55e579924695beb99fea2039796b56cd84a1acec0de3dbdfc0b41ce9989ea2da43710eec42877ef9a22fc000b175db33fe41470c"
+                  , vkey = Bytes.fromStringUnchecked "e61a7b67c311ad9de99100803567641356e9a16b3a318e902feb3ff2518f38dd"
+                  }
+                ]
+    }
 
 
 
