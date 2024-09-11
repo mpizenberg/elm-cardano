@@ -357,9 +357,6 @@ decodePoolVotingThresholds =
             >> D.elem decodeRational
             >> D.elem decodeRational
             >> D.elem decodeRational
-            >> D.elem decodeRational
-            >> D.elem decodeRational
-            >> D.elem decodeRational
         )
 
 
@@ -482,28 +479,25 @@ noParamUpdate =
 
 
 type alias PoolVotingThresholds =
-    { ppProposalVotingPeriod : UnitInterval
-    , ppProposalPassThreshold : UnitInterval
-    , committeeNormalVotingPeriod : UnitInterval
-    , committeeNormalPassThreshold : UnitInterval
-    , committeeNoConfidenceVotingPeriod : UnitInterval
-    , committeeNoConfidencePassThreshold : UnitInterval
-    , hardForkInitiationThreshold : UnitInterval
-    , poolActiveSlotCoeff : UnitInterval
+    { motionNoConfidence : UnitInterval
+    , committeeNormal : UnitInterval
+    , committeeNoConfidence : UnitInterval
+    , hardforkInitiation : UnitInterval
+    , securityRelevantParameter : UnitInterval
     }
 
 
 type alias DrepVotingThresholds =
-    { drepProposalVotingPeriod : UnitInterval
-    , drepProposalPassThreshold : UnitInterval
-    , drepNormalVotingPeriod : UnitInterval
-    , drepNormalPassThreshold : UnitInterval
-    , drepNoConfidenceVotingPeriod : UnitInterval
-    , drepNoConfidencePassThreshold : UnitInterval
-    , drepUpdatedConstitutionPassThreshold : UnitInterval
-    , drepHardForkInitiationPassThreshold : UnitInterval
-    , drepPPEconomicVotingPeriod : UnitInterval
-    , drepPPEconomicPassThreshold : UnitInterval
+    { motionNoConfidence : UnitInterval
+    , committeeNormal : UnitInterval
+    , committeeNoConfidence : UnitInterval
+    , updateConstitution : UnitInterval
+    , hardforkInitiation : UnitInterval
+    , ppNetworkGroup : UnitInterval
+    , ppEconomicGroup : UnitInterval
+    , ppTechnicalGroup : UnitInterval
+    , ppGovernanceGroup : UnitInterval
+    , treasuryWithdrawal : UnitInterval
     }
 
 
@@ -611,30 +605,27 @@ encodeAnchor =
 encodePoolVotingThresholds : PoolVotingThresholds -> E.Encoder
 encodePoolVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
-        [ thresholds.ppProposalVotingPeriod
-        , thresholds.ppProposalPassThreshold
-        , thresholds.committeeNormalVotingPeriod
-        , thresholds.committeeNormalPassThreshold
-        , thresholds.committeeNoConfidenceVotingPeriod
-        , thresholds.committeeNoConfidencePassThreshold
-        , thresholds.hardForkInitiationThreshold
-        , thresholds.poolActiveSlotCoeff
+        [ thresholds.motionNoConfidence
+        , thresholds.committeeNormal
+        , thresholds.committeeNoConfidence
+        , thresholds.hardforkInitiation
+        , thresholds.securityRelevantParameter
         ]
 
 
 encodeDrepVotingThresholds : DrepVotingThresholds -> E.Encoder
 encodeDrepVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
-        [ thresholds.drepProposalVotingPeriod
-        , thresholds.drepProposalPassThreshold
-        , thresholds.drepNormalVotingPeriod
-        , thresholds.drepNormalPassThreshold
-        , thresholds.drepNoConfidenceVotingPeriod
-        , thresholds.drepNoConfidencePassThreshold
-        , thresholds.drepUpdatedConstitutionPassThreshold
-        , thresholds.drepHardForkInitiationPassThreshold
-        , thresholds.drepPPEconomicVotingPeriod
-        , thresholds.drepPPEconomicPassThreshold
+        [ thresholds.motionNoConfidence
+        , thresholds.committeeNormal
+        , thresholds.committeeNoConfidence
+        , thresholds.updateConstitution
+        , thresholds.hardforkInitiation
+        , thresholds.ppNetworkGroup
+        , thresholds.ppEconomicGroup
+        , thresholds.ppTechnicalGroup
+        , thresholds.ppGovernanceGroup
+        , thresholds.treasuryWithdrawal
         ]
 
 
