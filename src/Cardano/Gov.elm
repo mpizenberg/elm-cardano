@@ -328,14 +328,23 @@ decodeProtocolParamUpdate =
             -- ? 24: uint                ; max collateral inputs
             >> D.optionalField 24 D.int
             -- Conway params
+            -- poolVotingThresholds : Maybe PoolVotingThresholds -- 25
             >> D.optionalField 25 decodePoolVotingThresholds
+            -- drepVotingThresholds : Maybe DrepVotingThresholds -- 26
             >> D.optionalField 26 decodeDrepVotingThresholds
+            -- minCommitteeSize : Maybe Int -- 27
             >> D.optionalField 27 D.int
+            -- committeeTermLimit : Maybe Natural -- 28
             >> D.optionalField 28 D.natural
+            -- governanceActionValidityPeriod : Maybe Natural -- 29
             >> D.optionalField 29 D.natural
+            -- governanceActionDeposit : Maybe Natural -- 30
             >> D.optionalField 30 D.natural
+            -- drepDeposit : Maybe Natural -- 31
             >> D.optionalField 31 D.natural
+            -- drepActivity : Maybe Natural -- 32
             >> D.optionalField 32 D.natural
+            -- constitutionalCommitteeMinSize : Maybe Int -- 33
             >> D.optionalField 33 D.int
 
 
