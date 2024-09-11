@@ -500,6 +500,7 @@ type alias DrepVotingThresholds =
 type alias CostModels =
     { plutusV1 : Maybe (List Int) -- 0
     , plutusV2 : Maybe (List Int) -- 1
+    , plutusV3 : Maybe (List Int) -- 2
     }
 
 
@@ -554,6 +555,7 @@ encodeCostModels =
         E.fields
             >> E.optionalField 0 (E.ledgerList E.int) .plutusV1
             >> E.optionalField 1 (E.ledgerList E.int) .plutusV2
+            >> E.optionalField 2 (E.ledgerList E.int) .plutusV3
 
 
 encodeExUnitPrices : ExUnitPrices -> E.Encoder
@@ -632,12 +634,14 @@ encodeDrepVotingThresholds thresholds =
 decodeCostModels : D.Decoder CostModels
 decodeCostModels =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
-    D.record D.int (\v1costs v2costs -> { plutusV1 = v1costs, plutusV2 = v2costs }) <|
+    D.record D.int (\v1costs v2costs v3costs -> { plutusV1 = v1costs, plutusV2 = v2costs, plutusV3 = v3costs }) <|
         D.fields
             -- plutusV1
             >> D.optionalField 0 (D.list D.int)
             -- plutusV2
             >> D.optionalField 1 (D.list D.int)
+            -- plutusV3
+            >> D.optionalField 2 (D.list D.int)
 
 
 decodeExtraEntropy : D.Decoder Nonce
