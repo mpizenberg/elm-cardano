@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data as Data exposing (Data(..))
-import Cardano.Gov exposing (Drep(..), Nonce(..), noParamUpdate)
+import Cardano.Gov exposing (Action(..), Drep(..), Nonce(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
@@ -653,7 +653,56 @@ decode15f82a36 =
         \_ ->
             Bytes.fromStringUnchecked "84a400d9010281825820a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d000181825839014dd37a5e94e082f9096e4e498f36686b58df4a6d8eeb0f918c854d6c45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba71a03e9befe021a0002af3914d9010281841b000000174876e800581de145dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba78106827835697066733a2f2f516d576a6348737271396b4b485a5a37615050466a714e36774c75784839643862637173736d724537483463766258202f98f57c4149fdfed2b73cbd821226fe417ef5ed49d8f836a37b31edf14dea47a100d9010281825820a47afdef5fd0f70a7dc394fe540ddddd86cbaf28f2353acedbd9c6e6f71714db584004980038691b87592a7b66546b30f760bee4f778905a6ca7de9aa1687c8b5dcf199ba671475c9379f74000e09498324f44755a7aca3658f742a6f1ab06f6400ef5f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = body15f82a36
+                        , witnessSet = witnessSet15f82a36
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body15f82a36 : TransactionBody
+body15f82a36 =
+    { newBody
+        | fee = Just (N.fromSafeInt 175929)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d" } ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "4dd37a5e94e082f9096e4e498f36686b58df4a6d8eeb0f918c854d6c")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 65650430)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , proposalProcedures =
+            [ { anchor =
+                    { dataHash = Bytes.fromStringUnchecked "2f98f57c4149fdfed2b73cbd821226fe417ef5ed49d8f836a37b31edf14dea47"
+                    , url = "ipfs://QmWjcHsrq9kKHZZ7aPPFjqN6wLuxH9d8bcqssmrE7H4cvb"
+                    }
+              , deposit = bigNat [ 7792640, 1490 ]
+              , govAction = Info
+              , rewardAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7") }
+              }
+            ]
+    }
+
+
+witnessSet15f82a36 : WitnessSet
+witnessSet15f82a36 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "04980038691b87592a7b66546b30f760bee4f778905a6ca7de9aa1687c8b5dcf199ba671475c9379f74000e09498324f44755a7aca3658f742a6f1ab06f6400e"
+                  , vkey = Bytes.fromStringUnchecked "a47afdef5fd0f70a7dc394fe540ddddd86cbaf28f2353acedbd9c6e6f71714db"
+                  }
+                ]
+    }
 
 
 
