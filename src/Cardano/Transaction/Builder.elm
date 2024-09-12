@@ -48,6 +48,10 @@ import Cardano.Value as Value
 import Natural exposing (Natural)
 
 
+
+-- TODO: Deprecate / Remove this module
+
+
 {-| Temporary helper type to build transactions.
 -}
 type Tx
@@ -75,6 +79,10 @@ newBody =
     , collateralReturn = Nothing
     , totalCollateral = Nothing
     , referenceInputs = []
+    , votingProcedures = []
+    , proposalProcedures = []
+    , currentTreasuryValue = Nothing
+    , treasuryDonation = Nothing
     }
 
 
@@ -89,6 +97,7 @@ newWitnessSet =
     , plutusData = Nothing
     , redeemer = Nothing
     , plutusV2Script = Nothing
+    , plutusV3Script = Nothing
     }
 
 

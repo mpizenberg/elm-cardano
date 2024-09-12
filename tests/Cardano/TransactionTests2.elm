@@ -4,9 +4,10 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data as Data exposing (Data(..))
+import Cardano.Gov exposing (Action(..), Drep(..), Nonce(..), Vote(..), Voter(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, newBody, newWitnessSet, noParamUpdate)
+import Cardano.Transaction as Transaction exposing (Certificate(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Utxo as Utxo exposing (DatumOption(..))
@@ -32,6 +33,14 @@ suite =
             -- Babbage transactions
             , decode9c91bdbb
             , decodefd83f4f9
+
+            -- Conway transactions
+            , decodeef45fe8e
+            , decode4385b3d8
+            , decode1e5dd53b
+            , decode15f82a36
+            , decode7925c2e6
+            , decode2264f554
             ]
         , decodeInputs
         , decodeOutputs
@@ -71,6 +80,7 @@ auxiliaryData8a8f8dfe =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 
@@ -303,6 +313,7 @@ auxiliaryData9c91bdbb =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 
@@ -396,7 +407,403 @@ decodeOutputfd83f4f9 =
                 |> Expect.notEqual Nothing
 
 
+{-| First Conway failure.
 
+Tx id: ef45fe8e90c02ca628d48aff26b7da66ae98ab15b898cb791642b28eb923d70d
+Block height: 10781333
+Previous block intersection:
+
+  - slot: 133661020
+  - id: d32af8cb24a8ee9ba33a00656d39e8204004229421ab62ea6c09487652e24f4f
+
+-}
+decodeef45fe8e : Test
+decodeef45fe8e =
+    test "Tx id ef45fe8e90c02ca628d48aff26b7da66ae98ab15b898cb791642b28eb923d70d" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a400d901028182582088e54d6ae3c2c6e456d42c6b9aea6b3f8ebc31cd2b65ac273536e7eaa144d3ce000181825839013141f3d912674ec64ae07c2a80e6ad8f1a162806401c729f9ad6bdf33b7fdf80fb70788ff9aa347893bf58bf0e923c9d258f1db7dc8ff5c31a00895440021a000f424004d901028184108200581c7bdef7aaf3c925e97ca42d36f119b0469a12cca4a17ecfefc69003501a1dcd6500f6a100d90102828258206027b9f5c62941dcd2727779b0a466e5214f34fe889f058d0745320ee4bdb2f65840000781b3b8e443071629727acedf460ace97963c2138cff2990ec9b820ff740669895e3d41d4e9691262fc1ba51d78a567b26de5881646c3c8bf5c16132b450a825820bae620564f80ef33ab7b7e4ebc0a371f3ca42e8c6c1da0184986169b1d6876d35840c8e1115882ede8737dedccd05d5ff4a0735d63adb081844cf32fcf11ace97e50883ef63d6256fa6dafe26894741de65754dd0cb8f958d784694f1b8e908de40df5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = bodyef45fe8e
+                        , witnessSet = witnessSetef45fe8e
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+bodyef45fe8e : TransactionBody
+bodyef45fe8e =
+    { newBody
+        | certificates =
+            [ RegDrepCert
+                { anchor = Nothing
+                , deposit = bigNat [ 30237952, 7 ]
+                , drepCredential = Address.VKeyHash (Bytes.fromStringUnchecked "7bdef7aaf3c925e97ca42d36f119b0469a12cca4a17ecfefc6900350")
+                }
+            ]
+        , fee = Just (N.fromSafeInt 1000000)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "88e54d6ae3c2c6e456d42c6b9aea6b3f8ebc31cd2b65ac273536e7eaa144d3ce" } ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "3141f3d912674ec64ae07c2a80e6ad8f1a162806401c729f9ad6bdf3")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "3b7fdf80fb70788ff9aa347893bf58bf0e923c9d258f1db7dc8ff5c3")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 9000000)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+    }
+
+
+witnessSetef45fe8e : WitnessSet
+witnessSetef45fe8e =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "000781b3b8e443071629727acedf460ace97963c2138cff2990ec9b820ff740669895e3d41d4e9691262fc1ba51d78a567b26de5881646c3c8bf5c16132b450a"
+                  , vkey = Bytes.fromStringUnchecked "6027b9f5c62941dcd2727779b0a466e5214f34fe889f058d0745320ee4bdb2f6"
+                  }
+                , { signature = Bytes.fromStringUnchecked "c8e1115882ede8737dedccd05d5ff4a0735d63adb081844cf32fcf11ace97e50883ef63d6256fa6dafe26894741de65754dd0cb8f958d784694f1b8e908de40d"
+                  , vkey = Bytes.fromStringUnchecked "bae620564f80ef33ab7b7e4ebc0a371f3ca42e8c6c1da0184986169b1d6876d3"
+                  }
+                ]
+    }
+
+
+{-| Next Conway failure.
+
+Tx id: 4385b3d89b8e900d09458d327d29b7cf431f8d241aa4c843039addb8d162e5a1
+Block height: 10781335
+Previous block intersection:
+
+  - slot: 133661077
+  - id: f32f4445024a9dbb008fdfe31f2fef1a5c87e3e471b39ba17cf169c7dc746c3e
+
+-}
+decode4385b3d8 : Test
+decode4385b3d8 =
+    test "Tx id 4385b3d89b8e900d09458d327d29b7cf431f8d241aa4c843039addb8d162e5a1" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a600828258208b70ecda03d3340232f71bad2411c5bb55b1b9b9ee3942db9d85b3ac327809ee00825820e89a66d40e3980117b246676f3de15f8f5c6dce901513b9c220aa8c16fc34ff800018182583901fbce7abc483c808d29c1e1d69dd6609b5722918e4784ac1264f16621759077966225f21836cdf733f74527aeae00bb08727fb43bbc63349b1a0046b0d2021a0002e60d031a07f7abb3048284108200581c6c8a0c80777f9e4dc043dabc48e8391c7821a5b42c850be268cf1a511a1dcd650082784d68747470733a2f2f632d697066732d67772e6e6d6b722e696f2f697066732f516d50337367435a59346a745552726d5147645576573531784d3471646f71324a7544627177666f4469584167505820451db8e93164694527f3ae06ffc11c8da058ea0690e4ccaaa825189707cac60883098200581c759077966225f21836cdf733f74527aeae00bb08727fb43bbc63349b8200581c6c8a0c80777f9e4dc043dabc48e8391c7821a5b42c850be268cf1a510800a10083825820059d3aae46ac0b78296b3a389101bbcc67eec6daa01b3203100f51fd3460e5a1584095f0edb1921d5ef34d231cb2b0b0c5693d4600c15cc2aed3041dd1a40be7e2f32734eb055ab9cefc9bf5d1657fb6ac7643f97bbffbaf2f4f9b4dc9badce163078258207a601539db47a521bc7902f23004f425e99f9af0fe2c6f97337a1935a537fbbe58409966cda9583216e9bfa8773f83d56289d89b10677c1fcefcb66828c1c9ab403fc212b0324a07041f89a3d572df5d4c1bd68e944e6d73ea35ed4183713a3b8606825820da32bb32751537ed37855297094dc0c051267967329084e66047938139eee82e5840a625d5aada40174a8d71f918476eb4c2489ceee943c337ab69fab157a007803c1799b860a964d4f602d07ac085d511a0d0daf68c55c99b0206739386ab70350bf5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body4385b3d8
+                        , witnessSet = witnessSet4385b3d8
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body4385b3d8 : TransactionBody
+body4385b3d8 =
+    { newBody
+        | certificates =
+            [ RegDrepCert
+                { anchor = Just { dataHash = Bytes.fromStringUnchecked "451db8e93164694527f3ae06ffc11c8da058ea0690e4ccaaa825189707cac608", url = "https://c-ipfs-gw.nmkr.io/ipfs/QmP3sgCZY4jtURrmQGdUvW51xM4qdoq2JuDbqwfoDiXAgP" }
+                , deposit = bigNat [ 30237952, 7 ]
+                , drepCredential = Address.VKeyHash (Bytes.fromStringUnchecked "6c8a0c80777f9e4dc043dabc48e8391c7821a5b42c850be268cf1a51")
+                }
+            , VoteDelegCert
+                { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "759077966225f21836cdf733f74527aeae00bb08727fb43bbc63349b")
+                , drep = DrepCredential (Address.VKeyHash (Bytes.fromStringUnchecked "6c8a0c80777f9e4dc043dabc48e8391c7821a5b42c850be268cf1a51"))
+                }
+            ]
+        , fee = Just (N.fromSafeInt 189965)
+        , inputs =
+            [ { outputIndex = 0
+              , transactionId = Bytes.fromStringUnchecked "8b70ecda03d3340232f71bad2411c5bb55b1b9b9ee3942db9d85b3ac327809ee"
+              }
+            , { outputIndex = 0
+              , transactionId = Bytes.fromStringUnchecked "e89a66d40e3980117b246676f3de15f8f5c6dce901513b9c220aa8c16fc34ff8"
+              }
+            ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "fbce7abc483c808d29c1e1d69dd6609b5722918e4784ac1264f16621")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "759077966225f21836cdf733f74527aeae00bb08727fb43bbc63349b")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 4632786)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , ttl = Just (bigNat [ 66562995, 1 ])
+        , validityIntervalStart = Just 0
+    }
+
+
+witnessSet4385b3d8 : WitnessSet
+witnessSet4385b3d8 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "95f0edb1921d5ef34d231cb2b0b0c5693d4600c15cc2aed3041dd1a40be7e2f32734eb055ab9cefc9bf5d1657fb6ac7643f97bbffbaf2f4f9b4dc9badce16307"
+                  , vkey = Bytes.fromStringUnchecked "059d3aae46ac0b78296b3a389101bbcc67eec6daa01b3203100f51fd3460e5a1"
+                  }
+                , { signature = Bytes.fromStringUnchecked "9966cda9583216e9bfa8773f83d56289d89b10677c1fcefcb66828c1c9ab403fc212b0324a07041f89a3d572df5d4c1bd68e944e6d73ea35ed4183713a3b8606"
+                  , vkey = Bytes.fromStringUnchecked "7a601539db47a521bc7902f23004f425e99f9af0fe2c6f97337a1935a537fbbe"
+                  }
+                , { signature = Bytes.fromStringUnchecked "a625d5aada40174a8d71f918476eb4c2489ceee943c337ab69fab157a007803c1799b860a964d4f602d07ac085d511a0d0daf68c55c99b0206739386ab70350b"
+                  , vkey = Bytes.fromStringUnchecked "da32bb32751537ed37855297094dc0c051267967329084e66047938139eee82e"
+                  }
+                ]
+    }
+
+
+{-| Next Conway failure.
+
+Tx id: 1e5dd53bf3b3930fb3f3bbb7ea1f544dc82ca3986d8b4c2f90248f0f041d30f3
+Block height: 10781357
+Previous block intersection:
+
+  - slot: 133661475
+  - id: f16b6eb06e829d0529a95d03d373618e3ef6a0e933c2f18da7bc43dcfdf87c92
+
+-}
+decode1e5dd53b : Test
+decode1e5dd53b =
+    test "Tx id 1e5dd53bf3b3930fb3f3bbb7ea1f544dc82ca3986d8b4c2f90248f0f041d30f3" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a70081825820856073e491ed7b92134da94468bd4b68f971d338718241f98ca326f1782aef2901018182583901944831b82cfe62d8255294b6ae383afb983b0d720f25556662462a10ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc1a9ac28304021a0002a515031a07f7ad42048183098200581cad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc810205a1581de1ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc1a29467fac0800a10082825820cb473de65fc943326373fa47c35e99ece246e58fe8cdf325973e2224b8a8a7d25840d96ce06880b7bd41d195dbec2a36ac2011d074f84d22a25646c9232c49359ac9da12d5267ab7e98ae0c13b5ad665dfc9a4c352fe0c61b6195653831181927006825820e61a7b67c311ad9de99100803567641356e9a16b3a318e902feb3ff2518f38dd584094cb537a291d96030c00468d55e579924695beb99fea2039796b56cd84a1acec0de3dbdfc0b41ce9989ea2da43710eec42877ef9a22fc000b175db33fe41470cf5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body1e5dd53b
+                        , witnessSet = witnessSet1e5dd53b
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body1e5dd53b : TransactionBody
+body1e5dd53b =
+    { newBody
+        | certificates =
+            [ VoteDelegCert
+                { delegator = Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")
+                , drep = AlwaysAbstain
+                }
+            ]
+        , fee = Just (N.fromSafeInt 173333)
+        , inputs =
+            [ { outputIndex = 1
+              , transactionId = Bytes.fromStringUnchecked "856073e491ed7b92134da94468bd4b68f971d338718241f98ca326f1782aef29"
+              }
+            ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "944831b82cfe62d8255294b6ae383afb983b0d720f25556662462a10")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")))
+                        }
+              , amount = Value.onlyLovelace (bigNat [ 46301956, 38 ])
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , ttl = Just (bigNat [ 66563394, 1 ])
+        , validityIntervalStart = Just 0
+        , withdrawals =
+            [ ( { networkId = Mainnet
+                , stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "ad686ce88581aa6fbb0d2d8e0e6e6216d5df6607ef909b48c8bb02fc")
+                }
+              , bigNat [ 21397420, 10 ]
+              )
+            ]
+    }
+
+
+witnessSet1e5dd53b : WitnessSet
+witnessSet1e5dd53b =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "d96ce06880b7bd41d195dbec2a36ac2011d074f84d22a25646c9232c49359ac9da12d5267ab7e98ae0c13b5ad665dfc9a4c352fe0c61b6195653831181927006"
+                  , vkey = Bytes.fromStringUnchecked "cb473de65fc943326373fa47c35e99ece246e58fe8cdf325973e2224b8a8a7d2"
+                  }
+                , { signature = Bytes.fromStringUnchecked "94cb537a291d96030c00468d55e579924695beb99fea2039796b56cd84a1acec0de3dbdfc0b41ce9989ea2da43710eec42877ef9a22fc000b175db33fe41470c"
+                  , vkey = Bytes.fromStringUnchecked "e61a7b67c311ad9de99100803567641356e9a16b3a318e902feb3ff2518f38dd"
+                  }
+                ]
+    }
+
+
+{-| Next Conway failure.
+
+Tx id: 15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916
+Block height: 10789298
+Previous block intersection:
+
+  - slot: 133826442
+  - id: 3e48cc2f707bda35bd2cffd4b3624f4ac4b20334dc5c348ff7ac037ced9bc49f
+
+-}
+decode15f82a36 : Test
+decode15f82a36 =
+    test "Tx id 15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a400d9010281825820a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d000181825839014dd37a5e94e082f9096e4e498f36686b58df4a6d8eeb0f918c854d6c45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba71a03e9befe021a0002af3914d9010281841b000000174876e800581de145dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba78106827835697066733a2f2f516d576a6348737271396b4b485a5a37615050466a714e36774c75784839643862637173736d724537483463766258202f98f57c4149fdfed2b73cbd821226fe417ef5ed49d8f836a37b31edf14dea47a100d9010281825820a47afdef5fd0f70a7dc394fe540ddddd86cbaf28f2353acedbd9c6e6f71714db584004980038691b87592a7b66546b30f760bee4f778905a6ca7de9aa1687c8b5dcf199ba671475c9379f74000e09498324f44755a7aca3658f742a6f1ab06f6400ef5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body15f82a36
+                        , witnessSet = witnessSet15f82a36
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body15f82a36 : TransactionBody
+body15f82a36 =
+    { newBody
+        | fee = Just (N.fromSafeInt 175929)
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d" } ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "4dd37a5e94e082f9096e4e498f36686b58df4a6d8eeb0f918c854d6c")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 65650430)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , proposalProcedures =
+            [ { anchor =
+                    { dataHash = Bytes.fromStringUnchecked "2f98f57c4149fdfed2b73cbd821226fe417ef5ed49d8f836a37b31edf14dea47"
+                    , url = "ipfs://QmWjcHsrq9kKHZZ7aPPFjqN6wLuxH9d8bcqssmrE7H4cvb"
+                    }
+              , deposit = bigNat [ 7792640, 1490 ]
+              , govAction = Info
+              , rewardAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromStringUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7") }
+              }
+            ]
+    }
+
+
+witnessSet15f82a36 : WitnessSet
+witnessSet15f82a36 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "04980038691b87592a7b66546b30f760bee4f778905a6ca7de9aa1687c8b5dcf199ba671475c9379f74000e09498324f44755a7aca3658f742a6f1ab06f6400e"
+                  , vkey = Bytes.fromStringUnchecked "a47afdef5fd0f70a7dc394fe540ddddd86cbaf28f2353acedbd9c6e6f71714db"
+                  }
+                ]
+    }
+
+
+{-| Next Conway failure.
+
+Tx id: 7925c2e6848235f18440249b3b4ab0111dd6c56fdcc518ba6fd8f02e37e39d24
+Block height: 10789398
+Previous block intersection:
+
+  - slot: 133828617
+  - id: fc09764505b3564007d547ee61d4d8068fe134dea205f913de0f4c987267764a
+
+-}
+decode7925c2e6 : Test
+decode7925c2e6 =
+    test "Tx id 7925c2e6848235f18440249b3b4ab0111dd6c56fdcc518ba6fd8f02e37e39d24" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a500d9010281825820a6a9c42c3d88b0839c10d794476b9a6e96bfb0d7bedef7c1e30821ada172d6e30701818258390188802c8e874cad837d58946c0d292adb5d3edba8891b80dc0552dfda4c9dd252d63b877363cb7507061d28278769172826d96c054493c5cb1a0044aa20021a0007a120031a07fa137c13a18204581cdacf06a23e4aaf119024e63deb79861ca175b24e7d44d97fb92b1a22a182582015f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916008201f6a100d90102828258207c185b3cb5d4b0fcbcca69c1f5125b3675f1e8db65e8defdf694521adffbdc885840f40f35329837602a59703c620dae574da577ef809adbeafd58efaf1aa244e98adc577885f0e3ffc7496f658ede85b2c55d70e64fc416a5e908ff6a72a0b65c038258204f30f1008a9814be96f3e8000261f4a37c6f05a98d62128597338d36b2d381955840d8204a663244ecaadc0f2d92230cc3a2044a19944ec0b57d29954dbdf5ffabdc57d6fbce6c2e6e828f36899dbd45a0aedf9d364b5f8ce5dfc9b46b8fca40fc0df5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body7925c2e6
+                        , witnessSet = witnessSet7925c2e6
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body7925c2e6 : TransactionBody
+body7925c2e6 =
+    { newBody
+        | fee = Just (N.fromSafeInt 500000)
+        , inputs = [ { outputIndex = 7, transactionId = Bytes.fromStringUnchecked "a6a9c42c3d88b0839c10d794476b9a6e96bfb0d7bedef7c1e30821ada172d6e3" } ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "88802c8e874cad837d58946c0d292adb5d3edba8891b80dc0552dfda")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "4c9dd252d63b877363cb7507061d28278769172826d96c054493c5cb")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 4500000)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , ttl = Just (bigNat [ 66720636, 1 ])
+        , votingProcedures =
+            [ ( VoterPoolId (Bytes.fromStringUnchecked "dacf06a23e4aaf119024e63deb79861ca175b24e7d44d97fb92b1a22")
+              , [ ( { govActionIndex = 0, transactionId = Bytes.fromStringUnchecked "15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916" }
+                  , { anchor = Nothing, vote = VoteYes }
+                  )
+                ]
+              )
+            ]
+    }
+
+
+witnessSet7925c2e6 : WitnessSet
+witnessSet7925c2e6 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "f40f35329837602a59703c620dae574da577ef809adbeafd58efaf1aa244e98adc577885f0e3ffc7496f658ede85b2c55d70e64fc416a5e908ff6a72a0b65c03"
+                  , vkey = Bytes.fromStringUnchecked "7c185b3cb5d4b0fcbcca69c1f5125b3675f1e8db65e8defdf694521adffbdc88"
+                  }
+                , { signature = Bytes.fromStringUnchecked "d8204a663244ecaadc0f2d92230cc3a2044a19944ec0b57d29954dbdf5ffabdc57d6fbce6c2e6e828f36899dbd45a0aedf9d364b5f8ce5dfc9b46b8fca40fc0d"
+                  , vkey = Bytes.fromStringUnchecked "4f30f1008a9814be96f3e8000261f4a37c6f05a98d62128597338d36b2d38195"
+                  }
+                ]
+    }
+
+
+{-| Next Conway failure. First PlutusV3 transaction!
+
+Tx id: 2264f554c225262acfafba61bb02035b50541924bc5386c08d817e8ae9b2fa27
+Block height: 10806773
+Previous block intersection:
+
+  - slot: 134185006
+  - id: eb87093a7548978b2b913a77d4d2720782bb233e445f074e9dbc29184f68f081
+
+-}
+decode2264f554 : Test
+decode2264f554 =
+    test "Tx id 2264f554c225262acfafba61bb02035b50541924bc5386c08d817e8ae9b2fa27" <|
+        \_ ->
+            Bytes.fromStringUnchecked "84a300d90102818258209a3323c2872d53ca8bea810b1288f2a267ba139503da71b8836220af70c77ac201018282581d61f56dee6f3bc9460b3653d23a001af813cf301c76c31bf4f404f758f71a0013ccd7a300581d61f56dee6f3bc9460b3653d23a001af813cf301c76c31bf4f404f758f7011a00347b1403d818590251820359024c59024901010033232323232323223225333004323232323232323232533300d300200413232323300400913253330113375e00464a6466602666e1d20000021323374a90041980c18011980c180c800a5eb80cc060c064c0680052f5c0602a6ea803054ccc04ccdc3a400400426466e95200c3301830023301830190014bd701980c180c980d000a5eb80c054dd50060a99980999b87480100084cdd2a40146602e60026602e6030602a6ea80312f5c097ae016374a900118091baa00a13300700100f14a06eb0c054c058c058c058c058c058c058c058c058c048dd5005980a180a8011bad3013001300f375400a2a66601a66e1d200800413233002007132533300f30043010375401026600a00201a2c6eb0c04cc050c050c050c050c050c050c050c050c040dd5004980918079baa005162232533300f3370e9000000899191919299980b180c8010a8030b1bad30170013017002375c602a00260226ea800c54ccc03ccdc3a4004002264646464a66602c60320042a00c2c6eb4c05c004c05c008dd7180a80098089baa0031533300f3370e900200089919299980a180b8010a8020b1bae3015001301137540062a66601e60080022a66602460226ea800c540085858c03cdd50011b874801888c8cc00400400c894ccc044004528099299980799b8f375c602800400829444cc00c00c004c050004c028dd50009806980700118060009806001180500098031baa00114984d958dd7000ab9a5573aaae7955cfaba05742ae8930011e581c5d0a25dd9e2d8d33762d4157183eef452b3b0090025bbf52eeb938aa0001021a00040355a100d9010281825820aa22eb509ee9697b2721beec757ee03a119bbb61dea11307f810ca06ed875aed5840781ec72c3d7a436ff0d28bbff035d3251b5c0e75b22afac48e537bf607ab965c16bd699fe1764f284cdb05dcbcff5064c65b48f9f4f7ba512f52e0ac61094908f5f6"
+                |> Transaction.deserialize
+                |> Expect.notEqual Nothing
+
+
+
+-- last Conway successful block (to avoid starting from the last error):
+-- Last (max 2) blocks processed:
+--   height: 10825161, slot: 134566787, id: 75e8e41ce84f72fbf06cd427628cd5383e85ca96befe862c6220e56973a89ca8
+--   height: 10825160, slot: 134566783, id: c0dfc4acb0f2ef91c13d9e739c12b8796773a1063024be98e5ac722d8b302b78
+--
+--
+--
 -- Helpers
 
 

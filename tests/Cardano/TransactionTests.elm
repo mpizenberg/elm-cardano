@@ -4,9 +4,10 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.Data exposing (Data(..))
+import Cardano.Gov exposing (Nonce(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
-import Cardano.Transaction as Transaction exposing (Nonce(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
+import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet)
 import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
@@ -1429,6 +1430,7 @@ txAuxiliaryDatac220e20c =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 
@@ -1505,6 +1507,7 @@ txAuxiliaryData254685a8 =
     , nativeScripts = []
     , plutusV1Scripts = []
     , plutusV2Scripts = []
+    , plutusV3Scripts = []
     }
 
 
@@ -1744,13 +1747,13 @@ txBodyfc863a44 =
                 , proposedProtocolParameterUpdates =
                     bytesMap
                         (Dict.fromList
-                            [ ( "162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819b", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "ad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950c", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "b9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
-                            , ( "f7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757", { adaPerUtxoByte = Nothing, collateralPercentage = Nothing, costModelsForScriptLanguages = Nothing, decentralizationConstant = Nothing, desiredNumberOfStakePools = Nothing, executionCosts = Nothing, expansionRate = Nothing, extraEntropy = Just Just0, keyDeposit = Nothing, maxBlockBodySize = Nothing, maxBlockExUnits = Nothing, maxBlockHeaderSize = Nothing, maxCollateralInputs = Nothing, maxTransactionSize = Nothing, maxTxExUnits = Nothing, maxValueSize = Nothing, maximumEpoch = Nothing, minFeeA = Nothing, minFeeB = Nothing, minPoolCost = Nothing, minUtxoValue = Nothing, poolDeposit = Nothing, poolPledgeInfluence = Nothing, protocolVersion = Nothing, treasuryGrowthRate = Nothing } )
+                            [ ( "162f94554ac8c225383a2248c245659eda870eaa82d0ef25fc7dcd82", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "2075a095b3c844a29c24317a94a643ab8e22d54a3a3a72a420260af6", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "268cfc0b89e910ead22e0ade91493d8212f53f3e2164b2e4bef0819b", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "60baee25cbc90047e83fd01e1e57dc0b06d3d0cb150d0ab40bbfead1", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "ad5463153dc3d24b9ff133e46136028bdc1edbb897f5a7cf1b37950c", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "b9547b8a57656539a8d9bc42c008e38d9c8bd9c8adbb1e73ad529497", { noParamUpdate | extraEntropy = Just Just0 } )
+                            , ( "f7b341c14cd58fca4195a9b278cce1ef402dc0e06deb77e543cd1757", { noParamUpdate | extraEntropy = Just Just0 } )
                             ]
                         )
                 }

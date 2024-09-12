@@ -74,6 +74,7 @@ type alias PlutusScript =
 type PlutusVersion
     = PlutusV1
     | PlutusV2
+    | PlutusV3
 
 
 {-| Phantom type describing the kind of bytes within a [PlutusScript] object.
@@ -155,6 +156,9 @@ encodePlutusVersion version =
             PlutusV2 ->
                 2
 
+            PlutusV3 ->
+                3
+
 
 
 -- Decoders
@@ -181,6 +185,9 @@ fromCbor =
 
                     2 ->
                         D.map (\s -> Plutus { version = PlutusV2, script = Bytes.fromBytes s }) D.bytes
+
+                    3 ->
+                        D.map (\s -> Plutus { version = PlutusV3, script = Bytes.fromBytes s }) D.bytes
 
                     _ ->
                         D.failWith ("Unknown script version: " ++ String.fromInt v)

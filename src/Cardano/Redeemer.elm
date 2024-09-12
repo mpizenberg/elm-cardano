@@ -1,14 +1,15 @@
 module Cardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
-    , encode, encodeTag, encodeExUnits
-    , fromCbor, exUnitsFromCbor
+    , encodeTag, encodeExUnits
+    , tagFromCbor, exUnitsFromCbor
+    , encodeAsArray, fromCborArray
     )
 
 {-| Redeemer
 
 @docs Redeemer, RedeemerTag, ExUnits
 @docs encode, encodeTag, encodeExUnits
-@docs fromCbor, exUnitsFromCbor
+@docs fromCbor, tagFromCbor, exUnitsFromCbor
 
 -}
 
@@ -30,10 +31,12 @@ type alias Redeemer =
 {-| Indicator of the type of validator associated with this redeemer.
 -}
 type RedeemerTag
-    = Spend
-    | Mint
-    | Cert
-    | Reward
+    = Spend -- 0
+    | Mint -- 1
+    | Cert -- 2
+    | Reward -- 3
+    | Vote -- 4
+    | Propose -- 5
 
 
 {-| Cost of the script in memory and instruction steps.
@@ -46,8 +49,8 @@ type alias ExUnits =
 
 {-| CBOR decoder for [Redeemer].
 -}
-fromCbor : D.Decoder Redeemer
-fromCbor =
+fromCborArray : D.Decoder Redeemer
+fromCborArray =
     D.tuple Redeemer <|
         D.elems
             >> D.elem tagFromCbor
@@ -56,6 +59,8 @@ fromCbor =
             >> D.elem exUnitsFromCbor
 
 
+{-| CBOR decoder for [Tag].
+-}
 tagFromCbor : D.Decoder RedeemerTag
 tagFromCbor =
     D.int
@@ -74,6 +79,12 @@ tagFromCbor =
                     3 ->
                         D.succeed Reward
 
+                    4 ->
+                        D.succeed Vote
+
+                    5 ->
+                        D.succeed Propose
+
                     _ ->
                         D.fail
             )
@@ -81,8 +92,8 @@ tagFromCbor =
 
 {-| CBOR encoder for a [Redeemer].
 -}
-encode : Redeemer -> E.Encoder
-encode =
+encodeAsArray : Redeemer -> E.Encoder
+encodeAsArray =
     E.tuple <|
         E.elems
             >> E.elem encodeTag .tag
@@ -108,6 +119,12 @@ encodeTag redeemerTag =
 
             Reward ->
                 3
+
+            Vote ->
+                4
+
+            Propose ->
+                5
 
 
 {-| CBOR encoder for [ExUnits].
