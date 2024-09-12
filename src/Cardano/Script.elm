@@ -186,6 +186,9 @@ fromCbor =
                     2 ->
                         D.map (\s -> Plutus { version = PlutusV2, script = Bytes.fromBytes s }) D.bytes
 
+                    3 ->
+                        D.map (\s -> Plutus { version = PlutusV3, script = Bytes.fromBytes s }) D.bytes
+
                     _ ->
                         D.failWith ("Unknown script version: " ++ String.fromInt v)
             )
