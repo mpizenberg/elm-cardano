@@ -797,6 +797,13 @@ decode2264f554 =
 
 
 
+-- last Conway successful block (to avoid starting from the last error):
+-- Last (max 2) blocks processed:
+--   height: 10825161, slot: 134566787, id: 75e8e41ce84f72fbf06cd427628cd5383e85ca96befe862c6220e56973a89ca8
+--   height: 10825160, slot: 134566783, id: c0dfc4acb0f2ef91c13d9e739c12b8796773a1063024be98e5ac722d8b302b78
+--
+--
+--
 -- Helpers
 
 
