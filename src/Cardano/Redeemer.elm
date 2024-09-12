@@ -51,14 +51,12 @@ type alias ExUnits =
 -}
 fromCborArray : D.Decoder Redeemer
 fromCborArray =
-    D.oneOf
-        [ D.tuple Redeemer <|
-            D.elems
-                >> D.elem tagFromCbor
-                >> D.elem D.int
-                >> D.elem Data.fromCbor
-                >> D.elem exUnitsFromCbor
-        ]
+    D.tuple Redeemer <|
+        D.elems
+            >> D.elem tagFromCbor
+            >> D.elem D.int
+            >> D.elem Data.fromCbor
+            >> D.elem exUnitsFromCbor
 
 
 {-| CBOR decoder for [Tag].
