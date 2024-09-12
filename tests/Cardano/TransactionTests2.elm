@@ -4,7 +4,7 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.Data as Data exposing (Data(..))
-import Cardano.Gov exposing (Action(..), Drep(..), Nonce(..), noParamUpdate)
+import Cardano.Gov exposing (Action(..), Drep(..), Nonce(..), Vote(..), Voter(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
@@ -722,7 +722,58 @@ decode7925c2e6 =
         \_ ->
             Bytes.fromStringUnchecked "84a500d9010281825820a6a9c42c3d88b0839c10d794476b9a6e96bfb0d7bedef7c1e30821ada172d6e30701818258390188802c8e874cad837d58946c0d292adb5d3edba8891b80dc0552dfda4c9dd252d63b877363cb7507061d28278769172826d96c054493c5cb1a0044aa20021a0007a120031a07fa137c13a18204581cdacf06a23e4aaf119024e63deb79861ca175b24e7d44d97fb92b1a22a182582015f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916008201f6a100d90102828258207c185b3cb5d4b0fcbcca69c1f5125b3675f1e8db65e8defdf694521adffbdc885840f40f35329837602a59703c620dae574da577ef809adbeafd58efaf1aa244e98adc577885f0e3ffc7496f658ede85b2c55d70e64fc416a5e908ff6a72a0b65c038258204f30f1008a9814be96f3e8000261f4a37c6f05a98d62128597338d36b2d381955840d8204a663244ecaadc0f2d92230cc3a2044a19944ec0b57d29954dbdf5ffabdc57d6fbce6c2e6e828f36899dbd45a0aedf9d364b5f8ce5dfc9b46b8fca40fc0df5f6"
                 |> Transaction.deserialize
-                |> Expect.notEqual Nothing
+                |> Expect.equal
+                    (Just
+                        { body = body7925c2e6
+                        , witnessSet = witnessSet7925c2e6
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body7925c2e6 : TransactionBody
+body7925c2e6 =
+    { newBody
+        | fee = Just (N.fromSafeInt 500000)
+        , inputs = [ { outputIndex = 7, transactionId = Bytes.fromStringUnchecked "a6a9c42c3d88b0839c10d794476b9a6e96bfb0d7bedef7c1e30821ada172d6e3" } ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Mainnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromStringUnchecked "88802c8e874cad837d58946c0d292adb5d3edba8891b80dc0552dfda")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromStringUnchecked "4c9dd252d63b877363cb7507061d28278769172826d96c054493c5cb")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 4500000)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , ttl = Just (bigNat [ 66720636, 1 ])
+        , votingProcedures =
+            [ ( VoterPoolId (Bytes.fromStringUnchecked "dacf06a23e4aaf119024e63deb79861ca175b24e7d44d97fb92b1a22")
+              , [ ( { govActionIndex = 0, transactionId = Bytes.fromStringUnchecked "15f82a365bdee483a4b03873a40d3829cc88c048ff3703e11bd01dd9e035c916" }
+                  , { anchor = Nothing, vote = VoteYes }
+                  )
+                ]
+              )
+            ]
+    }
+
+
+witnessSet7925c2e6 : WitnessSet
+witnessSet7925c2e6 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromStringUnchecked "f40f35329837602a59703c620dae574da577ef809adbeafd58efaf1aa244e98adc577885f0e3ffc7496f658ede85b2c55d70e64fc416a5e908ff6a72a0b65c03"
+                  , vkey = Bytes.fromStringUnchecked "7c185b3cb5d4b0fcbcca69c1f5125b3675f1e8db65e8defdf694521adffbdc88"
+                  }
+                , { signature = Bytes.fromStringUnchecked "d8204a663244ecaadc0f2d92230cc3a2044a19944ec0b57d29954dbdf5ffabdc57d6fbce6c2e6e828f36899dbd45a0aedf9d364b5f8ce5dfc9b46b8fca40fc0d"
+                  , vkey = Bytes.fromStringUnchecked "4f30f1008a9814be96f3e8000261f4a37c6f05a98d62128597338d36b2d38195"
+                  }
+                ]
+    }
 
 
 
