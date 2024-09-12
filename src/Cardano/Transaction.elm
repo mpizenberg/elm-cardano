@@ -998,7 +998,7 @@ decodeBody =
             -- proposalProcedures : List ProposalProcedure -- 20 Proposal procedures
             >> D.optionalField 20
                 (D.oneOf
-                    [ D.list Gov.proposalProcedureFromCbor
+                    [ D.set Gov.proposalProcedureFromCbor
                     , D.failWith "Failed to decode proposal procedures (20)"
                     ]
                 )
@@ -1040,7 +1040,7 @@ decodeBodyFold =
                 -- certificates
                 4 ->
                     D.oneOf
-                        [ D.list decodeCertificate |> D.map setCertificates
+                        [ D.set decodeCertificate |> D.map setCertificates
                         , D.failWith "Failed to decode certificate (4)"
                         ]
 
