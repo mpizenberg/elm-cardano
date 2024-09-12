@@ -34,7 +34,8 @@ type Voter
 
 voterFromCbor : D.Decoder Voter
 voterFromCbor =
-    D.int
+    D.length
+        |> D.ignoreThen D.int
         |> D.andThen
             (\tag ->
                 case tag of
@@ -72,8 +73,8 @@ type alias VotingProcedure =
 
 votingProcedureFromCbor : D.Decoder VotingProcedure
 votingProcedureFromCbor =
-    D.tuple VotingProcedure
-        (D.elems
+    D.tuple VotingProcedure <|
+        D.elems
             >> D.elem
                 (D.int
                     |> D.andThen
@@ -93,7 +94,6 @@ votingProcedureFromCbor =
                         )
                 )
             >> D.elem (D.maybe decodeAnchor)
-        )
 
 
 type alias ProposalProcedure =
