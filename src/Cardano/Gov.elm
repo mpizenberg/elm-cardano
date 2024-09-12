@@ -142,7 +142,7 @@ type Action
         { govActionId : Maybe ActionId
         , constitution : Constitution
         }
-    | Info TODO
+    | Info
 
 
 type alias Constitution =
@@ -181,7 +181,8 @@ decodeAnchor =
 
 decodeAction : D.Decoder Action
 decodeAction =
-    D.int
+    D.length
+        |> D.ignoreThen D.int
         |> D.andThen
             (\tag ->
                 case tag of
@@ -256,7 +257,7 @@ decodeAction =
                             decodeConstitution
 
                     6 ->
-                        D.succeed (Info TODO)
+                        D.succeed Info
 
                     _ ->
                         D.failWith ("Invalid action tag: " ++ String.fromInt tag)
@@ -676,7 +677,7 @@ encodeAction action =
                 , encodeConstitution constitution
                 ]
 
-        Info _ ->
+        Info ->
             E.int 6
 
 
