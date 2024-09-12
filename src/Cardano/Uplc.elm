@@ -1,6 +1,6 @@
 module Cardano.Uplc exposing (..)
 
-import Bytes.Comparable as Bytes
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Gov as Gov exposing (CostModels)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import Cardano.Transaction as Transaction exposing (Transaction)
@@ -15,17 +15,13 @@ import Natural exposing (Natural)
 
 
 {-| Evaluate plutus scripts costs.
+
+This also checks that the local state Utxos have all relevant UTxOs present.
+
 -}
 evalScriptsCosts : VmConfig -> Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
 evalScriptsCosts vmConfig localStateUtxos tx =
     let
-        jsEncode : (a -> CE.Encoder) -> a -> JE.Value
-        jsEncode cborEncoder v =
-            CE.encode (cborEncoder v)
-                |> Bytes.fromBytes
-                |> Bytes.toString
-                |> JE.string
-
         usedUtxos : Utxo.RefDict (Maybe Output)
         usedUtxos =
             Transaction.allInputs tx
@@ -45,45 +41,58 @@ evalScriptsCosts vmConfig localStateUtxos tx =
             |> Err
 
     else
-        let
-            ( refs, outputs ) =
-                Dict.Any.filterMap (\_ -> identity) usedUtxos
-                    |> (\utxos -> ( Dict.Any.keys utxos, Dict.Any.values utxos ))
+        evalScriptsCostsRaw vmConfig (Dict.Any.filterMap (\_ -> identity) usedUtxos) (Transaction.serialize tx)
 
-            jsArguments =
-                JE.object
-                    [ ( "tx_bytes", JE.string <| Bytes.toString <| Transaction.serialize tx )
-                    , ( "utxos_refs_bytes", JE.list (jsEncode Utxo.encodeOutputReference) refs )
-                    , ( "utxos_outputs_bytes", JE.list (jsEncode Utxo.encodeOutput) outputs )
-                    , ( "cost_mdls_bytes", jsEncode Gov.encodeCostModels vmConfig.costModels )
-                    , ( "cpu_budget", JE.int vmConfig.budget.steps )
-                    , ( "mem_budget", JE.int vmConfig.budget.mem )
-                    , ( "slot_config_zero_time", JE.int (Natural.toInt vmConfig.slotConfig.zeroTime) )
-                    , ( "slot_config_zero_slot", JE.int (Natural.toInt vmConfig.slotConfig.zeroSlot) )
-                    , ( "slot_config_slot_length", JE.int vmConfig.slotConfig.slotLengthMs )
-                    ]
 
-            kernelResult =
-                evalScriptsCostsKernel jsArguments
+{-| Evaluate plutus scripts costs with the Tx raw bytes.
+-}
+evalScriptsCostsRaw : VmConfig -> Utxo.RefDict Output -> Bytes any -> Result String (List Redeemer)
+evalScriptsCostsRaw vmConfig usedUtxos txBytes =
+    let
+        jsEncode : (a -> CE.Encoder) -> a -> JE.Value
+        jsEncode cborEncoder v =
+            CE.encode (cborEncoder v)
+                |> Bytes.fromBytes
+                |> Bytes.toString
+                |> JE.string
 
-            decodeKernelResult : JE.Value -> Result String (List (Maybe Redeemer))
-            decodeKernelResult jsValue =
-                -- Each redeemer is provided in CBOR, in a hex-encoded string
-                JD.decodeValue (JD.list JD.string) jsValue
-                    |> Result.mapError Debug.toString
-                    |> Result.map
-                        (List.map
-                            -- Convert the hex strings to bytes
-                            (Bytes.fromStringUnchecked
-                                >> Bytes.toBytes
-                                -- Decode the bytes into redeemers
-                                >> CD.decode Redeemer.fromCborArray
-                            )
+        ( refs, outputs ) =
+            ( Dict.Any.keys usedUtxos, Dict.Any.values usedUtxos )
+
+        jsArguments =
+            JE.object
+                [ ( "tx_bytes", JE.string <| Bytes.toString txBytes )
+                , ( "utxos_refs_bytes", JE.list (jsEncode Utxo.encodeOutputReference) refs )
+                , ( "utxos_outputs_bytes", JE.list (jsEncode Utxo.encodeOutput) outputs )
+                , ( "cost_mdls_bytes", jsEncode Gov.encodeCostModels vmConfig.costModels )
+                , ( "cpu_budget", JE.int vmConfig.budget.steps )
+                , ( "mem_budget", JE.int vmConfig.budget.mem )
+                , ( "slot_config_zero_time", JE.int (Natural.toInt vmConfig.slotConfig.zeroTime) )
+                , ( "slot_config_zero_slot", JE.int (Natural.toInt vmConfig.slotConfig.zeroSlot) )
+                , ( "slot_config_slot_length", JE.int vmConfig.slotConfig.slotLengthMs )
+                ]
+
+        kernelResult =
+            evalScriptsCostsKernel jsArguments
+
+        decodeKernelResult : JE.Value -> Result String (List (Maybe Redeemer))
+        decodeKernelResult jsValue =
+            -- Each redeemer is provided in CBOR, in a hex-encoded string
+            JD.decodeValue (JD.list JD.string) jsValue
+                |> Result.mapError Debug.toString
+                |> Result.map
+                    (List.map
+                        -- Convert the hex strings to bytes
+                        (Bytes.fromStringUnchecked
+                            >> Bytes.toBytes
+                            -- Decode the bytes into redeemers
+                            >> CD.decode Redeemer.fromCborArray
                         )
-        in
-        evalScriptsCostsKernel jsArguments
-            |> Result.andThen decodeKernelResult
-            |> Result.map (List.filterMap identity)
+                    )
+    in
+    evalScriptsCostsKernel jsArguments
+        |> Result.andThen decodeKernelResult
+        |> Result.map (List.filterMap identity)
 
 
 {-| Kernel function (needs patching by elm-cardano) to run phase 2 evaluation (WASM code).
