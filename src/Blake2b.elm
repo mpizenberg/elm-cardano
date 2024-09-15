@@ -2,6 +2,7 @@ module Blake2b exposing (blake2b, blake2b224, blake2b256, blake2b512)
 
 import Bitwise
 import Blake2b.Int128 as Int128 exposing (Int128(..))
+import Blake2b.UInt64 as UInt64
 import List.Extra as List
 import UInt64 exposing (UInt64)
 
@@ -21,24 +22,23 @@ blake2b512 mKey =
     blake2b mKey (UInt64.fromInt 64)
 
 
+{-| BLAKE2-b hash function.
 
--- BLAKE2-b hash function.
---
--- Key and data input are split and padded into "dd" message blocks
--- d[0..dd-1], each consisting of 16 words (or "bb" bytes).
---
--- If a secret key is used (kk > 0), it is padded with zero bytes and
--- set as d[0].  Otherwise, d[0] is the first data block.  The final
--- data block d[dd-1] is also padded with zero to "bb" bytes (16 words).
---
--- The number of blocks is therefore dd = ceil(kk / bb) + ceil(ll / bb).
--- However, in the special case of an unkeyed empty message (kk = 0 and
--- ll = 0), we still set dd = 1 and d[0] consists of all zeros.
---
--- The following procedure processes the padded data blocks into an
--- "nn"-byte final hash value.
+Key and data input are split and padded into "dd" message blocks
+d[0..dd-1], each consisting of 16 words (or "bb" bytes).
 
+If a secret key is used (kk > 0), it is padded with zero bytes and
+set as d[0]. Otherwise, d[0] is the first data block. The final
+data block d[dd-1] is also padded with zero to "bb" bytes (16 words).
 
+The number of blocks is therefore dd = ceil(kk / bb) + ceil(ll / bb).
+However, in the special case of an unkeyed empty message (kk = 0 and
+ll = 0), we still set dd = 1 and d[0] consists of all zeros.
+
+The following procedure processes the padded data blocks into an
+"nn"-byte final hash value.
+
+-}
 blake2b : Maybe (List Int) -> UInt64 -> List Int -> List Int
 blake2b mKey hashBytesLength input =
     let
@@ -80,11 +80,6 @@ blake2b mKey hashBytesLength input =
                             |> UInt64.xor hashBytesLength
                     )
 
-        -- Help function to split counter into high and low U64 parts
-        split =
-            \(Int128 high low) ->
-                { high = high, low = low }
-
         -- Process padded key and data blocks (except the last one)
         updatedState =
             List.take (List.length inputBlocks - 1) inputBlocks
@@ -94,7 +89,7 @@ blake2b mKey hashBytesLength input =
                             ctr =
                                 Int128.mul (UInt64.add i UInt64.one) (UInt64.fromInt 128)
                         in
-                        ( compress state block (split ctr) False
+                        ( compress state block ctr False
                         , UInt64.add i UInt64.one
                         )
                     )
@@ -115,31 +110,24 @@ blake2b mKey hashBytesLength input =
 
         -- bb = 128 bytes
     in
-    compress updatedState lastBlock (split lastCtr) True
+    compress updatedState lastBlock lastCtr True
         |> List.concatMap (UInt64.toBigEndianBytes >> List.reverse)
         |> List.take64 hashBytesLength
 
 
-
--- Compression function takes the state vector ("h" in spec),
--- message block vector ("m" in spec),
--- a 2w-bit (128-bit) offset counter ("t" in spec),
--- and final block indicator flag ("f" in spec),
--- and returns the new state vector.
-
-
-compress : List UInt64 -> List Int -> { low : UInt64, high : UInt64 } -> Bool -> List UInt64
-compress state block ctr finalBlockFlag =
+{-| Compression function takes the state vector ("h" in spec), message block
+vector ("m" in spec), a 2w-bit (128-bit) offset counter ("t" in spec), and final
+block indicator flag ("f" in spec), and returns the new state vector.
+-}
+compress : List UInt64 -> List Int -> Int128 -> Bool -> List UInt64
+compress state block (Int128 ctrHigh ctrLow) finalBlockFlag =
     let
         -- Pad the block and convert to U64 words
         blockWords : List UInt64
         blockWords =
             (block ++ List.repeat (128 - List.length block) 0x00)
                 |> List.chunksOf 8
-                |> List.map (UInt64.fromBigEndianBytes << List.reverse)
-                |> List.foldr
-                    (\b acc -> b :: acc)
-                    []
+                |> List.map UInt64.fromLittleEndianBytes
 
         -- Initialize local vector with state and IV
         vInit : List UInt64
@@ -148,10 +136,10 @@ compress state block ctr finalBlockFlag =
                 |> List.indexedMap
                     (\i word ->
                         if i == 12 then
-                            UInt64.or word ctr.low
+                            UInt64.or word ctrLow
 
                         else if i == 13 then
-                            UInt64.or word ctr.high
+                            UInt64.or word ctrHigh
 
                         else if i == 14 then
                             if finalBlockFlag then
@@ -252,23 +240,15 @@ compress state block ctr finalBlockFlag =
 
 blake2bIV : List UInt64
 blake2bIV =
-    [ UInt64.fromInt32s 0x6A09E667 0xF3BCC908
-    , UInt64.fromInt32s 0xBB67AE85 0x84CAA73B
-    , UInt64.fromInt32s 0x3C6EF372 0xFE94F82B
-    , UInt64.fromInt32s 0xA54FF53A 0x5F1D36F1
-    , UInt64.fromInt32s 0x510E527F 0xADE682D1
-    , UInt64.fromInt32s 0x9B05688C 0x2B3E6C1F
-    , UInt64.fromInt32s 0x1F83D9AB 0xFB41BD6B
-    , UInt64.fromInt32s 0x5BE0CD19 0x137E2179
+    [ UInt64.fromInt24s 0x6A 0x009E667F 0x03BCC908
+    , UInt64.fromInt24s 0xBB 0x067AE858 0x04CAA73B
+    , UInt64.fromInt24s 0x3C 0x06EF372F 0x0E94F82B
+    , UInt64.fromInt24s 0xA5 0x04FF53A5 0x0F1D36F1
+    , UInt64.fromInt24s 0x51 0x00E527FA 0x0DE682D1
+    , UInt64.fromInt24s 0x9B 0x005688C2 0x0B3E6C1F
+    , UInt64.fromInt24s 0x1F 0x083D9ABF 0x0B41BD6B
+    , UInt64.fromInt24s 0x5B 0x0E0CD191 0x037E2179
     ]
-
-
-
--- The mixing function mixes two words x, y with four
--- words v[a], v[b], v[c], v[d] and returns these four words modified. The
--- vector v is the working vector of the blake algorithm.
---
--- mixing va, vb, vc, vd, x, y -> new (va, vb, vc, vd)
 
 
 type alias Quadruple64 =
@@ -284,6 +264,13 @@ q64FromInts a b c d =
     Quadruple64 (UInt64.fromInt a) (UInt64.fromInt b) (UInt64.fromInt c) (UInt64.fromInt d)
 
 
+{-| The mixing function mixes two words x, y with four words v[a], v[b], v[c],
+v[d] and returns these four words modified. The vector v is the working vector
+of the blake algorithm.
+
+mixing va, vb, vc, vd, x, y -> new (va, vb, vc, vd)
+
+-}
 mixing : UInt64 -> UInt64 -> UInt64 -> UInt64 -> UInt64 -> UInt64 -> Quadruple64
 mixing va vb vc vd x y =
     let
