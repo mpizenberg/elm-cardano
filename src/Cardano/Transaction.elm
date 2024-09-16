@@ -406,6 +406,9 @@ type RewardTarget
 
 
 {-| Re-compute fees for a transaction (does not read `body.fee`).
+
+TODO: In Conway, we also need to add the reference script fees.
+
 -}
 computeFees : Transaction -> Natural
 computeFees tx =
