@@ -2054,7 +2054,7 @@ example3 _ =
             , Address.extractStakeCredential exAddr.me
             )
 
-        -- TODO: make an actual lock script with Aiken
+        -- Lock script made with Aiken
         lock =
             -- { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
             -- , scriptHash = dummyCredentialHash "LockHash"
