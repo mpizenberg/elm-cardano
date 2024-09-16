@@ -587,7 +587,10 @@ finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInf
             buildTxRound noInputsOutputs fee
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
-                -- TODO: Evaluate plutus script cost, and do a final round of above
+                -- Evaluate plutus script cost
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
+                -- Redo a final round of above
+                |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (checkInsufficientFee fee)
@@ -1644,7 +1647,6 @@ checkInsufficientFee fee tx =
 dummyCredentialHash : String -> Bytes CredentialHash
 dummyCredentialHash str =
     dummyBytes 28 str
-        |> Debug.log "makeCredHash"
 
 
 makeWalletAddress : String -> Address
@@ -1826,7 +1828,7 @@ prettyRedeemer redeemer =
     String.join " "
         [ Debug.toString redeemer.tag
         , "index:" ++ String.fromInt redeemer.index
-        , "exUnits:?"
+        , "exUnits: mem " ++ String.fromInt redeemer.exUnits.mem ++ ", steps " ++ String.fromInt redeemer.exUnits.steps
         , "data:" ++ prettyCbor Data.toCbor redeemer.data
         ]
 
@@ -2054,8 +2056,10 @@ example3 _ =
 
         -- TODO: make an actual lock script with Aiken
         lock =
-            { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            , scriptHash = dummyCredentialHash "LockHash"
+            -- { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
+            -- , scriptHash = dummyCredentialHash "LockHash"
+            { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+            , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
             }
 
         -- Combining the script hash with our stake credential
