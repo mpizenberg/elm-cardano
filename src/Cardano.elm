@@ -1403,7 +1403,16 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
             (walletCredsInInputs ++ processedIntents.requiredSigners)
-                |> List.map (\cred -> ( cred, { vkey = dummyBytes 32, signature = dummyBytes 64 } ))
+                |> List.map
+                    (\cred ->
+                        let
+                            credAsText =
+                                Bytes.toText cred
+                                    |> Maybe.withDefault (Bytes.toString cred)
+                                    |> String.left 28
+                        in
+                        ( cred, { vkey = dummyBytes 32 ("VKEY" ++ credAsText), signature = dummyBytes 64 ("SIGNATURE" ++ credAsText) } )
+                    )
                 -- Convert to a BytesMap to ensure credentials unicity
                 |> Map.fromList
                 |> Map.values
@@ -1459,10 +1468,6 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                 |> Utxo.refDictFromList
                 |> Dict.Any.keys
 
-        -- Helper function to create dummy bytes, mostly for fee estimation
-        dummyBytes bytesLength =
-            Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
-
         -- Script data is serialized in a very specific way to compute the hash.
         -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
         -- See Blaze impl: https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935
@@ -1474,7 +1479,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 
             else
                 -- TODO: actual hashing
-                Just (dummyBytes 32)
+                Just (dummyBytes 32 "ScriptDataHash")
 
         collateralReturnAmount =
             (Maybe.withDefault Value.zero collateralSelection.change).lovelace
@@ -1511,7 +1516,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 
                     _ ->
                         -- TODO: compute actual auxiliary data hash
-                        Just (dummyBytes 32)
+                        Just (dummyBytes 32 "AuxDataHash")
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
             , scriptDataHash = scriptDataHash
@@ -1532,6 +1537,18 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
     , isValid = True
     , auxiliaryData = txAuxData
     }
+
+
+{-| Unsafe helper function to make up some bytes of a given length,
+starting by the given text when decoded as text.
+-}
+dummyBytes : Int -> String -> Bytes a
+dummyBytes length prefix =
+    let
+        zeroSuffix =
+            String.repeat (length - String.length prefix) "0"
+    in
+    Bytes.fromText (prefix ++ zeroSuffix)
 
 
 {-| Helper function to split native script into a list of script value and a list of output references.
@@ -1624,18 +1641,9 @@ checkInsufficientFee fee tx =
 --
 
 
-makeBytes : Int -> String -> Bytes a
-makeBytes length str =
-    let
-        zeroSuffix =
-            String.repeat (length - String.length str) "0"
-    in
-    Bytes.fromText (str ++ zeroSuffix)
-
-
-makeCredentialHash : String -> Bytes CredentialHash
-makeCredentialHash str =
-    makeBytes 28 str
+dummyCredentialHash : String -> Bytes CredentialHash
+dummyCredentialHash str =
+    dummyBytes 28 str
         |> Debug.log "makeCredHash"
 
 
@@ -1643,19 +1651,19 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (makeCredentialHash name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| makeCredentialHash name))
+        , paymentCredential = VKeyHash (dummyCredentialHash name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Address.enterprise Mainnet (makeCredentialHash name)
+    Address.enterprise Mainnet (dummyCredentialHash name)
 
 
 makeRef : String -> Int -> OutputReference
 makeRef id index =
-    { transactionId = makeBytes 32 id
+    { transactionId = dummyBytes 32 id
     , outputIndex = index
     }
 
@@ -1680,7 +1688,7 @@ makeAdaOutput index address amount =
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
-    Value.onlyToken (makeCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
+    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
 
 
 prettyAddr address =
@@ -1911,7 +1919,7 @@ exAddr =
 
 
 dog =
-    { policyId = makeCredentialHash "dog"
+    { policyId = dummyCredentialHash "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
@@ -1926,7 +1934,7 @@ dog =
 
 
 cat =
-    { policyId = makeCredentialHash "cat"
+    { policyId = dummyCredentialHash "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"
@@ -2044,9 +2052,10 @@ example3 _ =
             , Address.extractStakeCredential exAddr.me
             )
 
+        -- TODO: make an actual lock script with Aiken
         lock =
             { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            , scriptHash = makeCredentialHash "LockHash"
+            , scriptHash = dummyCredentialHash "LockHash"
             }
 
         -- Combining the script hash with our stake credential
