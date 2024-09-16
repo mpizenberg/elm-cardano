@@ -2046,11 +2046,11 @@ example3 _ =
 
         lock =
             { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            , scriptHash = Bytes.fromText "LockHash"
+            , scriptHash = makeCredentialHash "LockHash"
             }
 
         -- Combining the script hash with our stake credential
-        -- to keep the locked add staked.
+        -- to keep the locked ada staked.
         lockScriptAddress =
             Address.Shelley
                 { networkId = Mainnet
