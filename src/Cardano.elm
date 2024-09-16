@@ -1621,26 +1621,41 @@ checkInsufficientFee fee tx =
 
 
 -- EXAMPLES ##########################################################
+--
+
+
+makeBytes : Int -> String -> Bytes a
+makeBytes length str =
+    let
+        zeroSuffix =
+            String.repeat (length - String.length str) "0"
+    in
+    Bytes.fromText (str ++ zeroSuffix)
+
+
+makeCredentialHash : String -> Bytes CredentialHash
+makeCredentialHash str =
+    makeBytes 28 str
+        |> Debug.log "makeCredHash"
 
 
 makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromText name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText name))
+        , paymentCredential = VKeyHash (makeCredentialHash name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| makeCredentialHash name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Bytes.fromText ("key:" ++ name)
-        |> Address.enterprise Mainnet
+    Address.enterprise Mainnet (makeCredentialHash name)
 
 
 makeRef : String -> Int -> OutputReference
 makeRef id index =
-    { transactionId = Bytes.fromText id
+    { transactionId = makeBytes 32 id
     , outputIndex = index
     }
 
@@ -1665,7 +1680,7 @@ makeAdaOutput index address amount =
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
-    Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
+    Value.onlyToken (makeCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
 
 
 prettyAddr address =
@@ -1794,8 +1809,8 @@ prettyMints sectionTitle multiAsset =
 
 prettyVKeyWitness { vkey, signature } =
     String.join ", "
-        [ "vkey:" ++ Bytes.toString vkey
-        , "signature:" ++ Bytes.toString signature
+        [ "vkey:" ++ (Bytes.toText vkey |> Maybe.withDefault "")
+        , "signature:" ++ (Bytes.toText signature |> Maybe.withDefault "")
         ]
 
 
@@ -1895,7 +1910,7 @@ exAddr =
 
 
 dog =
-    { policyId = Bytes.fromText "dog"
+    { policyId = makeCredentialHash "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
@@ -1910,7 +1925,7 @@ dog =
 
 
 cat =
-    { policyId = Bytes.fromText "cat"
+    { policyId = makeCredentialHash "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"

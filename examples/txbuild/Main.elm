@@ -117,10 +117,10 @@ view _ =
         , Html.pre [] [ text <| example Cardano.example1 ]
         , div [] [ text "Example transaction 2: mint 1 dog & burn 1 cat." ]
         , Html.pre [] [ text <| example Cardano.example2 ]
+        , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada." ]
+        , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
+        , Html.pre [] [ text <| example Cardano.example3 ]
 
-        -- , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada." ]
-        -- , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
-        -- , Html.pre [] [ text <| example Cardano.example3 ]
         -- , div [] [ text "SnekDotFun Tx:" ]
         -- , Html.pre [] [ text <| Cardano.prettyTx snekTx ]
         , div [] [ text "SnekDotFun Tx declared execution costs:" ]
