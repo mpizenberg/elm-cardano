@@ -93,19 +93,20 @@ snekActualCostsRaw =
         |> List.map .exUnits
 
 
+snekActualCosts =
+    Uplc.evalScriptsCosts
+        { budget = Uplc.conwayDefaultBudget
+        , slotConfig = Uplc.slotConfigMainnet
+        , costModels = Uplc.conwayDefaultCostModels
+        }
+        snekLocalUtxos
+        snekTx
+        |> Debug.log "eval result"
+        |> Result.withDefault []
+        |> List.map .exUnits
 
--- snekActualCosts =
---     Uplc.evalScriptsCosts
---         -- Uplc.evalScriptsCosts
---         { budget = Uplc.conwayDefaultBudget
---         , slotConfig = Uplc.slotConfigMainnet
---         , costModels = Uplc.conwayDefaultCostModels
---         }
---         snekLocalUtxos
---         snekTx
---         |> Debug.log "eval result"
---         |> Result.withDefault []
---         |> List.map .exUnits
+
+
 -- VIEW
 
 
@@ -126,9 +127,8 @@ view _ =
         , div [] <| List.map viewCost snekDeclaredCosts
         , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm on the raw Tx bytes):" ]
         , div [] <| List.map viewCost snekActualCostsRaw
-
-        -- , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm on the decoded Tx):" ]
-        -- , div [] <| List.map viewCost snekActualCosts
+        , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm on the decoded Tx):" ]
+        , div [] <| List.map viewCost snekActualCosts
         ]
 
 
