@@ -1899,6 +1899,7 @@ ada =
     -- Asset amounts are typed with unbounded Natural numbers
     { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
     , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
+    , four = Value.onlyLovelace (Natural.fromSafeString "4000000")
     , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
     }
 
@@ -2072,13 +2073,13 @@ example3 _ =
             , referenceScript = Nothing
             }
 
-        -- Add to local state utxos some previously sent 2 ada.
+        -- Add to local state utxos some previously sent 4 ada.
         localStateUtxos =
             globalConfig.localStateUtxos
                 |> Dict.Any.insert utxoBeingSpent
-                    (makeLockedOutput ada.two)
+                    (makeLockedOutput ada.four)
     in
-    -- Collect 1 ada from the lock script
+    -- Collect 2 ada from the lock script
     [ Spend <|
         FromPlutusScript
             { spentInput = utxoBeingSpent
@@ -2089,9 +2090,9 @@ example3 _ =
                 , requiredSigners = [ myKeyCred ]
                 }
             }
-    , SendTo exAddr.me ada.one
+    , SendTo exAddr.me ada.two
 
-    -- Return the other 1 ada to the lock script (there was 2 ada initially)
-    , SendToOutput (\_ -> makeLockedOutput ada.one)
+    -- Return the other 2 ada to the lock script (there was 4 ada initially)
+    , SendToOutput (\_ -> makeLockedOutput ada.two)
     ]
         |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []
