@@ -81,7 +81,7 @@ snekDeclaredCosts =
         |> List.map .exUnits
 
 
-snekActualCosts =
+snekActualCostsRaw =
     Uplc.evalScriptsCostsRaw
         { budget = Uplc.conwayDefaultBudget
         , slotConfig = Uplc.slotConfigMainnet
@@ -89,9 +89,23 @@ snekActualCosts =
         }
         snekLocalUtxos
         snekTxBytes
+        |> Result.withDefault []
+        |> List.map .exUnits
 
 
 
+-- snekActualCosts =
+--     Uplc.evalScriptsCosts
+--         -- Uplc.evalScriptsCosts
+--         { budget = Uplc.conwayDefaultBudget
+--         , slotConfig = Uplc.slotConfigMainnet
+--         , costModels = Uplc.conwayDefaultCostModels
+--         }
+--         snekLocalUtxos
+--         snekTx
+--         |> Debug.log "eval result"
+--         |> Result.withDefault []
+--         |> List.map .exUnits
 -- VIEW
 
 
@@ -102,14 +116,21 @@ view _ =
         , Html.pre [] [ text <| example Cardano.example1 ]
         , div [] [ text "Example transaction 2: mint 1 dog & burn 1 cat." ]
         , Html.pre [] [ text <| example Cardano.example2 ]
-        , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada." ]
-        , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
-        , Html.pre [] [ text <| example Cardano.example3 ]
-        , div [] [ text "SnekDotFun Tx:" ]
-        , Html.pre [] [ text <| Cardano.prettyTx snekTx ]
+
+        -- , div [] [ text "Example transaction 3: spend 1 ada from a plutus script with 2 ada." ]
+        -- , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
+        -- , Html.pre [] [ text <| example Cardano.example3 ]
+        -- , div [] [ text "SnekDotFun Tx:" ]
+        -- , Html.pre [] [ text <| Cardano.prettyTx snekTx ]
         , div [] [ text "SnekDotFun Tx declared execution costs:" ]
-        , List.map (\costs -> Html.pre [] [ text <| Debug.toString costs ]) snekDeclaredCosts
-            |> div []
-        , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm):" ]
-        , Html.pre [] [ text <| Debug.toString snekActualCosts ]
+        , div [] <| List.map viewCost snekDeclaredCosts
+        , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm on the raw Tx bytes):" ]
+        , div [] <| List.map viewCost snekActualCostsRaw
+
+        -- , div [] [ text "SnekDotFun Tx actual execution costs (evaluated with uplc_wasm on the decoded Tx):" ]
+        -- , div [] <| List.map viewCost snekActualCosts
         ]
+
+
+viewCost cost =
+    Html.pre [] [ text <| Debug.toString cost ]

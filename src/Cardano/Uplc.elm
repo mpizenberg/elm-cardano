@@ -75,29 +75,22 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
         kernelResult =
             evalScriptsCostsKernel jsArguments
 
-        decodeKernelResult : JE.Value -> Result String (List (Maybe Redeemer))
-        decodeKernelResult jsValue =
+        decodeRedeemer : String -> Maybe Redeemer
+        decodeRedeemer redeemerHex =
             -- Each redeemer is provided in CBOR, in a hex-encoded string
-            JD.decodeValue (JD.list JD.string) jsValue
-                |> Result.mapError Debug.toString
-                |> Result.map
-                    (List.map
-                        -- Convert the hex strings to bytes
-                        (Bytes.fromStringUnchecked
-                            >> Bytes.toBytes
-                            -- Decode the bytes into redeemers
-                            >> CD.decode Redeemer.fromCborArray
-                        )
-                    )
+            -- Convert the hex strings to bytes
+            Bytes.fromStringUnchecked redeemerHex
+                |> Bytes.toBytes
+                -- Decode the bytes into redeemers
+                |> CD.decode Redeemer.fromCborArray
     in
     evalScriptsCostsKernel jsArguments
-        |> Result.andThen decodeKernelResult
-        |> Result.map (List.filterMap identity)
+        |> Result.map (List.filterMap decodeRedeemer)
 
 
 {-| Kernel function (needs patching by elm-cardano) to run phase 2 evaluation (WASM code).
 -}
-evalScriptsCostsKernel : JE.Value -> Result String JE.Value
+evalScriptsCostsKernel : JE.Value -> Result String (List String)
 evalScriptsCostsKernel _ =
     Err "evalScriptsCostsKernel"
 

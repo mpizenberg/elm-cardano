@@ -121,7 +121,6 @@ fn run_subcommand(run_args: RunSubCommand) -> anyhow::Result<()> {
 fn kernel_patching_uplc_wasm(elm_js: &str) -> String {
     let header = r#"
 let evalScriptsCostsKernel = (elm_args) => {
-  console.log("Kernel patching has worked!");
   try {
     if (!("uplc_wasm" in window)) {
       throw new Error("Missing uplc_wasm module in window. Make sure to dynamically import the Elm app after window.uplc_wasm was populated.");
@@ -129,7 +128,6 @@ let evalScriptsCostsKernel = (elm_args) => {
     const args = elm_args.a; // elm uses a specific structure for its data
     const fromHexString = (hexString) =>
       Uint8Array.from(hexString.match(/.{1,2}/g).map((byte) => parseInt(byte, 16)));
-    console.log("after fromHexString definition");
     let redeemers = window.uplc_wasm.eval_phase_two_raw(
       fromHexString(args.tx_bytes), // tx_bytes: &[u8],
       args.utxos_refs_bytes.map(fromHexString), // utxos_refs_bytes: Vec<js_sys::Uint8Array>,
@@ -142,11 +140,10 @@ let evalScriptsCostsKernel = (elm_args) => {
       args.slot_config_slot_length, // slot_config_slot_length: u32,
     );
     const uint8ArrayToHexString = (uint8Array) => {
-        return Array.from(uint8Array)
-            .map(byte => byte.toString(16))  // Convert each byte to hex
-            .join('');  // Join all the hex strings into one
-    }
-    return $elm$core$Result$Ok(redeemers.map(uint8ArrayToHexString));
+      return Array.from(uint8Array).map((i) => i.toString(16).padStart(2, '0')).join('');
+    };
+    const redeemersAsHex = redeemers.map(uint8ArrayToHexString);
+    return $elm$core$Result$Ok(_List_fromArray(redeemersAsHex));
   } catch (error) {
     return $elm$core$Result$Err('Script evaluation failed with error: ' + error);
   }

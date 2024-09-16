@@ -10,7 +10,8 @@
             // Import uplc-wasm-web directly from unpkg.com (using cloudflare)
             // Alternatively, you can compile it yourself from https://github.com/mpizenberg/uplc-wasm
             // and provide it directly with your static server.
-            import uplc_wasm_init, * as uplc_wasm from "https://unpkg.com/uplc-wasm-web@0.1.0/uplc_wasm.js";
+            // import uplc_wasm_init, * as uplc_wasm from "https://unpkg.com/uplc-wasm-web@0.2.0/uplc_wasm.js";
+            import uplc_wasm_init, * as uplc_wasm from "/pkg-web/uplc_wasm.js";
             await uplc_wasm_init();
             window.uplc_wasm = uplc_wasm;
             // Use a dynamic import to make sure window.uplc_wasm is populated first.
