@@ -60,7 +60,10 @@ okTxBuilding =
             (\tx ->
                 let
                     feeAmount =
-                        Transaction.computeFees tx
+                        Transaction.computeFees Transaction.defaultTxFeeParams { refScriptBytes = 0 } tx
+                            |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } ->
+                                    Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee
+                               )
 
                     adaLeft =
                         Natural.sub (ada 2) feeAmount

@@ -7,7 +7,7 @@ module Cardano.Transaction exposing
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
-    , computeFees, allInputs
+    , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
     , deserialize, serialize
     )
 
@@ -33,7 +33,7 @@ module Cardano.Transaction exposing
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
-@docs computeFees, allInputs
+@docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
 @docs deserialize, serialize
 
@@ -45,7 +45,7 @@ import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (ActionDict, ActionId, Anchor, Drep(..), ProposalProcedure, ProtocolParamUpdate, UnitInterval, Voter, VotingProcedure)
+import Cardano.Gov as Gov exposing (ActionDict, ActionId, Anchor, Drep(..), ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
@@ -58,6 +58,7 @@ import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Integer exposing (Integer)
 import Natural exposing (Natural)
+import RationalNat exposing (RationalNat)
 
 
 {-| A Cardano transaction.
@@ -405,28 +406,52 @@ type RewardTarget
     | OtherAccountingPot Natural
 
 
-{-| Re-compute fees for a transaction (does not read `body.fee`).
+{-| Parameters required to compute transaction fees.
+-}
+type alias FeeParameters =
+    { baseFee : Int
+    , feePerByte : Int
+    , scriptExUnitPrice : ExUnitPrices
+    , refScriptFeeParams : RefScriptFeeParameters
+    }
 
-TODO: In Conway, we also need to add the reference script fees.
+
+{-| Default values for fee parameters.
+-}
+defaultTxFeeParams : FeeParameters
+defaultTxFeeParams =
+    { baseFee = 155381
+    , feePerByte = 44
+    , scriptExUnitPrice =
+        { memPrice = { numerator = 577, denominator = 10000 }
+        , stepPrice = { numerator = 721, denominator = 10000000 }
+        }
+    , refScriptFeeParams =
+        { minFeeRefScriptCostPerByte = 15
+        , multiplier = { numerator = 12, denominator = 10 }
+        , sizeIncrement = 25600
+        }
+    }
+
+
+{-| Parameters for the costs of referencing scripts.
+
+Full explanation of the formula here:
+<https://github.com/IntersectMBO/cardano-ledger/blob/master/docs/adr/2024-08-14_009-refscripts-fee-change.md>
 
 -}
-computeFees : Transaction -> Natural
-computeFees tx =
+type alias RefScriptFeeParameters =
+    { minFeeRefScriptCostPerByte : Int -- lovelace/bytes until reaching the second size level
+    , multiplier : RationalNumber -- exponential cost increase for each size level
+    , sizeIncrement : Int -- level size (in bytes) for each exponential fee price change
+    }
+
+
+{-| Re-compute fees for a transaction (does not read `body.fee`).
+-}
+computeFees : FeeParameters -> { refScriptBytes : Int } -> Transaction -> { txSizeFee : Natural, scriptExecFee : Natural, refScriptSizeFee : Natural }
+computeFees { baseFee, feePerByte, scriptExUnitPrice, refScriptFeeParams } { refScriptBytes } tx =
     let
-        ( baseFee, feePerByte ) =
-            -- TODO: check those values
-            ( 155381, 44 )
-
-        priceStep =
-            { numerator = Natural.fromSafeInt 721 -- TODO: check those values
-            , denominator = Natural.fromSafeInt 10000000
-            }
-
-        priceMem =
-            { numerator = Natural.fromSafeInt 577 -- TODO: check those values
-            , denominator = Natural.fromSafeInt 10000
-            }
-
         txSize =
             Bytes.width (serialize tx)
 
@@ -442,18 +467,72 @@ computeFees tx =
                     ( Natural.zero, Natural.zero )
 
         totalStepsCost =
-            Natural.mul totalSteps priceStep.numerator
-                |> Natural.divBy priceStep.denominator
+            Natural.mul totalSteps (Natural.fromSafeInt scriptExUnitPrice.stepPrice.numerator)
+                |> Natural.divBy (Natural.fromSafeInt scriptExUnitPrice.stepPrice.denominator)
                 |> Maybe.withDefault Natural.zero
 
         totalMemCost =
-            Natural.mul totalMem priceMem.numerator
-                |> Natural.divBy priceMem.denominator
+            Natural.mul totalMem (Natural.fromSafeInt scriptExUnitPrice.memPrice.numerator)
+                |> Natural.divBy (Natural.fromSafeInt scriptExUnitPrice.memPrice.denominator)
                 |> Maybe.withDefault Natural.zero
     in
-    Natural.fromSafeInt (baseFee + feePerByte * txSize)
-        |> Natural.add totalStepsCost
-        |> Natural.add totalMemCost
+    { txSizeFee = Natural.fromSafeInt (baseFee + feePerByte * txSize)
+    , scriptExecFee = Natural.add totalStepsCost totalMemCost
+    , refScriptSizeFee = refScriptFee refScriptFeeParams refScriptBytes
+    }
+
+
+{-| Helper function to compute the fees associated with reference script size.
+
+Full explanation of the formula here:
+<https://github.com/IntersectMBO/cardano-ledger/blob/master/docs/adr/2024-08-14_009-refscripts-fee-change.md>
+
+```haskell
+tierRefScriptFee = go 0 minFeeRefScriptCostPerByte
+  where
+    go acc curTierPrice n
+      | n < sizeIncrement =
+          floor (acc + (n % 1) * curTierPrice)
+      | otherwise =
+          let acc' = acc + curTierPrice * (sizeIncrement % 1)
+           in go acc' (multiplier * curTierPrice) (n - sizeIncrement)
+    sizeIncrement = 25600
+    multiplier = 1.2
+    minFeeRefScriptCostPerByte = 15
+```
+
+-}
+refScriptFee : RefScriptFeeParameters -> Int -> Natural
+refScriptFee ({ minFeeRefScriptCostPerByte } as p) refScriptBytes =
+    let
+        baseTierPricePerByte =
+            RationalNat.fromSafeInt minFeeRefScriptCostPerByte
+    in
+    refScriptFeeHelper p { bytesLeft = refScriptBytes, tierPricePerByte = baseTierPricePerByte } RationalNat.zero
+        |> RationalNat.floor
+        |> Maybe.withDefault Natural.zero
+
+
+refScriptFeeHelper : RefScriptFeeParameters -> { bytesLeft : Int, tierPricePerByte : RationalNat } -> RationalNat -> RationalNat
+refScriptFeeHelper p { bytesLeft, tierPricePerByte } costAccum =
+    if bytesLeft <= p.sizeIncrement then
+        RationalNat.mul tierPricePerByte (RationalNat.fromSafeInt bytesLeft)
+            |> RationalNat.add costAccum
+
+    else
+        let
+            newCostAccum =
+                RationalNat.mul tierPricePerByte (RationalNat.fromSafeInt p.sizeIncrement)
+                    |> RationalNat.add costAccum
+
+            multip =
+                RationalNat (Natural.fromSafeInt p.multiplier.numerator) (Natural.fromSafeInt p.multiplier.denominator)
+        in
+        refScriptFeeHelper p
+            { bytesLeft = bytesLeft - p.sizeIncrement
+            , tierPricePerByte = RationalNat.mul multip tierPricePerByte
+            }
+            newCostAccum
 
 
 {-| Extract all inputs that are used in the transaction,

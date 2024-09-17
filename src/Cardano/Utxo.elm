@@ -262,7 +262,7 @@ encodeOutput output =
             >> E.field 1 Value.encode .amount
             >> E.optionalField 2 encodeDatumOption .datumOption
             >> E.optionalField 3
-                (Script.encodeScript
+                (Script.toCbor
                     >> E.encode
                     >> E.tagged Tag.Cbor E.bytes
                 )

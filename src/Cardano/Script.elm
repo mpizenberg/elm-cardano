@@ -1,7 +1,8 @@
 module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
-    , encodeScript, encodeNativeScript, encodePlutusScript
+    , encodeNativeScript, encodePlutusScript
     , fromCbor, decodeNativeScript
+    , toCbor
     )
 
 {-| Script
@@ -85,17 +86,17 @@ type ScriptCbor
 
 {-| Cbor Encoder for [Script]
 -}
-encodeScript : Script -> E.Encoder
-encodeScript script =
+toCbor : Script -> E.Encoder
+toCbor script =
     case script of
         Native nativeScript ->
-            EE.ledgerList identity
+            E.list identity
                 [ E.int 0
                 , encodeNativeScript nativeScript
                 ]
 
         Plutus plutusScript ->
-            EE.ledgerList identity
+            E.list identity
                 [ encodePlutusVersion plutusScript.version
                 , encodePlutusScript plutusScript
                 ]
@@ -105,7 +106,7 @@ encodeScript script =
 -}
 encodeNativeScript : NativeScript -> E.Encoder
 encodeNativeScript nativeScript =
-    EE.ledgerList identity <|
+    E.list identity <|
         case nativeScript of
             ScriptPubkey addrKeyHash ->
                 [ E.int 0
@@ -114,18 +115,18 @@ encodeNativeScript nativeScript =
 
             ScriptAll nativeScripts ->
                 [ E.int 1
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             ScriptAny nativeScripts ->
                 [ E.int 2
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             ScriptNofK atLeast nativeScripts ->
                 [ E.int 3
                 , E.int atLeast
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             InvalidBefore start ->
