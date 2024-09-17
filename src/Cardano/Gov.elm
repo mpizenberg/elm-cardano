@@ -518,8 +518,8 @@ type Nonce
 
 {-| -}
 type alias ExUnitPrices =
-    { memPrice : PositiveInterval -- 0
-    , stepPrice : PositiveInterval -- 1
+    { memPrice : RationalNumber -- 0
+    , stepPrice : RationalNumber -- 1
     }
 
 

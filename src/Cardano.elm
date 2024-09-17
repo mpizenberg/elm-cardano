@@ -327,6 +327,7 @@ We can embed it directly in the transaction witness.
 
 -}
 
+import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
@@ -570,17 +571,25 @@ finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInf
                     , createdOutputs = tx.body.outputs
                     }
 
+                computeRefScriptBytesForTx tx =
+                    computeRefScriptBytes localStateUtxos (tx.body.referenceInputs ++ tx.body.inputs)
+
                 adjustFees tx =
                     case fee of
                         ManualFee _ ->
                             fee
 
                         AutoFee { paymentSource } ->
-                            Transaction.computeFees tx
-                                |> Debug.log "estimatedFee"
+                            let
+                                refScriptBytes =
+                                    computeRefScriptBytesForTx tx
+                            in
+                            Transaction.computeFees Transaction.defaultTxFeeParams { refScriptBytes = refScriptBytes } tx
+                                |> Debug.log "computed Tx fee"
+                                |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
                                 |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
             in
-            -- Without estimating cost of plutus script exec, do few loops of:
+            -- Without estimating cost of plutus script exec, do couple loops of:
             --   - estimate Tx fees
             --   - adjust coin selection
             --   - adjust redeemers
@@ -593,8 +602,35 @@ finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInf
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
-                |> Result.andThen (checkInsufficientFee fee)
+                |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
                 |> identity
+
+
+{-| Helper function to compute the total size of reference scripts.
+
+Inputs are only counted once (even if present in both regular and reference inputs).
+But scripts duplicates in different inputs are counted multiple times.
+Both native and Plutus scripts are counted.
+One issue here is I don’t think we still have the original bytes representation of these.
+
+The rule is detailed in that document:
+<https://github.com/IntersectMBO/cardano-ledger/blob/master/docs/adr/2024-08-14_009-refscripts-fee-change.md#reference-scripts-total-size>
+
+-}
+computeRefScriptBytes : Utxo.RefDict Output -> List OutputReference -> Int
+computeRefScriptBytes localStateUtxos references =
+    -- merge all inputs uniquely
+    Utxo.refDictFromList (List.map (\r -> Tuple.pair r ()) references)
+        |> Dict.Any.keys
+        -- retrieve outputs reference scripts for all inputs
+        |> List.filterMap
+            (\ref ->
+                Dict.Any.get ref localStateUtxos
+                    |> Maybe.andThen .referenceScript
+            )
+        -- extract reference script bytes size
+        |> List.map (\script -> ElmBytes.width <| E.encode (Script.toCbor script))
+        |> List.sum
 
 
 type alias PreProcessedIntents =
@@ -1618,18 +1654,19 @@ adjustExecutionCosts evalScriptsCosts tx =
 
 {-| Final check for the Tx fees.
 -}
-checkInsufficientFee : Fee -> Transaction -> Result TxFinalizationError Transaction
-checkInsufficientFee fee tx =
+checkInsufficientFee : { refScriptBytes : Int } -> Fee -> Transaction -> Result TxFinalizationError Transaction
+checkInsufficientFee refSize fee tx =
     let
         declaredFee =
             Maybe.withDefault Natural.zero tx.body.fee
 
         computedFee =
-            Transaction.computeFees tx
+            Transaction.computeFees Transaction.defaultTxFeeParams refSize tx
+                |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
     in
     if declaredFee |> Natural.isLessThan computedFee then
         case fee of
-            ManualFee perAddressFee ->
+            ManualFee _ ->
                 Err <| InsufficientManualFee { declared = declaredFee, computed = computedFee }
 
             AutoFee _ ->
