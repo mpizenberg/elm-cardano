@@ -587,7 +587,10 @@ finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInf
             buildTxRound noInputsOutputs fee
                 --> Result String Transaction
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
-                -- TODO: Evaluate plutus script cost, and do a final round of above
+                -- Evaluate plutus script cost
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
+                -- Redo a final round of above
+                |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (checkInsufficientFee fee)
@@ -1403,7 +1406,16 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
             (walletCredsInInputs ++ processedIntents.requiredSigners)
-                |> List.map (\cred -> ( cred, { vkey = dummyBytes 32, signature = dummyBytes 64 } ))
+                |> List.map
+                    (\cred ->
+                        let
+                            credAsText =
+                                Bytes.toText cred
+                                    |> Maybe.withDefault (Bytes.toString cred)
+                                    |> String.left 28
+                        in
+                        ( cred, { vkey = dummyBytes 32 ("VKEY" ++ credAsText), signature = dummyBytes 64 ("SIGNATURE" ++ credAsText) } )
+                    )
                 -- Convert to a BytesMap to ensure credentials unicity
                 |> Map.fromList
                 |> Map.values
@@ -1459,10 +1471,6 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                 |> Utxo.refDictFromList
                 |> Dict.Any.keys
 
-        -- Helper function to create dummy bytes, mostly for fee estimation
-        dummyBytes bytesLength =
-            Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
-
         -- Script data is serialized in a very specific way to compute the hash.
         -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
         -- See Blaze impl: https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935
@@ -1474,7 +1482,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 
             else
                 -- TODO: actual hashing
-                Just (dummyBytes 32)
+                Just (dummyBytes 32 "ScriptDataHash")
 
         collateralReturnAmount =
             (Maybe.withDefault Value.zero collateralSelection.change).lovelace
@@ -1511,7 +1519,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 
                     _ ->
                         -- TODO: compute actual auxiliary data hash
-                        Just (dummyBytes 32)
+                        Just (dummyBytes 32 "AuxDataHash")
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
             , scriptDataHash = scriptDataHash
@@ -1532,6 +1540,18 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
     , isValid = True
     , auxiliaryData = txAuxData
     }
+
+
+{-| Unsafe helper function to make up some bytes of a given length,
+starting by the given text when decoded as text.
+-}
+dummyBytes : Int -> String -> Bytes a
+dummyBytes length prefix =
+    let
+        zeroSuffix =
+            String.repeat (length - String.length prefix) "0"
+    in
+    Bytes.fromText (prefix ++ zeroSuffix)
 
 
 {-| Helper function to split native script into a list of script value and a list of output references.
@@ -1621,26 +1641,31 @@ checkInsufficientFee fee tx =
 
 
 -- EXAMPLES ##########################################################
+--
+
+
+dummyCredentialHash : String -> Bytes CredentialHash
+dummyCredentialHash str =
+    dummyBytes 28 str
 
 
 makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromText name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText name))
+        , paymentCredential = VKeyHash (dummyCredentialHash name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Bytes.fromText ("key:" ++ name)
-        |> Address.enterprise Mainnet
+    Address.enterprise Mainnet (dummyCredentialHash name)
 
 
 makeRef : String -> Int -> OutputReference
 makeRef id index =
-    { transactionId = Bytes.fromText id
+    { transactionId = dummyBytes 32 id
     , outputIndex = index
     }
 
@@ -1665,7 +1690,7 @@ makeAdaOutput index address amount =
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
-    Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
+    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
 
 
 prettyAddr address =
@@ -1794,8 +1819,8 @@ prettyMints sectionTitle multiAsset =
 
 prettyVKeyWitness { vkey, signature } =
     String.join ", "
-        [ "vkey:" ++ Bytes.toString vkey
-        , "signature:" ++ Bytes.toString signature
+        [ "vkey:" ++ (Bytes.toText vkey |> Maybe.withDefault "")
+        , "signature:" ++ (Bytes.toText signature |> Maybe.withDefault "")
         ]
 
 
@@ -1803,7 +1828,7 @@ prettyRedeemer redeemer =
     String.join " "
         [ Debug.toString redeemer.tag
         , "index:" ++ String.fromInt redeemer.index
-        , "exUnits:?"
+        , "exUnits: mem " ++ String.fromInt redeemer.exUnits.mem ++ ", steps " ++ String.fromInt redeemer.exUnits.steps
         , "data:" ++ prettyCbor Data.toCbor redeemer.data
         ]
 
@@ -1884,6 +1909,7 @@ ada =
     -- Asset amounts are typed with unbounded Natural numbers
     { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
     , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
+    , four = Value.onlyLovelace (Natural.fromSafeString "4000000")
     , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
     }
 
@@ -1895,7 +1921,7 @@ exAddr =
 
 
 dog =
-    { policyId = Bytes.fromText "dog"
+    { policyId = dummyCredentialHash "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
@@ -1910,7 +1936,7 @@ dog =
 
 
 cat =
-    { policyId = Bytes.fromText "cat"
+    { policyId = dummyCredentialHash "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"
@@ -2028,13 +2054,16 @@ example3 _ =
             , Address.extractStakeCredential exAddr.me
             )
 
+        -- Lock script made with Aiken
         lock =
-            { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            , scriptHash = Bytes.fromText "LockHash"
+            -- { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
+            -- , scriptHash = dummyCredentialHash "LockHash"
+            { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+            , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
             }
 
         -- Combining the script hash with our stake credential
-        -- to keep the locked add staked.
+        -- to keep the locked ada staked.
         lockScriptAddress =
             Address.Shelley
                 { networkId = Mainnet
@@ -2057,13 +2086,13 @@ example3 _ =
             , referenceScript = Nothing
             }
 
-        -- Add to local state utxos some previously sent 2 ada.
+        -- Add to local state utxos some previously sent 4 ada.
         localStateUtxos =
             globalConfig.localStateUtxos
                 |> Dict.Any.insert utxoBeingSpent
-                    (makeLockedOutput ada.two)
+                    (makeLockedOutput ada.four)
     in
-    -- Collect 1 ada from the lock script
+    -- Collect 2 ada from the lock script
     [ Spend <|
         FromPlutusScript
             { spentInput = utxoBeingSpent
@@ -2074,9 +2103,9 @@ example3 _ =
                 , requiredSigners = [ myKeyCred ]
                 }
             }
-    , SendTo exAddr.me ada.one
+    , SendTo exAddr.me ada.two
 
-    -- Return the other 1 ada to the lock script (there was 2 ada initially)
-    , SendToOutput (\_ -> makeLockedOutput ada.one)
+    -- Return the other 2 ada to the lock script (there was 4 ada initially)
+    , SendToOutput (\_ -> makeLockedOutput ada.two)
     ]
         |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []

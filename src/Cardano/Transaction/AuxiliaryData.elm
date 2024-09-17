@@ -37,13 +37,24 @@ toCbor data =
         |> E.tagged (Tag.Unknown 259)
             (E.record E.int
                 (E.fields
-                    >> E.field 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) .labels
-                    >> E.field 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
-                    >> E.field 2 (E.ledgerList Bytes.toCbor) .plutusV1Scripts
-                    >> E.field 3 (E.ledgerList Bytes.toCbor) .plutusV2Scripts
-                    >> E.field 4 (E.ledgerList Bytes.toCbor) .plutusV3Scripts
+                    >> E.optionalField 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) (nonEmptyList << .labels)
+                    >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) (nonEmptyList << .nativeScripts)
+                    >> E.optionalField 2 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV1Scripts)
+                    >> E.optionalField 3 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV2Scripts)
+                    >> E.optionalField 4 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV3Scripts)
                 )
             )
+
+
+{-| Helper function to convert empty lists to [Nothing].
+-}
+nonEmptyList : List a -> Maybe (List a)
+nonEmptyList list =
+    if List.isEmpty list then
+        Nothing
+
+    else
+        Just list
 
 
 {-| Decode transaction auxiliary data from CBOR.
