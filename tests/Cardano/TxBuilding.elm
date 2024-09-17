@@ -3,7 +3,7 @@ module Cardano.TxBuilding exposing (suite)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
 import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
-import Cardano.Address as Address exposing (Address, Credential(..), NetworkId(..), StakeCredential(..))
+import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Redeemer exposing (Redeemer)
@@ -46,7 +46,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -74,7 +74,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -98,7 +98,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -125,7 +125,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -158,8 +158,8 @@ okTxBuilding =
                             | vkeywitness =
                                 Just
                                     -- Two keys since I pay the fee, and spend your utxo
-                                    [ { vkey = dummyBytes 32, signature = dummyBytes 64 }
-                                    , { vkey = dummyBytes 32, signature = dummyBytes 64 }
+                                    [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" }
+                                    , { vkey = dummyBytes 32 "VKEYyou", signature = dummyBytes 64 "SIGNATUREyou" }
                                     ]
                         }
                 }
@@ -168,10 +168,10 @@ okTxBuilding =
             threeCat =
                 Value.onlyToken cat.policyId cat.assetName Natural.three
 
-            threeCatOneAda =
-                { threeCat | lovelace = ada 1 }
+            threeCatTwoAda =
+                { threeCat | lovelace = ada 2 }
           in
-          okTxTest "send 3 cat with 1 ada from me to you"
+          okTxTest "send 3 cat with 2 ada from me to you"
             { localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
@@ -180,8 +180,8 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me threeCatOneAda
-                , SendTo testAddr.you threeCatOneAda
+                [ Spend <| From testAddr.me threeCatTwoAda
+                , SendTo testAddr.you threeCatTwoAda
                 ]
             }
             (\_ ->
@@ -191,13 +191,13 @@ okTxBuilding =
                             | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
                             , outputs =
-                                [ Utxo.simpleOutput testAddr.you threeCatOneAda
-                                , Utxo.fromLovelace testAddr.me (ada 2)
+                                [ Utxo.simpleOutput testAddr.you threeCatTwoAda
+                                , Utxo.fromLovelace testAddr.me (ada 1)
                                 ]
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -237,7 +237,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -295,7 +295,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32, signature = dummyBytes 64 } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
                         }
                 }
             )
@@ -542,7 +542,7 @@ testAddr =
 
 
 dog =
-    { policyId = Bytes.fromText "dog"
+    { policyId = dummyCredentialHash "dog"
     , policyIdStr = "dog"
     , assetName = Bytes.fromText "yksoh"
     , assetNameStr = "yksoh"
@@ -557,7 +557,7 @@ dog =
 
 
 cat =
-    { policyId = Bytes.fromText "cat"
+    { policyId = dummyCredentialHash "cat"
     , policyIdStr = "cat"
     , assetName = Bytes.fromText "felix"
     , assetNameStr = "felix"
@@ -587,24 +587,40 @@ autoFee =
 -- Helper functions
 
 
+{-| Unsafe helper function to make up some bytes of a given length,
+starting by the given text when decoded as text.
+-}
+dummyBytes : Int -> String -> Bytes a
+dummyBytes length prefix =
+    let
+        zeroSuffix =
+            String.repeat (length - String.length prefix) "0"
+    in
+    Bytes.fromText (prefix ++ zeroSuffix)
+
+
+dummyCredentialHash : String -> Bytes CredentialHash
+dummyCredentialHash str =
+    dummyBytes 28 str
+
+
 makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromText name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText name))
+        , paymentCredential = VKeyHash (dummyCredentialHash name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Bytes.fromText ("key:" ++ name)
-        |> Address.enterprise Mainnet
+    Address.enterprise Mainnet (dummyCredentialHash name)
 
 
 makeRef : String -> Int -> OutputReference
 makeRef id index =
-    { transactionId = Bytes.fromText id
+    { transactionId = dummyBytes 32 id
     , outputIndex = index
     }
 
@@ -629,16 +645,10 @@ makeAdaOutput index address amount =
 
 makeToken : String -> String -> Int -> Value
 makeToken policyId name amount =
-    Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
+    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
 
 
 ada : Int -> Natural
 ada n =
     Natural.fromSafeInt n
         |> Natural.mul (Natural.fromSafeInt 1000000)
-
-
-dummyBytes : Int -> Bytes a
-dummyBytes bytesLength =
-    -- Helper function to create dummy bytes, mostly for fee estimation
-    Bytes.fromStringUnchecked (String.repeat (2 * bytesLength) "0")
