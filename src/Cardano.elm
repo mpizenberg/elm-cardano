@@ -11,15 +11,16 @@ module Cardano exposing
 
 # Transaction Building Overview
 
-In order to provide elegant transaction building blocks,
-we must understand what transactions are.
-Here is an example framework composed of 4 points:
+This framework aims to provide intuitive and correct building blocks
+for transaction building, based on the following aspects of transactions.
 
 1.  Intent: what we want to achieve with this transaction
       - Transfer: send some tokens from somewhere to somewhere else
       - Mint and burn: create and destroy tokens
       - Use a script: provide/spend tokens and data to/from a script
       - Stake management: collect rewards, manage delegations and pool registrations
+      - Voting: vote on proposals
+      - Propose: make your own proposals
 2.  Metadata: additional information
 3.  Constraints: what additional constraints do we want to set
       - Temporal validity range: first/last slots when the Tx is valid
@@ -35,31 +36,32 @@ That’s enough theory, let’s get more concrete.
 
 Let’s first define some addresses we are going to be using.
 
-    me =
-        Address.fromAddr "addr..."
+    fromBech32 addressString =
+        Address.fromBech32 addressString
             |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
 
-    you =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
-
-    someone =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
+    ( me, you, someone ) =
+        ( fromBech32 "addr..."
+        , fromBech32 "addr..."
+        , fromBech32 "addr..."
+        )
 
 Here is a simple way to send 1 Ada to someone else.
 
+    -- 1 Ada is 1000000 Lovelaces
+    -- Asset amounts are typed with unbounded Natural numbers
     oneAda =
-        -- Asset amounts are typed with unbounded Natural numbers
         Value.onlyLovelace (Natural.fromSafeString "1000000")
 
-    -- Some config required for Tx finalization
-    ({ localStateUtxos, coinSelectionAlgo } as config) =
-        Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
+    -- We need to provide available UTxOs for Tx finalization.
+    -- For this simple Tx, it only needs to know of our own UTxOs,
+    -- that we would typically retrieve via an API provider.
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
 
-    sendToSomeoneTx =
-        [ Spend <| From me oneAda, SendTo you oneAda ]
-            |> finalize config []
+    sendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda), SendTo someone oneAda ]
+            |> finalize localStateUtxos []
 
 The finalization step validates the Tx, compute the fees and add other required fields.
 
@@ -69,44 +71,51 @@ Here is an example where me and you both contribute 1 Ada.
     twoAda =
         Value.add oneAda oneAda
 
-    bothSendToSomeoneTx =
-        [ Spend <| From me oneAda
-        , Spend <| From you oneAda
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ yourUtxos)
+
+    bothSendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda)
+        , Spend (FromWallet you oneAda)
         , SendTo someone twoAda
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 To mint or burn via a native script, here is what we can do.
 
-    ( dogOutputRef, dogPolicyId, dogAssetName ) =
+    ( dogScriptRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
 
-    ( catOutputRef, catPolicyId, catAssetName ) =
+    ( catScriptRef, catPolicyId, catAssetName ) =
         Debug.todo "cat info is provided"
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     mintAndBurnTx =
-        -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
+        -- minting 1 dog
+        -- Mint amounts are of type Integer: unbounded positive or negative integers
         [ MintBurn
             { policyId = dogPolicyId
             , assets = Map.singleton dogAssetName Integer.one
-            , scriptWitness = NativeWitness (WitnessReference dogOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference dogScriptRef)
             }
-        , SendTo me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
-            , scriptWitness = NativeWitness (WitnessReference catOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference catScriptRef)
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 Let’s show how to use a native script to lock some tokens,
 that can only be retrieved with our signature.
 
-    -- Retrieve my public key credential from the address
+    -- Retrieve my public key credential from my address
     myKeyCred =
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
@@ -116,42 +125,51 @@ that can only be retrieved with our signature.
         ScriptPubkey myKeyCred
 
     lockScriptHash =
-        -- `computeNativeScriptHash` will be provided by elm-cardano
-        computeNativeScriptHash lockScript
+        -- TODO: Script.hash
+        Script.hash (Script.Native lockScript)
 
-    -- Deriving the script address from the lock script hash
+    -- Deriving the script address from the script hash
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
 
             -- Adding our stake credential while we are at it
-            -- so that our ada stays staked and yields rewards
+            -- so that our ada stays staked and yields staking rewards
             , stakeCredential = Address.extractStakeCredential me
             }
 
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
+
     nativeLockTx =
-        [ Spend <| From me twoAda, SendTo scriptAddress twoAda ]
-            |> finalize config []
+        [ Spend (FromWallet me twoAda), SendTo scriptAddress twoAda ]
+            |> finalize localStateUtxos []
 
 As you can see, we could even keep our stake credential
-while locking our ada into the script address,
-meaning the locked ada will still be counted in our stake for the rewards.
+while locking our ada into the script address.
+It means the locked ada will still be counted in our stake for the rewards.
 This is thanks to Cardano addresses which have two parts.
-The native script logic only affects the first part of the address.
+The script logic only determines the first part of the address.
 
 Let’s show an example how to spend utxos from this native script.
 We want to retrieve 1 ada from it, and keep the other ada locked.
 
-    lockedUtxo =
-        Debug.todo "the locked utxo with 2 ada"
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress nativeLockTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
 
     nativeUnlockTx =
         -- This native script is so small,
         -- the easiest way to provide it is directly by value
         [ Spend <|
             FromNativeScript
-                { spentInput = lockedUtxo
+                { spentInput = lockedUtxoRef
                 , nativeScriptWitness = WitnessValue lockScript
                 }
 
@@ -159,7 +177,7 @@ We want to retrieve 1 ada from it, and keep the other ada locked.
         , SendTo me oneAda
         , SendTo scriptAddress oneAda
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 Alright, how about doing all those things with Plutus scripts now?
 Plutus scripts can be used for many purposes such as minting,
@@ -208,7 +226,7 @@ of the smallest size possible.
         , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
@@ -254,7 +272,7 @@ It will be passed as argument to the script execution, in addition to the redeem
         Data.Bytes (Bytes.toAny myKeyCred)
 
     lockInPlutusScriptTx =
-        [ Spend <| From me twoAda
+        [ Spend <| FromWallet me twoAda
         , SendToOutput
             (\_ ->
                 { address = scriptAddress
@@ -385,7 +403,7 @@ type TxIntent
 {-| TODO: check that output references match the type of source (script VS not script)
 -}
 type SpendSource
-    = From Address Value
+    = FromWallet Address Value
       -- (Maybe) Eventually improve "From Address Value"" with variants like:
       -- FromAnywhere Value
       -- FromPaymentKey (Bytes CredentialHash)
@@ -552,7 +570,7 @@ guessFeeSource localStateUtxos txIntents =
                 [] ->
                     Nothing
 
-                (Spend (From address _)) :: _ ->
+                (Spend (FromWallet address _)) :: _ ->
                     Just address
 
                 _ :: rest ->
@@ -623,7 +641,7 @@ containPlutusScripts txIntents =
         (SendToOutputAdvanced _) :: otherIntents ->
             containPlutusScripts otherIntents
 
-        (Spend (From _ _)) :: otherIntents ->
+        (Spend (FromWallet _ _)) :: otherIntents ->
             containPlutusScripts otherIntents
 
         (Spend (FromWalletUtxo _)) :: otherIntents ->
@@ -894,7 +912,7 @@ preProcessIntents txIntents =
                     in
                     { preProcessedIntents | preCreated = newPreCreated }
 
-                Spend (From addr v) ->
+                Spend (FromWallet addr v) ->
                     { preProcessedIntents
                         | freeInputs = freeValueAdd addr v preProcessedIntents.freeInputs
                     }
@@ -2204,7 +2222,7 @@ globalStateUtxos =
 
 
 example1 _ =
-    [ Spend <| From exAddr.me ada.one
+    [ Spend <| FromWallet exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
         |> finalize globalStateUtxos [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
@@ -2224,7 +2242,7 @@ example2 _ =
     , SendTo exAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
     -- burning 1 cat
-    , Spend <| From exAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
+    , Spend <| FromWallet exAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
     , MintBurn
         { policyId = cat.policyId
         , assets = Map.singleton cat.assetName Integer.negativeOne

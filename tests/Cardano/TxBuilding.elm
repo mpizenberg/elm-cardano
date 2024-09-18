@@ -87,7 +87,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -112,7 +112,7 @@ okTxBuilding =
                         Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 5 ]
 
                     txIntents =
-                        [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                        [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
                         , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
                         ]
                 in
@@ -123,7 +123,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.you (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -153,7 +153,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.you (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.you (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -195,7 +195,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me threeCatTwoAda
+                [ Spend <| FromWallet testAddr.me threeCatTwoAda
                 , SendTo testAddr.you threeCatTwoAda
                 ]
             }
@@ -235,7 +235,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me threeCatMinAda
+                [ Spend <| FromWallet testAddr.me threeCatMinAda
                 , SendTo testAddr.you threeCatMinAda
                 ]
             }
@@ -276,7 +276,7 @@ okTxBuilding =
                 , SendTo testAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
                 -- burning 1 cat
-                , Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
+                , Spend <| FromWallet testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
                 , MintBurn
                     { policyId = cat.policyId
                     , assets = Map.singleton cat.assetName Integer.negativeOne
@@ -411,7 +411,7 @@ failTxBuilding =
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
-            , txIntents = [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1) ]
+            , txIntents = [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1) ]
             }
             (\error ->
                 case error of
@@ -442,7 +442,7 @@ failTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
                 , SendToOutput (Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
                 ]
             }
@@ -463,7 +463,7 @@ failTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.three)
+                [ Spend <| FromWallet testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.three)
                 , SendTo testAddr.you (Value.onlyToken cat.policyId cat.assetName Natural.three)
                 ]
             }
