@@ -114,7 +114,7 @@ type CredentialHash
 {-| Build an [Address] from its Bech32 string representation.
 -}
 fromBech32 : String -> Maybe Address
-fromBech32 str =
+fromBech32 _ =
     Debug.todo "fromBech32"
 
 

@@ -16,7 +16,6 @@ module Cardano.Gov exposing
     , Vote(..), encodeVote
     , Voter(..), voterFromCbor, encodeVoter
     , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
-    , TODO
     )
 
 {-| Handling gov-related stuff.
@@ -55,8 +54,6 @@ module Cardano.Gov exposing
 
 @docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
-@docs TODO
-
 -}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
@@ -70,12 +67,6 @@ import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
 import Natural exposing (Natural)
-
-
-{-| TODO
--}
-type TODO
-    = TODO
 
 
 {-| Delegate representative.
