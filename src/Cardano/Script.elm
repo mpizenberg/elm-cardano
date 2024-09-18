@@ -1,8 +1,7 @@
 module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
-    , encodeNativeScript, encodePlutusScript
+    , toCbor, encodeNativeScript, encodePlutusScript
     , fromCbor, decodeNativeScript
-    , toCbor
     )
 
 {-| Script
@@ -12,7 +11,7 @@ module Cardano.Script exposing
 
 ## Encoders
 
-@docs encodeScript, encodeNativeScript, encodePlutusScript
+@docs toCbor, encodeNativeScript, encodePlutusScript
 
 
 ## Decoders
