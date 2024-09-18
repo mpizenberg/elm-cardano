@@ -102,6 +102,16 @@ type alias VmConfig =
     }
 
 
+{-| Default UPLC VM config.
+-}
+defaultVmConfig : VmConfig
+defaultVmConfig =
+    { budget = conwayDefaultBudget
+    , slotConfig = slotConfigMainnet
+    , costModels = conwayDefaultCostModels
+    }
+
+
 conwayDefaultBudget : ExUnits
 conwayDefaultBudget =
     { mem = 14000000, steps = 10000000000 }

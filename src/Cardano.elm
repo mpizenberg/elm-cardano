@@ -2,8 +2,8 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , Fee(..)
-    , TxFinalizationError(..)
-    , example1, example2, example3, finalizeAdvanced, prettyTx
+    , finalize, finalizeAdvanced, TxFinalizationError(..)
+    , example1, example2, example3, prettyTx
     )
 
 {-| Cardano stuff
@@ -323,7 +323,7 @@ We can embed it directly in the transaction witness.
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
 @docs TxOtherInfo
 @docs Fee
-@docs finalize, TxFinalizationError
+@docs finalize, finalizeAdvanced, TxFinalizationError
 
 -}
 
@@ -373,13 +373,15 @@ type TxIntent
     | IssueCertificate Todo
       -- Withdrawing rewards
     | WithdrawRewards
+        -- TODO: check that the addres type match the scriptWitness field
         { stakeCredential : StakeAddress
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
 
 
-{-| -}
+{-| TODO: check that output references match the type of source (script VS not script)
+-}
 type SpendSource
     = From Address Value
       -- (Maybe) Eventually improve "From Address Value"" with variants like:
@@ -470,7 +472,8 @@ defaultAutoFee =
 {-| Errors that may happen during Tx finalization.
 -}
 type TxFinalizationError
-    = UnbalancedIntents String
+    = UnableToGuessFeeSource
+    | UnbalancedIntents String
     | InsufficientManualFee { declared : Natural, computed : Natural }
     | NotEnoughMinAda String
     | ReferenceOutputsMissingFromLocalState (List OutputReference)
@@ -487,9 +490,177 @@ type TxFinalizationError
 Analyze all intents and perform the following actions:
 
   - Check the Tx balance
-  - Select the input UTxOs
-  - Evaluate script execution costs
-  - Compute Tx fee
+  - Select the input UTxOs with a default coin selection algorithm
+  - Evaluate script execution costs with default mainnet parameters
+  - Try to find fee payment source automatically and compute automatic Tx fee
+
+In case you want more customization, please use [finalizeAdvanced].
+
+-}
+finalize :
+    Utxo.RefDict Output
+    -> List TxOtherInfo
+    -> List TxIntent
+    -> Result TxFinalizationError Transaction
+finalize localStateUtxos txOtherInfo txIntents =
+    let
+        defaultCoinSelectionAlgo =
+            CoinSelection.largestFirst
+
+        defaultEvalScriptsCosts =
+            if containPlutusScripts txIntents then
+                Uplc.evalScriptsCosts Uplc.defaultVmConfig
+
+            else
+                \_ _ -> Ok []
+    in
+    guessFeeSource localStateUtxos txIntents
+        |> Result.andThen
+            (\feeSource ->
+                finalizeAdvanced
+                    { localStateUtxos = localStateUtxos
+                    , coinSelectionAlgo = defaultCoinSelectionAlgo
+                    , evalScriptsCosts = defaultEvalScriptsCosts
+                    }
+                    (AutoFee { paymentSource = feeSource })
+                    txOtherInfo
+                    txIntents
+            )
+
+
+{-| Attempt to guess the [Address] used to pay the fees from the list of intents.
+
+It will use an address coming from either of these below options,
+in the preference order of that list:
+
+  - an address coming from a `From address value` spend source
+  - an address coming from a `FromWalletUtxo ref` input spend source
+  - an address coming from a `SendTo address value` destination
+
+If none of these are present, this will return an `UnableToGuessFeeSource` error.
+If a wallet UTxO reference is found but not present in the local state UTxOs,
+this will return a `ReferenceOutputsMissingFromLocalState` error.
+
+-}
+guessFeeSource : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError Address
+guessFeeSource localStateUtxos txIntents =
+    let
+        findFromAddress intents =
+            case intents of
+                [] ->
+                    Nothing
+
+                (Spend (From address _)) :: _ ->
+                    Just address
+
+                _ :: rest ->
+                    findFromAddress rest
+
+        findFromWalletUtxo intents =
+            case intents of
+                [] ->
+                    Ok Nothing
+
+                (Spend (FromWalletUtxo ref)) :: _ ->
+                    case Dict.Any.get ref localStateUtxos of
+                        Just { address } ->
+                            Ok (Just address)
+
+                        Nothing ->
+                            Err (ReferenceOutputsMissingFromLocalState [ ref ])
+
+                _ :: rest ->
+                    findFromWalletUtxo rest
+
+        findSendTo intents =
+            case intents of
+                [] ->
+                    Nothing
+
+                (SendTo address _) :: _ ->
+                    Just address
+
+                _ :: rest ->
+                    findSendTo rest
+    in
+    case findFromAddress txIntents of
+        Just address ->
+            Ok address
+
+        Nothing ->
+            case findFromWalletUtxo txIntents of
+                Err err ->
+                    Err err
+
+                Ok (Just address) ->
+                    Ok address
+
+                Ok Nothing ->
+                    case findSendTo txIntents of
+                        Just address ->
+                            Ok address
+
+                        Nothing ->
+                            Err UnableToGuessFeeSource
+
+
+{-| Helper function to detect the presence of Plutus scripts in the transaction.
+-}
+containPlutusScripts : List TxIntent -> Bool
+containPlutusScripts txIntents =
+    case txIntents of
+        [] ->
+            False
+
+        (SendTo _ _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (SendToOutput _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (SendToOutputAdvanced _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (From _ _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromWalletUtxo _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromNativeScript _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromPlutusScript _)) :: _ ->
+            True
+
+        (MintBurn { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                NativeWitness _ ->
+                    containPlutusScripts otherIntents
+
+                PlutusWitness _ ->
+                    True
+
+        (IssueCertificate _) :: _ ->
+            True
+
+        (WithdrawRewards { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                Just (PlutusWitness _) ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
+
+
+{-| Finalize a transaction before signing and sending it.
+
+Analyze all intents and perform the following actions:
+
+  - Check the Tx balance
+  - Select the input UTxOs with the provided coin selection algorithm
+  - Evaluate script execution costs with the provided function
+  - Compute Tx fee if set to auto
 
 -}
 finalizeAdvanced :
@@ -2014,32 +2185,6 @@ globalStateUtxos =
         ]
 
 
-defaultVmConfig =
-    { budget = Uplc.conwayDefaultBudget
-    , slotConfig = Uplc.slotConfigMainnet
-    , costModels = Uplc.conwayDefaultCostModels
-    }
-
-
-globalConfig =
-    { localStateUtxos = globalStateUtxos
-    , coinSelectionAlgo = CoinSelection.largestFirst
-    , evalScriptsCosts = Uplc.evalScriptsCosts defaultVmConfig
-    }
-
-
-globalConfigNoPlutus =
-    { globalConfig | evalScriptsCosts = \_ _ -> Ok [] }
-
-
-twoAdaFee =
-    ManualFee [ { paymentSource = exAddr.me, exactFeeAmount = Natural.fromSafeInt 2000000 } ]
-
-
-autoFee =
-    AutoFee { paymentSource = exAddr.me }
-
-
 
 -- EXAMPLE 1: Simple transfer
 
@@ -2048,7 +2193,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalizeAdvanced globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
+        |> finalize globalStateUtxos [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
@@ -2072,7 +2217,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalizeAdvanced globalConfigNoPlutus autoFee []
+        |> finalize globalStateUtxos []
 
 
 
@@ -2139,9 +2284,8 @@ example3 _ =
 
         -- Add to local state utxos some previously sent 4 ada.
         localStateUtxos =
-            globalConfig.localStateUtxos
-                |> Dict.Any.insert utxoBeingSpent
-                    (makeLockedOutput ada.four)
+            globalStateUtxos
+                |> Dict.Any.insert utxoBeingSpent (makeLockedOutput ada.four)
     in
     -- Collect 2 ada from the lock script
     [ Spend <|
@@ -2159,4 +2303,4 @@ example3 _ =
     -- Return the other 2 ada to the lock script (there was 4 ada initially)
     , SendToOutput (makeLockedOutput ada.two)
     ]
-        |> finalizeAdvanced { globalConfig | localStateUtxos = localStateUtxos } autoFee []
+        |> finalize localStateUtxos []

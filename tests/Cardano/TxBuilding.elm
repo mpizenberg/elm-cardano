@@ -105,6 +105,18 @@ okTxBuilding =
                         }
                 }
             )
+        , test "simple finalization is able to find fee source" <|
+            \_ ->
+                let
+                    localStateUtxos =
+                        Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 5 ]
+
+                    txIntents =
+                        [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                        , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
+                        ]
+                in
+                Expect.ok (Cardano.finalize localStateUtxos [] txIntents)
         , okTxTest "send 1 ada from me to you"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
@@ -339,7 +351,14 @@ okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIn
 failTxBuilding : Test
 failTxBuilding =
     describe "Detected failure"
-        [ failTxTest "when there is no utxo in local state"
+        [ test "simple finalization cannot find fee source without enough info in Tx intents" <|
+            \_ ->
+                let
+                    localStateUtxos =
+                        Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 5 ]
+                in
+                Expect.equal (Err UnableToGuessFeeSource) (Cardano.finalize localStateUtxos [] [])
+        , failTxTest "when there is no utxo in local state"
             { localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
@@ -529,13 +548,6 @@ newTx =
 
 
 -- Test data
-
-
-defaultVmConfig =
-    { budget = Uplc.conwayDefaultBudget
-    , slotConfig = Uplc.slotConfigMainnet
-    , costModels = Uplc.conwayDefaultCostModels
-    }
 
 
 testAddr =
