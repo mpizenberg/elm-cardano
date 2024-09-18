@@ -378,6 +378,8 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
+    | Vote Todo
+    | Propose Todo
 
 
 {-| TODO: check that output references match the type of source (script VS not script)
@@ -651,6 +653,12 @@ containPlutusScripts txIntents =
 
                 _ ->
                     containPlutusScripts otherIntents
+
+        (Vote _) :: _ ->
+            Debug.todo "voteHasScript?"
+
+        (Propose _) :: _ ->
+            Debug.todo "proposeHasScript?"
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -955,6 +963,12 @@ preProcessIntents txIntents =
                 -- TODO: Handle certificates
                 IssueCertificate _ ->
                     Debug.todo "certificates"
+
+                Vote _ ->
+                    Debug.todo "vote"
+
+                Propose _ ->
+                    Debug.todo "propose"
     in
     -- Use fold right so that the outputs list is in the correct order
     List.foldr stepIntent noIntent txIntents
