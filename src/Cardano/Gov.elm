@@ -73,6 +73,8 @@ import Dict.Any exposing (AnyDict)
 import Natural exposing (Natural)
 
 
+{-| TODO
+-}
 type TODO
     = TODO
 
@@ -85,12 +87,14 @@ type Drep
     | AlwaysNoConfidence -- 3
 
 
+{-| -}
 type Voter
     = VoterCommitteeHotCred Credential -- 0, addr_keyhash // 1, scripthash
     | VoterDrepCred Credential -- 2, addr_keyhash // 3, scripthash
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
 
 
+{-| -}
 voterFromCbor : D.Decoder Voter
 voterFromCbor =
     D.length
@@ -118,18 +122,21 @@ voterFromCbor =
             )
 
 
+{-| -}
 type Vote
     = VoteNo -- 0
     | VoteYes -- 1
     | VoteAbstain -- 2
 
 
+{-| -}
 type alias VotingProcedure =
     { vote : Vote
     , anchor : Maybe Anchor
     }
 
 
+{-| -}
 votingProcedureFromCbor : D.Decoder VotingProcedure
 votingProcedureFromCbor =
     D.tuple VotingProcedure <|
@@ -155,6 +162,7 @@ votingProcedureFromCbor =
             >> D.elem (D.maybe decodeAnchor)
 
 
+{-| -}
 type alias ProposalProcedure =
     { deposit : Natural
     , rewardAccount : StakeAddress
@@ -163,6 +171,7 @@ type alias ProposalProcedure =
     }
 
 
+{-| -}
 proposalProcedureFromCbor : D.Decoder ProposalProcedure
 proposalProcedureFromCbor =
     D.tuple ProposalProcedure
@@ -174,6 +183,7 @@ proposalProcedureFromCbor =
         )
 
 
+{-| -}
 type Action
     = ParameterChange
         { govActionId : Maybe ActionId
@@ -204,18 +214,21 @@ type Action
     | Info
 
 
+{-| -}
 type alias Constitution =
     { anchor : Anchor
     , scripthash : Maybe (Bytes CredentialHash)
     }
 
 
+{-| -}
 type alias ActionId =
     { transactionId : Bytes TransactionId
     , govActionIndex : Int
     }
 
 
+{-| -}
 actionIdFromCbor : D.Decoder ActionId
 actionIdFromCbor =
     D.tuple ActionId
@@ -225,6 +238,7 @@ actionIdFromCbor =
         )
 
 
+{-| -}
 decodeAnchor : D.Decoder Anchor
 decodeAnchor =
     D.tuple Anchor
@@ -234,6 +248,7 @@ decodeAnchor =
         )
 
 
+{-| -}
 decodeAction : D.Decoder Action
 decodeAction =
     D.length
@@ -319,6 +334,7 @@ decodeAction =
             )
 
 
+{-| -}
 decodeConstitution : D.Decoder Constitution
 decodeConstitution =
     D.tuple Constitution
@@ -328,6 +344,7 @@ decodeConstitution =
         )
 
 
+{-| -}
 decodeProtocolParamUpdate : D.Decoder ProtocolParamUpdate
 decodeProtocolParamUpdate =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
@@ -404,6 +421,7 @@ decodeProtocolParamUpdate =
             >> D.optionalField 33 D.int
 
 
+{-| -}
 decodePoolVotingThresholds : D.Decoder PoolVotingThresholds
 decodePoolVotingThresholds =
     D.tuple PoolVotingThresholds
@@ -416,6 +434,7 @@ decodePoolVotingThresholds =
         )
 
 
+{-| -}
 decodeDrepVotingThresholds : D.Decoder DrepVotingThresholds
 decodeDrepVotingThresholds =
     D.tuple DrepVotingThresholds
@@ -433,6 +452,7 @@ decodeDrepVotingThresholds =
         )
 
 
+{-| -}
 type alias Anchor =
     { url : String, dataHash : Bytes AnchorDataHash }
 
@@ -525,6 +545,7 @@ noParamUpdate =
     }
 
 
+{-| -}
 type alias PoolVotingThresholds =
     { motionNoConfidence : UnitInterval
     , committeeNormal : UnitInterval
@@ -534,6 +555,7 @@ type alias PoolVotingThresholds =
     }
 
 
+{-| -}
 type alias DrepVotingThresholds =
     { motionNoConfidence : UnitInterval
     , committeeNormal : UnitInterval
@@ -610,6 +632,7 @@ encodeCostModels =
             >> E.optionalField 2 (E.ledgerList E.int) .plutusV3
 
 
+{-| -}
 encodeExUnitPrices : ExUnitPrices -> E.Encoder
 encodeExUnitPrices =
     E.tuple <|
@@ -618,6 +641,7 @@ encodeExUnitPrices =
             >> E.elem encodeRationalNumber .stepPrice
 
 
+{-| -}
 encodeRationalNumber : RationalNumber -> E.Encoder
 encodeRationalNumber =
     E.tagged (Tag.Unknown 30) <|
@@ -627,6 +651,7 @@ encodeRationalNumber =
                 >> E.elem E.int .denominator
 
 
+{-| -}
 encodeDrep : Drep -> E.Encoder
 encodeDrep drep =
     case drep of
@@ -640,6 +665,7 @@ encodeDrep drep =
             E.int 3
 
 
+{-| -}
 encodeAnchor : Anchor -> E.Encoder
 encodeAnchor =
     E.tuple
@@ -649,6 +675,7 @@ encodeAnchor =
         )
 
 
+{-| -}
 encodePoolVotingThresholds : PoolVotingThresholds -> E.Encoder
 encodePoolVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
@@ -660,6 +687,7 @@ encodePoolVotingThresholds thresholds =
         ]
 
 
+{-| -}
 encodeDrepVotingThresholds : DrepVotingThresholds -> E.Encoder
 encodeDrepVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
@@ -676,6 +704,7 @@ encodeDrepVotingThresholds thresholds =
         ]
 
 
+{-| -}
 encodeAction : Action -> E.Encoder
 encodeAction action =
     case action of
@@ -727,6 +756,7 @@ encodeAction action =
             E.int 6
 
 
+{-| -}
 encodeActionId : ActionId -> E.Encoder
 encodeActionId =
     E.tuple
@@ -736,6 +766,7 @@ encodeActionId =
         )
 
 
+{-| -}
 encodeConstitution : Constitution -> E.Encoder
 encodeConstitution =
     E.tuple
@@ -745,11 +776,13 @@ encodeConstitution =
         )
 
 
+{-| -}
 encodeProtocolVersion : ProtocolVersion -> E.Encoder
 encodeProtocolVersion ( major, minor ) =
     E.ledgerList E.int [ major, minor ]
 
 
+{-| -}
 encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
 encodeProtocolParamUpdate =
     E.record E.int <|
@@ -788,6 +821,7 @@ encodeProtocolParamUpdate =
             >> E.optionalField 33 E.int .minFeeRefScriptCostPerByte
 
 
+{-| -}
 encodeVoter : Voter -> E.Encoder
 encodeVoter voter =
     case voter of
@@ -811,6 +845,7 @@ encodeVoter voter =
             E.ledgerList identity [ E.int 4, Bytes.toCbor poolId ]
 
 
+{-| -}
 encodeVotingProcedure : VotingProcedure -> E.Encoder
 encodeVotingProcedure =
     E.tuple
@@ -820,6 +855,7 @@ encodeVotingProcedure =
         )
 
 
+{-| -}
 encodeVote : Vote -> E.Encoder
 encodeVote vote =
     case vote of
@@ -837,6 +873,7 @@ encodeVote vote =
 -- DECODERS
 
 
+{-| -}
 decodeCostModels : D.Decoder CostModels
 decodeCostModels =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
@@ -850,6 +887,7 @@ decodeCostModels =
             >> D.optionalField 2 (D.list D.int)
 
 
+{-| -}
 decodeExtraEntropy : D.Decoder Nonce
 decodeExtraEntropy =
     D.length
@@ -872,6 +910,7 @@ decodeExtraEntropy =
             )
 
 
+{-| -}
 decodeProtocolVersion : D.Decoder ProtocolVersion
 decodeProtocolVersion =
     D.tuple Tuple.pair <|
@@ -880,6 +919,7 @@ decodeProtocolVersion =
             >> D.elem D.int
 
 
+{-| -}
 decodeExUnitPrices : D.Decoder ExUnitPrices
 decodeExUnitPrices =
     D.tuple ExUnitPrices <|
@@ -888,6 +928,7 @@ decodeExUnitPrices =
             >> D.elem decodeRational
 
 
+{-| -}
 decodeRational : D.Decoder RationalNumber
 decodeRational =
     D.tag
@@ -905,6 +946,7 @@ decodeRational =
             )
 
 
+{-| -}
 decodeDrep : D.Decoder Drep
 decodeDrep =
     D.length

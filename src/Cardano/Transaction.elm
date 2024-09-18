@@ -19,7 +19,7 @@ module Cardano.Transaction exposing
 
 @docs WitnessSet, newWitnessSet
 
-@docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion, noParamUpdate
+@docs Update
 
 @docs ScriptContext, ScriptPurpose
 
@@ -27,17 +27,11 @@ module Cardano.Transaction exposing
 
 @docs Relay, IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
 
-@docs CostModels, ExUnitPrices
-
-@docs RationalNumber, UnitInterval, PositiveInterval
-
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
 @docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
 @docs deserialize, serialize
-
-@docs encodeCostModels
 
 -}
 
