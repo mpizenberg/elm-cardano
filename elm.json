@@ -22,7 +22,6 @@
         "Cardano.Script",
         "Cardano.Transaction",
         "Cardano.Transaction.AuxiliaryData.Metadatum",
-        "Cardano.Transaction.Builder",
         "Cardano.Uplc",
         "Cardano.Utxo",
         "Cardano.Value",
