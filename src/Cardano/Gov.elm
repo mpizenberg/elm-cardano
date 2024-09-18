@@ -1,4 +1,63 @@
-module Cardano.Gov exposing (..)
+module Cardano.Gov exposing
+    ( Drep(..), decodeDrep, encodeDrep
+    , ProposalProcedure, proposalProcedureFromCbor
+    , Action(..), decodeAction, encodeAction
+    , ActionId, actionIdFromCbor, encodeActionId
+    , Constitution, decodeConstitution, encodeConstitution
+    , ProtocolParamUpdate, noParamUpdate, decodeProtocolParamUpdate, encodeProtocolParamUpdate
+    , PoolVotingThresholds, decodePoolVotingThresholds, encodePoolVotingThresholds
+    , DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
+    , CostModels, decodeCostModels, encodeCostModels
+    , ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
+    , RationalNumber, decodeRational, encodeRationalNumber
+    , ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
+    , Nonce(..), UnitInterval, PositiveInterval
+    , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
+    , Vote(..), encodeVote
+    , Voter(..), voterFromCbor, encodeVoter
+    , Anchor, decodeAnchor, encodeAnchor
+    , TODO
+    )
+
+{-| Handling gov-related stuff.
+
+@docs Drep, decodeDrep, encodeDrep
+
+@docs ProposalProcedure, proposalProcedureFromCbor
+
+@docs Action, decodeAction, encodeAction
+
+@docs ActionId, actionIdFromCbor, encodeActionId
+
+@docs Constitution, decodeConstitution, encodeConstitution
+
+@docs ProtocolParamUpdate, noParamUpdate, decodeProtocolParamUpdate, encodeProtocolParamUpdate
+
+@docs PoolVotingThresholds, decodePoolVotingThresholds, encodePoolVotingThresholds
+
+@docs DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
+
+@docs CostModels, decodeCostModels, encodeCostModels
+
+@docs ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
+
+@docs RationalNumber, decodeRational, encodeRationalNumber
+
+@docs ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
+
+@docs Nonce, UnitInterval, PositiveInterval
+
+@docs VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
+
+@docs Vote, encodeVote
+
+@docs Voter, voterFromCbor, encodeVoter
+
+@docs Anchor, decodeAnchor, encodeAnchor
+
+@docs TODO
+
+-}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes, width)
 import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
@@ -147,12 +206,8 @@ type Action
 
 type alias Constitution =
     { anchor : Anchor
-    , scripthash : Maybe (Bytes ScriptHash)
+    , scripthash : Maybe (Bytes CredentialHash)
     }
-
-
-type alias ScriptHash =
-    CredentialHash
 
 
 type alias ActionId =
@@ -317,7 +372,7 @@ decodeProtocolParamUpdate =
             -- ? 18: costmdls            ; cost models for script languages
             >> D.optionalField 18 decodeCostModels
             -- ? 19: ex_unit_prices      ; execution costs
-            >> D.optionalField 19 decodeExecutionCosts
+            >> D.optionalField 19 decodeExUnitPrices
             -- ? 20: ex_units            ; max tx ex units
             >> D.optionalField 20 Redeemer.exUnitsFromCbor
             -- ? 21: ex_units            ; max block ex units
@@ -376,15 +431,6 @@ decodeDrepVotingThresholds =
             >> D.elem decodeRational
             >> D.elem decodeRational
         )
-
-
-{-| Convenience type for `Dict` with [ActionId] keys.
-
-WARNING: do not compare them with `==` since they contain functions.
-
--}
-type alias ActionDict a =
-    AnyDict ( String, Int ) ActionId a
 
 
 type alias Anchor =
@@ -834,8 +880,8 @@ decodeProtocolVersion =
             >> D.elem D.int
 
 
-decodeExecutionCosts : D.Decoder ExUnitPrices
-decodeExecutionCosts =
+decodeExUnitPrices : D.Decoder ExUnitPrices
+decodeExUnitPrices =
     D.tuple ExUnitPrices <|
         D.elems
             >> D.elem decodeRational
