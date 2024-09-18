@@ -365,6 +365,7 @@ We can embed it directly in the transaction witness.
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
 @docs dummyBytes
+@docs Todo
 
 -}
 
@@ -390,6 +391,8 @@ import Natural exposing (Natural)
 import Set
 
 
+{-| TODO
+-}
 type Todo
     = Todo
 

@@ -15,9 +15,8 @@ module Cardano.Gov exposing
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
     , Voter(..), voterFromCbor, encodeVoter
-    , Anchor, decodeAnchor, encodeAnchor
+    , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
     , TODO
-    , AnchorDataHash
     )
 
 {-| Handling gov-related stuff.
@@ -54,7 +53,7 @@ module Cardano.Gov exposing
 
 @docs Voter, voterFromCbor, encodeVoter
 
-@docs Anchor, decodeAnchor, encodeAnchor
+@docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
 @docs TODO
 
