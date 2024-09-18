@@ -1,7 +1,63 @@
-module Cardano.Gov exposing (..)
+module Cardano.Gov exposing
+    ( Drep(..), decodeDrep, encodeDrep
+    , ProposalProcedure, proposalProcedureFromCbor
+    , Action(..), decodeAction, encodeAction
+    , ActionId, actionIdFromCbor, encodeActionId
+    , Constitution, decodeConstitution, encodeConstitution
+    , ProtocolParamUpdate, noParamUpdate, decodeProtocolParamUpdate, encodeProtocolParamUpdate
+    , PoolVotingThresholds, decodePoolVotingThresholds, encodePoolVotingThresholds
+    , DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
+    , CostModels, decodeCostModels, encodeCostModels
+    , ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
+    , RationalNumber, decodeRational, encodeRationalNumber
+    , ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
+    , Nonce(..), UnitInterval, PositiveInterval
+    , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
+    , Vote(..), encodeVote
+    , Voter(..), voterFromCbor, encodeVoter
+    , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
+    )
 
-import Bytes.Comparable as Bytes exposing (Any, Bytes, width)
-import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
+{-| Handling gov-related stuff.
+
+@docs Drep, decodeDrep, encodeDrep
+
+@docs ProposalProcedure, proposalProcedureFromCbor
+
+@docs Action, decodeAction, encodeAction
+
+@docs ActionId, actionIdFromCbor, encodeActionId
+
+@docs Constitution, decodeConstitution, encodeConstitution
+
+@docs ProtocolParamUpdate, noParamUpdate, decodeProtocolParamUpdate, encodeProtocolParamUpdate
+
+@docs PoolVotingThresholds, decodePoolVotingThresholds, encodePoolVotingThresholds
+
+@docs DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
+
+@docs CostModels, decodeCostModels, encodeCostModels
+
+@docs ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
+
+@docs RationalNumber, decodeRational, encodeRationalNumber
+
+@docs ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
+
+@docs Nonce, UnitInterval, PositiveInterval
+
+@docs VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
+
+@docs Vote, encodeVote
+
+@docs Voter, voterFromCbor, encodeVoter
+
+@docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
+
+-}
+
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
+import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
 import Cardano.MultiAsset exposing (PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits)
 import Cardano.Utxo exposing (TransactionId)
@@ -10,12 +66,7 @@ import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Dict.Any exposing (AnyDict)
 import Natural exposing (Natural)
-
-
-type TODO
-    = TODO
 
 
 {-| Delegate representative.
@@ -26,12 +77,16 @@ type Drep
     | AlwaysNoConfidence -- 3
 
 
+{-| Represents different types of voters.
+-}
 type Voter
     = VoterCommitteeHotCred Credential -- 0, addr_keyhash // 1, scripthash
     | VoterDrepCred Credential -- 2, addr_keyhash // 3, scripthash
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
 
 
+{-| Decoder for Voter type.
+-}
 voterFromCbor : D.Decoder Voter
 voterFromCbor =
     D.length
@@ -59,18 +114,24 @@ voterFromCbor =
             )
 
 
+{-| Represents different types of votes.
+-}
 type Vote
     = VoteNo -- 0
     | VoteYes -- 1
     | VoteAbstain -- 2
 
 
+{-| Represents a voting procedure.
+-}
 type alias VotingProcedure =
     { vote : Vote
     , anchor : Maybe Anchor
     }
 
 
+{-| Decoder for VotingProcedure type.
+-}
 votingProcedureFromCbor : D.Decoder VotingProcedure
 votingProcedureFromCbor =
     D.tuple VotingProcedure <|
@@ -96,6 +157,8 @@ votingProcedureFromCbor =
             >> D.elem (D.maybe decodeAnchor)
 
 
+{-| Represents a proposal procedure.
+-}
 type alias ProposalProcedure =
     { deposit : Natural
     , rewardAccount : StakeAddress
@@ -104,6 +167,8 @@ type alias ProposalProcedure =
     }
 
 
+{-| Decoder for ProposalProcedure type.
+-}
 proposalProcedureFromCbor : D.Decoder ProposalProcedure
 proposalProcedureFromCbor =
     D.tuple ProposalProcedure
@@ -115,6 +180,8 @@ proposalProcedureFromCbor =
         )
 
 
+{-| Represents different types of governance actions.
+-}
 type Action
     = ParameterChange
         { govActionId : Maybe ActionId
@@ -145,22 +212,24 @@ type Action
     | Info
 
 
+{-| Represents a constitution.
+-}
 type alias Constitution =
     { anchor : Anchor
-    , scripthash : Maybe (Bytes ScriptHash)
+    , scripthash : Maybe (Bytes CredentialHash)
     }
 
 
-type alias ScriptHash =
-    CredentialHash
-
-
+{-| Represents an action ID.
+-}
 type alias ActionId =
     { transactionId : Bytes TransactionId
     , govActionIndex : Int
     }
 
 
+{-| Decoder for ActionId type.
+-}
 actionIdFromCbor : D.Decoder ActionId
 actionIdFromCbor =
     D.tuple ActionId
@@ -170,6 +239,8 @@ actionIdFromCbor =
         )
 
 
+{-| Decoder for Anchor type.
+-}
 decodeAnchor : D.Decoder Anchor
 decodeAnchor =
     D.tuple Anchor
@@ -179,6 +250,8 @@ decodeAnchor =
         )
 
 
+{-| Decoder for Action type.
+-}
 decodeAction : D.Decoder Action
 decodeAction =
     D.length
@@ -264,6 +337,8 @@ decodeAction =
             )
 
 
+{-| Decoder for Constitution type.
+-}
 decodeConstitution : D.Decoder Constitution
 decodeConstitution =
     D.tuple Constitution
@@ -273,6 +348,8 @@ decodeConstitution =
         )
 
 
+{-| Decoder for ProtocolParamUpdate type.
+-}
 decodeProtocolParamUpdate : D.Decoder ProtocolParamUpdate
 decodeProtocolParamUpdate =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
@@ -317,7 +394,7 @@ decodeProtocolParamUpdate =
             -- ? 18: costmdls            ; cost models for script languages
             >> D.optionalField 18 decodeCostModels
             -- ? 19: ex_unit_prices      ; execution costs
-            >> D.optionalField 19 decodeExecutionCosts
+            >> D.optionalField 19 decodeExUnitPrices
             -- ? 20: ex_units            ; max tx ex units
             >> D.optionalField 20 Redeemer.exUnitsFromCbor
             -- ? 21: ex_units            ; max block ex units
@@ -349,6 +426,8 @@ decodeProtocolParamUpdate =
             >> D.optionalField 33 D.int
 
 
+{-| Decoder for PoolVotingThresholds type.
+-}
 decodePoolVotingThresholds : D.Decoder PoolVotingThresholds
 decodePoolVotingThresholds =
     D.tuple PoolVotingThresholds
@@ -361,6 +440,8 @@ decodePoolVotingThresholds =
         )
 
 
+{-| Decoder for DrepVotingThresholds type.
+-}
 decodeDrepVotingThresholds : D.Decoder DrepVotingThresholds
 decodeDrepVotingThresholds =
     D.tuple DrepVotingThresholds
@@ -378,15 +459,8 @@ decodeDrepVotingThresholds =
         )
 
 
-{-| Convenience type for `Dict` with [ActionId] keys.
-
-WARNING: do not compare them with `==` since they contain functions.
-
+{-| Represents an anchor for governance actions.
 -}
-type alias ActionDict a =
-    AnyDict ( String, Int ) ActionId a
-
-
 type alias Anchor =
     { url : String, dataHash : Bytes AnchorDataHash }
 
@@ -479,6 +553,8 @@ noParamUpdate =
     }
 
 
+{-| Represents voting thresholds for stake pools.
+-}
 type alias PoolVotingThresholds =
     { motionNoConfidence : UnitInterval
     , committeeNormal : UnitInterval
@@ -488,6 +564,8 @@ type alias PoolVotingThresholds =
     }
 
 
+{-| Represents voting thresholds for delegate representatives.
+-}
 type alias DrepVotingThresholds =
     { motionNoConfidence : UnitInterval
     , committeeNormal : UnitInterval
@@ -502,7 +580,8 @@ type alias DrepVotingThresholds =
     }
 
 
-{-| -}
+{-| Represents cost models for different Plutus versions.
+-}
 type alias CostModels =
     { plutusV1 : Maybe (List Int) -- 0
     , plutusV2 : Maybe (List Int) -- 1
@@ -510,30 +589,35 @@ type alias CostModels =
     }
 
 
-{-| -}
+{-| Represents a nonce for extra entropy.
+-}
 type Nonce
     = Just0
     | RandomBytes (Bytes Any)
 
 
-{-| -}
+{-| Represents execution unit prices.
+-}
 type alias ExUnitPrices =
     { memPrice : RationalNumber -- 0
     , stepPrice : RationalNumber -- 1
     }
 
 
-{-| -}
+{-| Represents a protocol version.
+-}
 type alias ProtocolVersion =
     ( Int, Int )
 
 
-{-| -}
+{-| Represents a unit interval (0 to 1).
+-}
 type alias UnitInterval =
     RationalNumber
 
 
-{-| -}
+{-| Represents a positive interval (> 0).
+-}
 type alias PositiveInterval =
     RationalNumber
 
@@ -542,7 +626,8 @@ type alias PositiveInterval =
 -- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
 
 
-{-| -}
+{-| Represents a rational number.
+-}
 type alias RationalNumber =
     { numerator : Int
     , denominator : Int
@@ -564,6 +649,8 @@ encodeCostModels =
             >> E.optionalField 2 (E.ledgerList E.int) .plutusV3
 
 
+{-| Encoder for ExUnitPrices type.
+-}
 encodeExUnitPrices : ExUnitPrices -> E.Encoder
 encodeExUnitPrices =
     E.tuple <|
@@ -572,6 +659,8 @@ encodeExUnitPrices =
             >> E.elem encodeRationalNumber .stepPrice
 
 
+{-| Encoder for RationalNumber type.
+-}
 encodeRationalNumber : RationalNumber -> E.Encoder
 encodeRationalNumber =
     E.tagged (Tag.Unknown 30) <|
@@ -581,6 +670,8 @@ encodeRationalNumber =
                 >> E.elem E.int .denominator
 
 
+{-| Encoder for Drep type.
+-}
 encodeDrep : Drep -> E.Encoder
 encodeDrep drep =
     case drep of
@@ -594,6 +685,8 @@ encodeDrep drep =
             E.int 3
 
 
+{-| Encoder for Anchor type.
+-}
 encodeAnchor : Anchor -> E.Encoder
 encodeAnchor =
     E.tuple
@@ -603,6 +696,8 @@ encodeAnchor =
         )
 
 
+{-| Encoder for PoolVotingThresholds type.
+-}
 encodePoolVotingThresholds : PoolVotingThresholds -> E.Encoder
 encodePoolVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
@@ -614,6 +709,8 @@ encodePoolVotingThresholds thresholds =
         ]
 
 
+{-| Encoder for DrepVotingThresholds type.
+-}
 encodeDrepVotingThresholds : DrepVotingThresholds -> E.Encoder
 encodeDrepVotingThresholds thresholds =
     E.ledgerList encodeRationalNumber
@@ -630,6 +727,8 @@ encodeDrepVotingThresholds thresholds =
         ]
 
 
+{-| Encoder for Action type.
+-}
 encodeAction : Action -> E.Encoder
 encodeAction action =
     case action of
@@ -681,6 +780,8 @@ encodeAction action =
             E.int 6
 
 
+{-| Encoder for ActionId type.
+-}
 encodeActionId : ActionId -> E.Encoder
 encodeActionId =
     E.tuple
@@ -690,6 +791,8 @@ encodeActionId =
         )
 
 
+{-| Encoder for Constitution type.
+-}
 encodeConstitution : Constitution -> E.Encoder
 encodeConstitution =
     E.tuple
@@ -699,11 +802,15 @@ encodeConstitution =
         )
 
 
+{-| Encoder for ProtocolVersion type.
+-}
 encodeProtocolVersion : ProtocolVersion -> E.Encoder
 encodeProtocolVersion ( major, minor ) =
     E.ledgerList E.int [ major, minor ]
 
 
+{-| Encoder for ProtocolParamUpdate type.
+-}
 encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
 encodeProtocolParamUpdate =
     E.record E.int <|
@@ -742,6 +849,8 @@ encodeProtocolParamUpdate =
             >> E.optionalField 33 E.int .minFeeRefScriptCostPerByte
 
 
+{-| Encoder for Voter type.
+-}
 encodeVoter : Voter -> E.Encoder
 encodeVoter voter =
     case voter of
@@ -765,6 +874,8 @@ encodeVoter voter =
             E.ledgerList identity [ E.int 4, Bytes.toCbor poolId ]
 
 
+{-| Encoder for VotingProcedure type.
+-}
 encodeVotingProcedure : VotingProcedure -> E.Encoder
 encodeVotingProcedure =
     E.tuple
@@ -774,6 +885,8 @@ encodeVotingProcedure =
         )
 
 
+{-| Encoder for Vote type.
+-}
 encodeVote : Vote -> E.Encoder
 encodeVote vote =
     case vote of
@@ -791,6 +904,8 @@ encodeVote vote =
 -- DECODERS
 
 
+{-| Decoder for CostModels type.
+-}
 decodeCostModels : D.Decoder CostModels
 decodeCostModels =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
@@ -804,6 +919,8 @@ decodeCostModels =
             >> D.optionalField 2 (D.list D.int)
 
 
+{-| Decoder for Nonce type.
+-}
 decodeExtraEntropy : D.Decoder Nonce
 decodeExtraEntropy =
     D.length
@@ -826,6 +943,8 @@ decodeExtraEntropy =
             )
 
 
+{-| Decoder for ProtocolVersion type.
+-}
 decodeProtocolVersion : D.Decoder ProtocolVersion
 decodeProtocolVersion =
     D.tuple Tuple.pair <|
@@ -834,14 +953,18 @@ decodeProtocolVersion =
             >> D.elem D.int
 
 
-decodeExecutionCosts : D.Decoder ExUnitPrices
-decodeExecutionCosts =
+{-| Decoder for ExUnitPrices type.
+-}
+decodeExUnitPrices : D.Decoder ExUnitPrices
+decodeExUnitPrices =
     D.tuple ExUnitPrices <|
         D.elems
             >> D.elem decodeRational
             >> D.elem decodeRational
 
 
+{-| Decoder for RationalNumber type.
+-}
 decodeRational : D.Decoder RationalNumber
 decodeRational =
     D.tag
@@ -859,6 +982,8 @@ decodeRational =
             )
 
 
+{-| Decoder for Drep type.
+-}
 decodeDrep : D.Decoder Drep
 decodeDrep =
     D.length

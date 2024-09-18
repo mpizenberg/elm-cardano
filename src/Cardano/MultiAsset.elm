@@ -21,7 +21,6 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as DE
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import Dict
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 

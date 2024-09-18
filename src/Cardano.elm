@@ -2,8 +2,8 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , Fee(..)
-    , finalize, TxFinalizationError(..)
-    , example1, example2, example3, prettyTx
+    , finalize, finalizeAdvanced, TxFinalizationError(..)
+    , dummyBytes
     )
 
 {-| Cardano stuff
@@ -11,15 +11,16 @@ module Cardano exposing
 
 # Transaction Building Overview
 
-In order to provide elegant transaction building blocks,
-we must understand what transactions are.
-Here is an example framework composed of 4 points:
+This framework aims to provide intuitive and correct building blocks
+for transaction building, based on the following aspects of transactions.
 
 1.  Intent: what we want to achieve with this transaction
       - Transfer: send some tokens from somewhere to somewhere else
       - Mint and burn: create and destroy tokens
       - Use a script: provide/spend tokens and data to/from a script
       - Stake management: collect rewards, manage delegations and pool registrations
+      - Voting: vote on proposals
+      - Propose: make your own proposals
 2.  Metadata: additional information
 3.  Constraints: what additional constraints do we want to set
       - Temporal validity range: first/last slots when the Tx is valid
@@ -35,31 +36,32 @@ That’s enough theory, let’s get more concrete.
 
 Let’s first define some addresses we are going to be using.
 
-    me =
-        Address.fromAddr "addr..."
+    fromBech32 addressString =
+        Address.fromBech32 addressString
             |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
 
-    you =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
-
-    someone =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
+    ( me, you, someone ) =
+        ( fromBech32 "addr..."
+        , fromBech32 "addr..."
+        , fromBech32 "addr..."
+        )
 
 Here is a simple way to send 1 Ada to someone else.
 
+    -- 1 Ada is 1000000 Lovelaces
+    -- Asset amounts are typed with unbounded Natural numbers
     oneAda =
-        -- Asset amounts are typed with unbounded Natural numbers
         Value.onlyLovelace (Natural.fromSafeString "1000000")
 
-    -- Some config required for Tx finalization
-    ({ localStateUtxos, coinSelectionAlgo } as config) =
-        Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
+    -- We need to provide available UTxOs for Tx finalization.
+    -- For this simple Tx, it only needs to know of our own UTxOs,
+    -- that we would typically retrieve via an API provider.
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
 
-    sendToSomeoneTx =
-        [ Spend <| From me oneAda, SendTo you oneAda ]
-            |> finalize config []
+    sendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda), SendTo someone oneAda ]
+            |> finalize localStateUtxos []
 
 The finalization step validates the Tx, compute the fees and add other required fields.
 
@@ -69,44 +71,51 @@ Here is an example where me and you both contribute 1 Ada.
     twoAda =
         Value.add oneAda oneAda
 
-    bothSendToSomeoneTx =
-        [ Spend <| From me oneAda
-        , Spend <| From you oneAda
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ yourUtxos)
+
+    bothSendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda)
+        , Spend (FromWallet you oneAda)
         , SendTo someone twoAda
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 To mint or burn via a native script, here is what we can do.
 
-    ( dogOutputRef, dogPolicyId, dogAssetName ) =
+    ( dogScriptRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
 
-    ( catOutputRef, catPolicyId, catAssetName ) =
+    ( catScriptRef, catPolicyId, catAssetName ) =
         Debug.todo "cat info is provided"
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     mintAndBurnTx =
-        -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
+        -- minting 1 dog
+        -- Mint amounts are of type Integer: unbounded positive or negative integers
         [ MintBurn
             { policyId = dogPolicyId
             , assets = Map.singleton dogAssetName Integer.one
-            , scriptWitness = NativeWitness (WitnessReference dogOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference dogScriptRef)
             }
-        , SendTo me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
-            , scriptWitness = NativeWitness (WitnessReference catOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference catScriptRef)
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 Let’s show how to use a native script to lock some tokens,
 that can only be retrieved with our signature.
 
-    -- Retrieve my public key credential from the address
+    -- Retrieve my public key credential from my address
     myKeyCred =
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
@@ -116,42 +125,60 @@ that can only be retrieved with our signature.
         ScriptPubkey myKeyCred
 
     lockScriptHash =
-        -- `computeNativeScriptHash` will be provided by elm-cardano
-        computeNativeScriptHash lockScript
+        -- TODO: Script.hash
+        Script.hash (Script.Native lockScript)
 
-    -- Deriving the script address from the lock script hash
+    -- Deriving the script address from the script hash
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
 
             -- Adding our stake credential while we are at it
-            -- so that our ada stays staked and yields rewards
+            -- so that our ada stays staked and yields staking rewards
             , stakeCredential = Address.extractStakeCredential me
             }
 
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
+
     nativeLockTx =
-        [ Spend <| From me twoAda, SendTo scriptAddress twoAda ]
-            |> finalize config []
+        [ Spend (FromWallet me twoAda), SendTo scriptAddress twoAda ]
+            |> finalize localStateUtxos []
 
 As you can see, we could even keep our stake credential
-while locking our ada into the script address,
-meaning the locked ada will still be counted in our stake for the rewards.
+while locking our ada into the script address.
+It means the locked ada will still be counted in our stake for the rewards.
 This is thanks to Cardano addresses which have two parts.
-The native script logic only affects the first part of the address.
+The script logic only determines the first part of the address.
 
 Let’s show an example how to spend utxos from this native script.
 We want to retrieve 1 ada from it, and keep the other ada locked.
+We need to do that in two actions.
 
-    lockedUtxo =
-        Debug.todo "the locked utxo with 2 ada"
+1.  Spend the whole UTxO, with its 2 ada in it.
+2.  Send 1 ada back to the same address.
+
+We cannot partially spend UTxOs.
+UTxOs are like bills, you spend them whole and get change for overspending.
+
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress nativeLockTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
 
     nativeUnlockTx =
-        -- This native script is so small,
-        -- the easiest way to provide it is directly by value
         [ Spend <|
             FromNativeScript
-                { spentInput = lockedUtxo
+                -- spend the whole UTxO
+                { spentInput = lockedUtxoRef
+
+                -- This native script is so small,
+                -- the easiest way to provide it is directly by value instead of by reference
                 , nativeScriptWitness = WitnessValue lockScript
                 }
 
@@ -159,7 +186,7 @@ We want to retrieve 1 ada from it, and keep the other ada locked.
         , SendTo me oneAda
         , SendTo scriptAddress oneAda
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 Alright, how about doing all those things with Plutus scripts now?
 Plutus scripts can be used for many purposes such as minting,
@@ -172,11 +199,12 @@ This enables very efficient script executions since they can just check
 that a public key is present in that `requiredSigners` field.
 
 Let’s start with a simple minting and burning example.
-For this example, we suppose the plutus script was already written.
-This plutus script will accept any mint or burn
+For this example, we suppose the Plutus script was already written,
+in some onchain language, like [Aiken](https://aiken-lang.org/).
+This Plutus script will accept any mint or burn
 as long as we present our signature in the transaction.
 The redeemer is not used at all so we can define a dummy one,
-of the smallest size possible.
+of the smallest size possible since a redeemer is mandatory.
 
     ( dogScriptOutputRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
@@ -193,6 +221,9 @@ of the smallest size possible.
     dummyRedeemer =
         Data.Int Integer.zero
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     mintAndBurnTx =
         -- minting 1 dog
         [ MintBurn
@@ -208,7 +239,7 @@ of the smallest size possible.
         , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
@@ -220,28 +251,34 @@ of the smallest size possible.
                     }
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
+
+You may have noticed that `redeemerData` is taking a function instead of just a redeemer.
+This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
+But for simple use cases, we can just ignore that argument with an underscore `_`.
+
+[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
 
 Ok now let’s show how sending to a Plutus script would be done.
 As before, we’ll use the simple example of a lock script.
 But this time, we don’t write it directly (as in the NativeScript example).
-Instead we suppose the script was written in some onchain language (Aiken, plu-ts, Opshin, ...),
+Instead we suppose the script was written in some onchain language (Aiken, Opshin, Plutus Tx, ...),
 and the blueprint of the script is available, with its hash.
 
-In the eUTxO model, UTxOs created at a script address must have a piece of data attached.
+In the eUTxO model, UTxOs sent to a script address must have a piece of data attached.
 That piece of data is referred to as the "datum".
-It will be passed as argument to the script execution, in addition to the redeemer.
+It will be passed as argument to the script execution
+when some future transaction try to spend that UTxO later.
 
     lockScriptHash =
         extractedFromBlueprint
 
+    -- A script address is directly tied to the script hash
+    -- and so indirectly also tied to the (immutable) script code.
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
-
-            -- This is our staking credential
-            -- We use it to keep our locked ada staked!
             , stakeCredential = Address.extractStakeCredential me
             }
 
@@ -249,53 +286,57 @@ It will be passed as argument to the script execution, in addition to the redeem
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
 
-    -- Put the unlocking pubkey in the datum of the funds we lock
+    -- Put the unlocking pubkey hash in the datum of the funds we lock
     datumWithKeyCred =
         Data.Bytes (Bytes.toAny myKeyCred)
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     lockInPlutusScriptTx =
-        [ Spend <| From me twoAda
+        [ Spend (FromWallet me fourAda)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = twoAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = fourAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
-
-You may have noticed that `SendToOutput` is taking a function parameter
-instead of just an `Output`.
-This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
-But for simple use cases, we can just ignore that argument with an underscore `_`.
-
-[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
+            |> finalize localStateUtxos []
 
 Now that we know how to send values to a script, let’s see how to collect them.
-We will show how to retrieve 1 ada from the previously locked 2 ada.
+We will show how to retrieve 2 ada from the previously locked 4 ada.
 For that, we need to do a few things:
 
-1.  Spend the whole UTxO, with its 2 ada in it.
+1.  Spend the whole UTxO, with its 4 ada in it.
     We cannot partially spend UTxOs.
+    UTxOs are like bills, you spend them whole and get change for overspending.
 2.  Provide the script code to the transaction.
     The script hash must match with the first part of the UTxO address we are spending.
 3.  Provide our signature for the proof that the script needs.
-4.  Retrieve 1 ada from that spent UTxO, and send 1 ada back to the same script.
+4.  Retrieve 2 ada from that spent UTxO, and send 2 ada back to the same script.
 
 For such a tiny script, which just checks if our signature is present,
 no need to put it in a reference UTxO first.
 We can embed it directly in the transaction witness.
 
-    ( lockScript, lockScriptHash ) =
-        Debug.todo "Extracted from the script blueprint"
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress lockInPlutusScriptTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
+
+    lockScript =
+        extractedFromTheBlueprint
 
     unlockFromPlutusScriptTx =
-        -- Collect 1 ada from the locked UTxO at the script address
+        -- Collect the locked UTxO at the script address
         [ Spend <|
             FromPlutusScript
-                { spentInput = Debug.todo "the locked utxo with 2 ada"
+                { spentInput = lockedUtxoRef
                 , datumWitness = Nothing -- not needed, the datum was given by value
                 , plutusScriptWitness =
                     { script = WitnessValue lockScript -- script passed by value
@@ -303,19 +344,17 @@ We can embed it directly in the transaction witness.
                     , requiredSigners = [ myKeyCred ]
                     }
                 }
-        , SendTo me oneAda
+        , SendTo me twoAda
 
-        -- Return the other 1 ada to the lock script (there was 2 ada initially)
+        -- Return the other 2 ada to the lock script (there was 4 ada initially)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = oneAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = twoAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 
 ## Code Documentation
@@ -323,43 +362,39 @@ We can embed it directly in the transaction witness.
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
 @docs TxOtherInfo
 @docs Fee
-@docs finalize, TxFinalizationError
+@docs finalize, finalizeAdvanced, TxFinalizationError
+@docs dummyBytes
 
 -}
 
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
-import Cardano.Cip30 exposing (Utxo)
+import Cardano.Address as Address exposing (Address(..), CredentialHash, StakeAddress)
+import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
+import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
-import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
-import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
-import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
-import Cardano.Uplc as Uplc exposing (VmConfig, evalScriptsCosts)
-import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
+import Cardano.Uplc as Uplc
+import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
-import Dict exposing (Dict)
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 import Set
 
 
-type Todo
-    = Todo
-
-
-{-| -}
+{-| Represents different types of transaction intents.
+-}
 type TxIntent
     = SendTo Address Value
-    | SendToOutput (InputsOutputs -> Output)
+    | SendToOutput Output
+    | SendToOutputAdvanced (InputsOutputs -> Output)
       -- Spending assets from somewhere
     | Spend SpendSource
       -- Minting / burning assets
@@ -369,18 +404,25 @@ type TxIntent
         , scriptWitness : ScriptWitness
         }
       -- Issuing certificates
-    | IssueCertificate Todo
+    | IssueCertificate -- TODO
       -- Withdrawing rewards
     | WithdrawRewards
+        -- TODO: check that the addres type match the scriptWitness field
         { stakeCredential : StakeAddress
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
+    | Vote -- TODO
+    | Propose -- TODO
 
 
-{-| -}
+{-| Represents different sources for spending assets.
+
+TODO: check that output references match the type of source (script VS not script)
+
+-}
 type SpendSource
-    = From Address Value
+    = FromWallet Address Value
       -- (Maybe) Eventually improve "From Address Value"" with variants like:
       -- FromAnywhere Value
       -- FromPaymentKey (Bytes CredentialHash)
@@ -396,7 +438,8 @@ type SpendSource
         }
 
 
-{-| -}
+{-| Represents the inputs and outputs of a transaction.
+-}
 type alias InputsOutputs =
     { referenceInputs : List OutputReference
     , spentInputs : List OutputReference
@@ -411,13 +454,15 @@ noInputsOutputs =
     { referenceInputs = [], spentInputs = [], createdOutputs = [] }
 
 
-{-| -}
+{-| Represents different types of script witnesses.
+-}
 type ScriptWitness
     = NativeWitness (WitnessSource NativeScript)
     | PlutusWitness PlutusScriptWitness
 
 
-{-| -}
+{-| Represents a Plutus script witness.
+-}
 type alias PlutusScriptWitness =
     { script : WitnessSource PlutusScript
     , redeemerData : InputsOutputs -> Data
@@ -425,7 +470,8 @@ type alias PlutusScriptWitness =
     }
 
 
-{-| -}
+{-| Represents different sources for witnesses.
+-}
 type WitnessSource a
     = WitnessValue a
     | WitnessReference OutputReference
@@ -444,14 +490,16 @@ extractWitnessRef witnessSource =
             Just ref
 
 
-{-| -}
+{-| Represents additional information for a transaction.
+-}
 type TxOtherInfo
     = TxReferenceInput OutputReference
     | TxMetadata { tag : Natural, metadata : Metadatum }
     | TxTimeValidityRange { start : Int, end : Natural }
 
 
-{-| -}
+{-| Configure fees manually or automatically for a transaction.
+-}
 type Fee
     = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
     | AutoFee { paymentSource : Address }
@@ -469,7 +517,8 @@ defaultAutoFee =
 {-| Errors that may happen during Tx finalization.
 -}
 type TxFinalizationError
-    = UnbalancedIntents String
+    = UnableToGuessFeeSource
+    | UnbalancedIntents String
     | InsufficientManualFee { declared : Natural, computed : Natural }
     | NotEnoughMinAda String
     | ReferenceOutputsMissingFromLocalState (List OutputReference)
@@ -486,12 +535,183 @@ type TxFinalizationError
 Analyze all intents and perform the following actions:
 
   - Check the Tx balance
-  - Select the input UTxOs
-  - Evaluate script execution costs
-  - Compute Tx fee
+  - Select the input UTxOs with a default coin selection algorithm
+  - Evaluate script execution costs with default mainnet parameters
+  - Try to find fee payment source automatically and compute automatic Tx fee
+
+In case you want more customization, please use [finalizeAdvanced].
 
 -}
 finalize :
+    Utxo.RefDict Output
+    -> List TxOtherInfo
+    -> List TxIntent
+    -> Result TxFinalizationError Transaction
+finalize localStateUtxos txOtherInfo txIntents =
+    guessFeeSource localStateUtxos txIntents
+        |> Result.andThen
+            (\feeSource ->
+                let
+                    defaultEvalScriptsCosts =
+                        if containPlutusScripts txIntents then
+                            Uplc.evalScriptsCosts Uplc.defaultVmConfig
+
+                        else
+                            \_ _ -> Ok []
+                in
+                finalizeAdvanced
+                    { localStateUtxos = localStateUtxos
+                    , coinSelectionAlgo = CoinSelection.largestFirst
+                    , evalScriptsCosts = defaultEvalScriptsCosts
+                    }
+                    (AutoFee { paymentSource = feeSource })
+                    txOtherInfo
+                    txIntents
+            )
+
+
+{-| Attempt to guess the [Address] used to pay the fees from the list of intents.
+
+It will use an address coming from either of these below options,
+in the preference order of that list:
+
+  - an address coming from a `From address value` spend source
+  - an address coming from a `FromWalletUtxo ref` input spend source
+  - an address coming from a `SendTo address value` destination
+
+If none of these are present, this will return an `UnableToGuessFeeSource` error.
+If a wallet UTxO reference is found but not present in the local state UTxOs,
+this will return a `ReferenceOutputsMissingFromLocalState` error.
+
+-}
+guessFeeSource : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError Address
+guessFeeSource localStateUtxos txIntents =
+    let
+        findFromAddress intents =
+            case intents of
+                [] ->
+                    Nothing
+
+                (Spend (FromWallet address _)) :: _ ->
+                    Just address
+
+                _ :: rest ->
+                    findFromAddress rest
+
+        findFromWalletUtxo intents =
+            case intents of
+                [] ->
+                    Ok Nothing
+
+                (Spend (FromWalletUtxo ref)) :: _ ->
+                    case Dict.Any.get ref localStateUtxos of
+                        Just { address } ->
+                            Ok (Just address)
+
+                        Nothing ->
+                            Err (ReferenceOutputsMissingFromLocalState [ ref ])
+
+                _ :: rest ->
+                    findFromWalletUtxo rest
+
+        findSendTo intents =
+            case intents of
+                [] ->
+                    Nothing
+
+                (SendTo address _) :: _ ->
+                    Just address
+
+                _ :: rest ->
+                    findSendTo rest
+    in
+    case findFromAddress txIntents of
+        Just address ->
+            Ok address
+
+        Nothing ->
+            case findFromWalletUtxo txIntents of
+                Err err ->
+                    Err err
+
+                Ok (Just address) ->
+                    Ok address
+
+                Ok Nothing ->
+                    case findSendTo txIntents of
+                        Just address ->
+                            Ok address
+
+                        Nothing ->
+                            Err UnableToGuessFeeSource
+
+
+{-| Helper function to detect the presence of Plutus scripts in the transaction.
+-}
+containPlutusScripts : List TxIntent -> Bool
+containPlutusScripts txIntents =
+    case txIntents of
+        [] ->
+            False
+
+        (SendTo _ _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (SendToOutput _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (SendToOutputAdvanced _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromWallet _ _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromWalletUtxo _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromNativeScript _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromPlutusScript _)) :: _ ->
+            True
+
+        (MintBurn { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                NativeWitness _ ->
+                    containPlutusScripts otherIntents
+
+                PlutusWitness _ ->
+                    True
+
+        IssueCertificate :: _ ->
+            Debug.todo "certificateHasScript?"
+
+        (WithdrawRewards { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                Just (PlutusWitness _) ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
+
+        Vote :: _ ->
+            Debug.todo "voteHasScript?"
+
+        Propose :: _ ->
+            Debug.todo "proposeHasScript?"
+
+
+{-| Finalize a transaction before signing and sending it.
+
+Analyze all intents and perform the following actions:
+
+  - Check the Tx balance
+  - Select the input UTxOs with the provided coin selection algorithm
+  - Evaluate script execution costs with the provided function
+  - Compute Tx fee if set to auto
+
+-}
+finalizeAdvanced :
     { localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
@@ -500,7 +720,7 @@ finalize :
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -603,7 +823,6 @@ finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInf
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
-                |> identity
 
 
 {-| Helper function to compute the total size of reference scripts.
@@ -620,7 +839,7 @@ The rule is detailed in that document:
 computeRefScriptBytes : Utxo.RefDict Output -> List OutputReference -> Int
 computeRefScriptBytes localStateUtxos references =
     -- merge all inputs uniquely
-    Utxo.refDictFromList (List.map (\r -> Tuple.pair r ()) references)
+    Utxo.refDictFromList (List.map (\r -> ( r, () )) references)
         |> Dict.Any.keys
         -- retrieve outputs reference scripts for all inputs
         |> List.filterMap
@@ -685,7 +904,20 @@ preProcessIntents txIntents =
                         | freeOutputs = freeValueAdd addr v preProcessedIntents.freeOutputs
                     }
 
-                SendToOutput f ->
+                SendToOutput newOutput ->
+                    let
+                        newPreCreated inputsOutputs =
+                            let
+                                { sum, outputs } =
+                                    preProcessedIntents.preCreated inputsOutputs
+                            in
+                            { sum = Value.add sum newOutput.amount
+                            , outputs = newOutput :: outputs
+                            }
+                    in
+                    { preProcessedIntents | preCreated = newPreCreated }
+
+                SendToOutputAdvanced f ->
                     let
                         newPreCreated inputsOutputs =
                             let
@@ -701,7 +933,7 @@ preProcessIntents txIntents =
                     in
                     { preProcessedIntents | preCreated = newPreCreated }
 
-                Spend (From addr v) ->
+                Spend (FromWallet addr v) ->
                     { preProcessedIntents
                         | freeInputs = freeValueAdd addr v preProcessedIntents.freeInputs
                     }
@@ -768,8 +1000,14 @@ preProcessIntents txIntents =
                             }
 
                 -- TODO: Handle certificates
-                _ ->
+                IssueCertificate ->
                     Debug.todo "certificates"
+
+                Vote ->
+                    Debug.todo "vote"
+
+                Propose ->
+                    Debug.todo "propose"
     in
     -- Use fold right so that the outputs list is in the correct order
     List.foldr stepIntent noIntent txIntents
@@ -788,10 +1026,6 @@ type alias ProcessedIntents =
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     }
-
-
-type TxIntentError
-    = TxIntentError String
 
 
 {-| Process already pre-processed intents and validate them all.
@@ -819,12 +1053,6 @@ processIntents localStateUtxos txIntents =
         absentOutputReferencesInLocalState =
             Dict.Any.diff allOutputReferencesInIntents
                 (Dict.Any.map (\_ _ -> ()) localStateUtxos)
-
-        totalMintedAndBurned : MultiAsset Integer
-        totalMintedAndBurned =
-            List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
-                |> List.foldl MultiAsset.mintAdd MultiAsset.empty
-                |> MultiAsset.normalize Integer.isZero
 
         -- Extract total minted value and total burned value
         splitMintsBurns =
@@ -889,6 +1117,13 @@ processIntents localStateUtxos txIntents =
         Err <| UnbalancedIntents "Tx is not balanced.\n"
 
     else
+        let
+            totalMintedAndBurned : MultiAsset Integer
+            totalMintedAndBurned =
+                List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
+                    |> List.foldl MultiAsset.mintAdd MultiAsset.empty
+                    |> MultiAsset.normalize Integer.isZero
+        in
         validMinAdaPerOutput preCreatedOutputs.outputs
             |> Result.mapError NotEnoughMinAda
             |> Result.map
@@ -999,10 +1234,6 @@ noInfo =
     , metadata = []
     , timeValidityRange = Nothing
     }
-
-
-type TxOtherInfoError
-    = TxOtherInfoError String
 
 
 processOtherInfo : List TxOtherInfo -> Result TxFinalizationError ProcessedOtherInfo
@@ -1305,7 +1536,7 @@ accumPerAddressSelection :
     -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
 accumPerAddressSelection allSelections =
     Dict.Any.foldl
-        (\addr ( { selectedUtxos }, createdOutputs ) acc ->
+        (\_ ( { selectedUtxos }, createdOutputs ) acc ->
             { selectedInputs =
                 List.foldl (\( ref, output ) -> Dict.Any.insert ref output) acc.selectedInputs selectedUtxos
             , createdOutputs = createdOutputs ++ acc.createdOutputs
@@ -1674,475 +1905,3 @@ checkInsufficientFee refSize fee tx =
 
     else
         Ok tx
-
-
-
--- EXAMPLES ##########################################################
---
-
-
-dummyCredentialHash : String -> Bytes CredentialHash
-dummyCredentialHash str =
-    dummyBytes 28 str
-
-
-makeWalletAddress : String -> Address
-makeWalletAddress name =
-    Address.Shelley
-        { networkId = Mainnet
-        , paymentCredential = VKeyHash (dummyCredentialHash name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
-        }
-
-
-makeAddress : String -> Address
-makeAddress name =
-    Address.enterprise Mainnet (dummyCredentialHash name)
-
-
-makeRef : String -> Int -> OutputReference
-makeRef id index =
-    { transactionId = dummyBytes 32 id
-    , outputIndex = index
-    }
-
-
-makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
-makeAsset index address policyId name amount =
-    ( makeRef (String.fromInt index) index
-    , { address = address
-      , amount = makeToken policyId name amount
-      , datumOption = Nothing
-      , referenceScript = Nothing
-      }
-    )
-
-
-makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
-makeAdaOutput index address amount =
-    ( makeRef (String.fromInt index) index
-    , Utxo.fromLovelace address (Natural.fromSafeInt <| 1000000 * amount)
-    )
-
-
-makeToken : String -> String -> Int -> Value
-makeToken policyId name amount =
-    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
-
-
-prettyAddr address =
-    case address of
-        Byron b ->
-            (Bytes.toText >> Maybe.withDefault "") b
-
-        Shelley { paymentCredential, stakeCredential } ->
-            [ Just "Addr:", Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
-                |> List.filterMap identity
-                |> String.join " "
-
-        Reward stakeAddr ->
-            "StakeAddr:" ++ prettyCred stakeAddr.stakeCredential
-
-
-prettyStakeCred stakeCred =
-    case stakeCred of
-        Address.InlineCredential cred ->
-            "stake:" ++ prettyCred cred
-
-        Address.PointerCredential _ ->
-            "stake:PointerAddr"
-
-
-prettyCred cred =
-    case cred of
-        Address.VKeyHash b ->
-            "key:" ++ (Bytes.toText >> Maybe.withDefault "") b
-
-        Address.ScriptHash b ->
-            "script:" ++ (Bytes.toText >> Maybe.withDefault "") b
-
-
-prettyWithdrawal : ( StakeAddress, Natural ) -> String
-prettyWithdrawal ( { stakeCredential }, amount ) =
-    "₳ " ++ Natural.toString amount ++ " @ stakeCred:" ++ prettyCred stakeCredential
-
-
-prettyValue : Value -> List String
-prettyValue { lovelace, assets } =
-    if MultiAsset.isEmpty assets then
-        [ "₳ " ++ Natural.toString lovelace ]
-
-    else
-        "with native assets:"
-            :: ("   ₳ " ++ Natural.toString lovelace)
-            :: List.map (indent 3) (prettyAssets Natural.toString assets)
-
-
-prettyAssets toStr multiAsset =
-    Map.toList multiAsset
-        |> List.concatMap
-            (\( policyId, assets ) ->
-                Map.toList assets
-                    |> List.map
-                        (\( name, amount ) ->
-                            String.join " "
-                                [ (Bytes.toText >> Maybe.withDefault "") policyId
-                                , (Bytes.toText >> Maybe.withDefault "") name
-                                , toStr amount
-                                ]
-                        )
-            )
-
-
-prettyDatum datumOption =
-    case datumOption of
-        Utxo.DatumHash h ->
-            "datumHash: " ++ Maybe.withDefault "" (Bytes.toText h)
-
-        Utxo.Datum data ->
-            "datum: " ++ prettyCbor Data.toCbor data
-
-
-prettyCbor toCbor x =
-    E.encode (toCbor x) |> Bytes.fromBytes |> Bytes.toString
-
-
-prettyScript script =
-    case script of
-        Script.Native nativeScript ->
-            "NativeScript: " ++ prettyCbor Script.encodeNativeScript nativeScript
-
-        Script.Plutus plutusScript ->
-            "PlutusScript: " ++ prettyCbor Script.encodePlutusScript plutusScript
-
-
-prettyInput ref =
-    String.join " "
-        [ "TxId:" ++ (Bytes.toText >> Maybe.withDefault "") ref.transactionId
-        , "#" ++ String.fromInt ref.outputIndex
-        ]
-
-
-prettyOutput : Output -> List String
-prettyOutput { address, amount, datumOption, referenceScript } =
-    ("- " ++ prettyAddr address)
-        :: ([ Just <| prettyValue amount
-            , Maybe.map (List.singleton << prettyDatum) datumOption
-            , Maybe.map (List.singleton << prettyScript) referenceScript
-            ]
-                |> List.filterMap identity
-                |> List.concat
-                |> List.map (indent 2)
-           )
-
-
-prettyList sectionTitle prettify list =
-    if List.isEmpty list then
-        []
-
-    else
-        sectionTitle
-            :: List.map (indent 3 << prettify) list
-
-
-prettyMints sectionTitle multiAsset =
-    if MultiAsset.isEmpty multiAsset then
-        []
-
-    else
-        sectionTitle
-            :: List.map (indent 3) (prettyAssets Integer.toString multiAsset)
-
-
-prettyVKeyWitness { vkey, signature } =
-    String.join ", "
-        [ "vkey:" ++ (Bytes.toText vkey |> Maybe.withDefault "")
-        , "signature:" ++ (Bytes.toText signature |> Maybe.withDefault "")
-        ]
-
-
-prettyRedeemer redeemer =
-    String.join " "
-        [ Debug.toString redeemer.tag
-        , "index:" ++ String.fromInt redeemer.index
-        , "exUnits: mem " ++ String.fromInt redeemer.exUnits.mem ++ ", steps " ++ String.fromInt redeemer.exUnits.steps
-        , "data:" ++ prettyCbor Data.toCbor redeemer.data
-        ]
-
-
-prettyMetadata ( tag, metadatum ) =
-    Natural.toString tag ++ ": " ++ prettyCbor Metadatum.toCbor metadatum
-
-
-indent spaces str =
-    String.repeat spaces " " ++ str
-
-
-prettyTx : Transaction -> String
-prettyTx tx =
-    let
-        prettyBytes b =
-            Maybe.withDefault (Bytes.toString b) (Bytes.toText b)
-
-        body =
-            List.concat
-                [ [ "Tx fee: ₳ " ++ (Maybe.withDefault Natural.zero tx.body.fee |> Natural.toString) ]
-                , prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
-                , prettyList "Tx inputs:" prettyInput tx.body.inputs
-                , [ "Tx outputs:" ]
-                , List.concatMap prettyOutput tx.body.outputs
-                    |> List.map (indent 3)
-                , prettyMints "Tx mints:" tx.body.mint
-                , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
-                , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
-                , prettyList
-                    ("Tx collateral (total: ₳ " ++ (Maybe.withDefault "not set" <| Maybe.map String.fromInt tx.body.totalCollateral) ++ "):")
-                    prettyInput
-                    tx.body.collateral
-                , Maybe.map prettyOutput tx.body.collateralReturn
-                    |> Maybe.withDefault []
-                    |> prettyList "Tx collateral return:" identity
-                ]
-
-        witnessSet =
-            List.concat <|
-                List.filterMap identity
-                    [ tx.witnessSet.vkeywitness
-                        |> Maybe.map (prettyList "Tx vkey witness:" prettyVKeyWitness)
-                    , tx.witnessSet.nativeScripts
-                        |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
-                    , tx.witnessSet.plutusV1Script
-                        |> Maybe.map (prettyList "Tx plutus V1 scripts:" prettyBytes)
-                    , tx.witnessSet.plutusV2Script
-                        |> Maybe.map (prettyList "Tx plutus V2 scripts:" prettyBytes)
-                    , tx.witnessSet.redeemer
-                        |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
-                    , Nothing -- TODO: plutusData
-                    ]
-
-        -- Pretty print auxiliary data
-        auxiliaryData =
-            case tx.auxiliaryData of
-                Nothing ->
-                    []
-
-                Just auxData ->
-                    List.concat <|
-                        [ prettyList "Tx metadata:" prettyMetadata auxData.labels
-                        , prettyList "Tx native scripts in auxiliary data:" (prettyScript << Script.Native) auxData.nativeScripts
-                        , prettyList "Tx plutus V1 scripts in auxiliary data:" prettyBytes auxData.plutusV1Scripts
-                        , prettyList "Tx plutus V2 scripts in auxiliary data:" prettyBytes auxData.plutusV2Scripts
-                        ]
-    in
-    List.concat [ body, witnessSet, auxiliaryData ]
-        |> String.join "\n"
-
-
-
--- EXAMPLES global state
-
-
-ada =
-    -- Asset amounts are typed with unbounded Natural numbers
-    { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
-    , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
-    , four = Value.onlyLovelace (Natural.fromSafeString "4000000")
-    , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
-    }
-
-
-exAddr =
-    { me = makeWalletAddress "me"
-    , you = makeWalletAddress "you"
-    }
-
-
-dog =
-    { policyId = dummyCredentialHash "dog"
-    , policyIdStr = "dog"
-    , assetName = Bytes.fromText "yksoh"
-    , assetNameStr = "yksoh"
-    , scriptRef = makeRef "dogScriptRef" 0
-    , refOutput =
-        { address = makeAddress "dogScriptRefAddress"
-        , amount = ada.two
-        , datumOption = Nothing
-        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
-        }
-    }
-
-
-cat =
-    { policyId = dummyCredentialHash "cat"
-    , policyIdStr = "cat"
-    , assetName = Bytes.fromText "felix"
-    , assetNameStr = "felix"
-    , scriptRef = makeRef "catScriptRef" 0
-    , refOutput =
-        { address = makeAddress "catScriptRefAddress"
-        , amount = ada.two
-        , datumOption = Nothing
-        , referenceScript = Just <| Script.Native <| Script.ScriptAll [] -- dummy
-        }
-    }
-
-
-globalStateUtxos : Utxo.RefDict Output
-globalStateUtxos =
-    Utxo.refDictFromList
-        [ makeAdaOutput 0 exAddr.me 2 --   2 ada at my address
-        , makeAdaOutput 1 exAddr.me 10 -- 10 ada at my address
-        , makeAdaOutput 2 exAddr.me 5 --   5 ada at my address
-        , makeAsset 3 exAddr.me dog.policyIdStr dog.assetNameStr 2
-        , makeAsset 4 exAddr.me cat.policyIdStr cat.assetNameStr 5
-        , ( dog.scriptRef, dog.refOutput )
-        , ( cat.scriptRef, cat.refOutput )
-        ]
-
-
-defaultVmConfig =
-    { budget = Uplc.conwayDefaultBudget
-    , slotConfig = Uplc.slotConfigMainnet
-    , costModels = Uplc.conwayDefaultCostModels
-    }
-
-
-globalConfig =
-    { localStateUtxos = globalStateUtxos
-    , coinSelectionAlgo = CoinSelection.largestFirst
-    , evalScriptsCosts = Uplc.evalScriptsCosts defaultVmConfig
-    }
-
-
-globalConfigNoPlutus =
-    { globalConfig | evalScriptsCosts = \_ _ -> Ok [] }
-
-
-twoAdaFee =
-    ManualFee [ { paymentSource = exAddr.me, exactFeeAmount = Natural.fromSafeInt 2000000 } ]
-
-
-autoFee =
-    AutoFee { paymentSource = exAddr.me }
-
-
-
--- EXAMPLE 1: Simple transfer
-
-
-example1 _ =
-    [ Spend <| From exAddr.me ada.one
-    , SendTo exAddr.you ada.one
-    ]
-        |> finalize globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
-
-
-
--- EXAMPLE 2: mint/burn with native script
-
-
-example2 _ =
-    -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
-    [ MintBurn
-        { policyId = dog.policyId
-        , assets = Map.singleton dog.assetName Integer.one
-        , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
-        }
-    , SendTo exAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
-
-    -- burning 1 cat
-    , Spend <| From exAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
-    , MintBurn
-        { policyId = cat.policyId
-        , assets = Map.singleton cat.assetName Integer.negativeOne
-        , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
-        }
-    ]
-        |> finalize globalConfigNoPlutus autoFee []
-
-
-
--- EXAMPLE 3: spend from a Plutus script
--- The input index is provided in the redeemer
-
-
-utxoBeingSpent =
-    makeRef "previouslySentToLock" 0
-
-
-findSpendingUtxo inputs =
-    case inputs of
-        [] ->
-            0
-
-        ( id, ref ) :: next ->
-            if ref == utxoBeingSpent then
-                id
-
-            else
-                findSpendingUtxo next
-
-
-example3 _ =
-    let
-        ( myKeyCred, myStakeCred ) =
-            ( Address.extractPubKeyHash exAddr.me
-                |> Maybe.withDefault (Bytes.fromText "should not fail")
-            , Address.extractStakeCredential exAddr.me
-            )
-
-        -- Lock script made with Aiken
-        lock =
-            -- { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            -- , scriptHash = dummyCredentialHash "LockHash"
-            { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
-            , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
-            }
-
-        -- Combining the script hash with our stake credential
-        -- to keep the locked ada staked.
-        lockScriptAddress =
-            Address.Shelley
-                { networkId = Mainnet
-                , paymentCredential = ScriptHash lock.scriptHash
-                , stakeCredential = myStakeCred
-                }
-
-        -- Build a redeemer that contains the index of the spent script input.
-        redeemer inputsOutputs =
-            List.indexedMap Tuple.pair inputsOutputs.spentInputs
-                |> findSpendingUtxo
-                |> (Data.Int << Integer.fromSafeInt)
-
-        -- Helper function to create an output at the lock script address.
-        -- It contains our key credential in the datum.
-        makeLockedOutput adaAmount =
-            { address = lockScriptAddress
-            , amount = adaAmount
-            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
-            , referenceScript = Nothing
-            }
-
-        -- Add to local state utxos some previously sent 4 ada.
-        localStateUtxos =
-            globalConfig.localStateUtxos
-                |> Dict.Any.insert utxoBeingSpent
-                    (makeLockedOutput ada.four)
-    in
-    -- Collect 2 ada from the lock script
-    [ Spend <|
-        FromPlutusScript
-            { spentInput = utxoBeingSpent
-            , datumWitness = Nothing
-            , plutusScriptWitness =
-                { script = WitnessValue lock.script
-                , redeemerData = redeemer
-                , requiredSigners = [ myKeyCred ]
-                }
-            }
-    , SendTo exAddr.me ada.two
-
-    -- Return the other 2 ada to the lock script (there was 4 ada initially)
-    , SendToOutput (\_ -> makeLockedOutput ada.two)
-    ]
-        |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []

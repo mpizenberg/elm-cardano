@@ -2,15 +2,14 @@ module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
+import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
-import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Cardano.Metadatum as Metadatum
+import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script as Script
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
-import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
-import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
@@ -87,7 +86,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -105,13 +104,25 @@ okTxBuilding =
                         }
                 }
             )
+        , test "simple finalization is able to find fee source" <|
+            \_ ->
+                let
+                    localStateUtxos =
+                        Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 5 ]
+
+                    txIntents =
+                        [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
+                        , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
+                        ]
+                in
+                Expect.ok (Cardano.finalize localStateUtxos [] txIntents)
         , okTxTest "send 1 ada from me to you"
             { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.you (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -141,7 +152,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.you (Value.onlyLovelace <| ada 1)
+                [ Spend <| FromWallet testAddr.you (Value.onlyLovelace <| ada 1)
                 , SendTo testAddr.me (Value.onlyLovelace <| ada 1)
                 ]
             }
@@ -183,7 +194,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me threeCatTwoAda
+                [ Spend <| FromWallet testAddr.me threeCatTwoAda
                 , SendTo testAddr.you threeCatTwoAda
                 ]
             }
@@ -223,7 +234,7 @@ okTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me threeCatMinAda
+                [ Spend <| FromWallet testAddr.me threeCatMinAda
                 , SendTo testAddr.you threeCatMinAda
                 ]
             }
@@ -264,7 +275,7 @@ okTxBuilding =
                 , SendTo testAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
                 -- burning 1 cat
-                , Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
+                , Spend <| FromWallet testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
                 , MintBurn
                     { policyId = cat.policyId
                     , assets = Map.singleton cat.assetName Integer.negativeOne
@@ -328,7 +339,7 @@ okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIn
                     , evalScriptsCosts = evalScriptsCosts
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     Expect.fail (Debug.toString error)
 
@@ -339,7 +350,14 @@ okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIn
 failTxBuilding : Test
 failTxBuilding =
     describe "Detected failure"
-        [ failTxTest "when there is no utxo in local state"
+        [ test "simple finalization cannot find fee source without enough info in Tx intents" <|
+            \_ ->
+                let
+                    localStateUtxos =
+                        Utxo.refDictFromList [ makeAdaOutput 0 testAddr.me 5 ]
+                in
+                Expect.equal (Err UnableToGuessFeeSource) (Cardano.finalize localStateUtxos [] [])
+        , failTxTest "when there is no utxo in local state"
             { localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
@@ -392,7 +410,7 @@ failTxBuilding =
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
-            , txIntents = [ Spend <| From testAddr.me (Value.onlyLovelace <| ada 1) ]
+            , txIntents = [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| ada 1) ]
             }
             (\error ->
                 case error of
@@ -423,8 +441,8 @@ failTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
-                , SendToOutput (\_ -> Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
+                [ Spend <| FromWallet testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
+                , SendToOutput (Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
                 ]
             }
             (\error ->
@@ -444,7 +462,7 @@ failTxBuilding =
             , fee = twoAdaFee
             , txOtherInfo = []
             , txIntents =
-                [ Spend <| From testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.three)
+                [ Spend <| FromWallet testAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.three)
                 , SendTo testAddr.you (Value.onlyToken cat.policyId cat.assetName Natural.three)
                 ]
             }
@@ -515,11 +533,11 @@ failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, tx
                     , evalScriptsCosts = evalScriptsCosts
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     expectedFailure error
 
-                Ok tx ->
+                Ok _ ->
                     Expect.fail "This Tx building was not supposed to succeed"
 
 
@@ -529,13 +547,6 @@ newTx =
 
 
 -- Test data
-
-
-defaultVmConfig =
-    { budget = Uplc.conwayDefaultBudget
-    , slotConfig = Uplc.slotConfigMainnet
-    , costModels = Uplc.conwayDefaultCostModels
-    }
 
 
 testAddr =

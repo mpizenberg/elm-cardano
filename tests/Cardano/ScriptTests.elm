@@ -1,14 +1,10 @@
 module Cardano.ScriptTests exposing (..)
 
-import Bytes.Comparable as Bytes
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, Script)
-import Cbor.Decode as D
-import Cbor.Encode as E
 import Cbor.Test exposing (roundtrip)
 import Fuzz exposing (Fuzzer)
 import Fuzz.Extra as Fuzz
-import Natural
-import Test exposing (Test, describe, test)
+import Test exposing (Test, describe)
 
 
 suite : Test

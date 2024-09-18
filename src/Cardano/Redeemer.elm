@@ -1,15 +1,14 @@
 module Cardano.Redeemer exposing
     ( Redeemer, RedeemerTag(..), ExUnits
-    , encodeTag, encodeExUnits
-    , tagFromCbor, exUnitsFromCbor
-    , encodeAsArray, fromCborArray
+    , encodeAsArray, encodeTag, encodeExUnits
+    , fromCborArray, tagFromCbor, exUnitsFromCbor
     )
 
 {-| Redeemer
 
 @docs Redeemer, RedeemerTag, ExUnits
-@docs encode, encodeTag, encodeExUnits
-@docs fromCbor, tagFromCbor, exUnitsFromCbor
+@docs encodeAsArray, encodeTag, encodeExUnits
+@docs fromCborArray, tagFromCbor, exUnitsFromCbor
 
 -}
 

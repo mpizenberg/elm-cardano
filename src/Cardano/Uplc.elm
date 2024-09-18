@@ -1,4 +1,18 @@
-module Cardano.Uplc exposing (..)
+module Cardano.Uplc exposing
+    ( evalScriptsCosts, evalScriptsCostsRaw
+    , VmConfig, defaultVmConfig, conwayDefaultBudget, conwayDefaultCostModels
+    , SlotConfig, slotConfigMainnet, slotConfigPreview, slotConfigPreprod
+    )
+
+{-| Handling the UPLC VM
+
+@docs evalScriptsCosts, evalScriptsCostsRaw
+
+@docs VmConfig, defaultVmConfig, conwayDefaultBudget, conwayDefaultCostModels
+
+@docs SlotConfig, slotConfigMainnet, slotConfigPreview, slotConfigPreprod
+
+-}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Gov as Gov exposing (CostModels)
@@ -7,16 +21,19 @@ import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo exposing (Output)
 import Cbor.Decode as CD
 import Cbor.Encode as CE
-import Cbor.Encode.Extra as CE
 import Dict.Any
-import Json.Decode as JD
 import Json.Encode as JE
 import Natural exposing (Natural)
 
 
-{-| Evaluate plutus scripts costs.
+{-| Evaluate Plutus scripts costs.
 
-This also checks that the local state Utxos have all relevant UTxOs present.
+This also checks that the provided local state has all relevant UTxOs present.
+
+This function will call Aiken UPLC VM with some JavaScript and WebAssembly code.
+It requires customized Elm compilation and JS code patching,
+so you need to call the `elm-cardano` binary for compilation.
+More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/mpizenberg/elm-cardano).
 
 -}
 evalScriptsCosts : VmConfig -> Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
@@ -37,7 +54,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
     in
     if not (List.isEmpty missingUtxos) then
         String.join ", " (List.map Utxo.refAsString missingUtxos)
-            |> (++) "Missing UTxOs in local state: "
+            |> (\missing -> "Missing UTxOs in local state: " ++ missing)
             |> Err
 
     else
@@ -45,6 +62,12 @@ evalScriptsCosts vmConfig localStateUtxos tx =
 
 
 {-| Evaluate plutus scripts costs with the Tx raw bytes.
+
+This function will call Aiken UPLC VM with some JavaScript and WebAssembly code.
+It requires customized Elm compilation and JS code patching,
+so you need to call the `elm-cardano` binary for compilation.
+More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/mpizenberg/elm-cardano).
+
 -}
 evalScriptsCostsRaw : VmConfig -> Utxo.RefDict Output -> Bytes any -> Result String (List Redeemer)
 evalScriptsCostsRaw vmConfig usedUtxos txBytes =
@@ -72,9 +95,6 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
                 , ( "slot_config_slot_length", JE.int vmConfig.slotConfig.slotLengthMs )
                 ]
 
-        kernelResult =
-            evalScriptsCostsKernel jsArguments
-
         decodeRedeemer : String -> Maybe Redeemer
         decodeRedeemer redeemerHex =
             -- Each redeemer is provided in CBOR, in a hex-encoded string
@@ -95,6 +115,12 @@ evalScriptsCostsKernel _ =
     Err "evalScriptsCostsKernel"
 
 
+{-| UPLC VM configuration.
+
+This is required so that the VM knows how to price memory usage and execution steps,
+as well as how to manage time.
+
+-}
 type alias VmConfig =
     { budget : ExUnits
     , slotConfig : SlotConfig
@@ -102,11 +128,25 @@ type alias VmConfig =
     }
 
 
+{-| Default UPLC VM config.
+-}
+defaultVmConfig : VmConfig
+defaultVmConfig =
+    { budget = conwayDefaultBudget
+    , slotConfig = slotConfigMainnet
+    , costModels = conwayDefaultCostModels
+    }
+
+
+{-| The default budget currently in the Conway era.
+-}
 conwayDefaultBudget : ExUnits
 conwayDefaultBudget =
     { mem = 14000000, steps = 10000000000 }
 
 
+{-| Time managing config for the VM.
+-}
 type alias SlotConfig =
     { zeroTime : Natural
     , zeroSlot : Natural
@@ -114,6 +154,8 @@ type alias SlotConfig =
     }
 
 
+{-| Default slot config for Mainnet.
+-}
 slotConfigMainnet : SlotConfig
 slotConfigMainnet =
     -- Found in Blaze codebase
@@ -123,6 +165,8 @@ slotConfigMainnet =
     }
 
 
+{-| Default slot config for Preview.
+-}
 slotConfigPreview : SlotConfig
 slotConfigPreview =
     -- Found in Blaze codebase
@@ -132,6 +176,8 @@ slotConfigPreview =
     }
 
 
+{-| Default slot config for Preprod.
+-}
 slotConfigPreprod : SlotConfig
 slotConfigPreprod =
     -- Found in Blaze codebase
@@ -141,6 +187,8 @@ slotConfigPreprod =
     }
 
 
+{-| Default cost models for the Plutus VM currently in the Conway era.
+-}
 conwayDefaultCostModels : CostModels
 conwayDefaultCostModels =
     -- Retrieved from CardanoScan on 2024-09-06

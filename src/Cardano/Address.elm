@@ -1,7 +1,7 @@
 module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
-    , enterprise, script, base, pointer
+    , fromBech32, enterprise, script, base, pointer
     , isShelleyWallet, extractPubKeyHash, extractStakeCredential
     , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
@@ -15,7 +15,7 @@ module Cardano.Address exposing
 
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
-@docs enterprise, script, base, pointer
+@docs fromBech32, enterprise, script, base, pointer
 
 @docs isShelleyWallet, extractPubKeyHash, extractStakeCredential
 
@@ -109,6 +109,13 @@ This is a Blake2b-224 hash.
 -}
 type CredentialHash
     = CredentialHash Never
+
+
+{-| Build an [Address] from its Bech32 string representation.
+-}
+fromBech32 : String -> Maybe Address
+fromBech32 _ =
+    Debug.todo "fromBech32"
 
 
 {-| Create a simple enterprise address, with only a payment credential and no stake credential.

@@ -19,7 +19,7 @@ module Cardano.Transaction exposing
 
 @docs WitnessSet, newWitnessSet
 
-@docs Update, ProtocolParamUpdate, Nonce, ProtocolVersion, noParamUpdate
+@docs Update
 
 @docs ScriptContext, ScriptPurpose
 
@@ -27,35 +27,28 @@ module Cardano.Transaction exposing
 
 @docs Relay, IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
 
-@docs CostModels, ExUnitPrices
-
-@docs RationalNumber, UnitInterval, PositiveInterval
-
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
 @docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
 @docs deserialize, serialize
 
-@docs encodeCostModels
-
 -}
 
-import Bytes.Comparable as Bytes exposing (Any, Bytes)
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
+import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (ActionDict, ActionId, Anchor, Drep(..), ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
+import Cardano.Gov as Gov exposing (ActionId, Anchor, Drep, ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
-import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
+import Cardano.Redeemer as Redeemer exposing (Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
-import Cardano.Transaction.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
-import Cbor.Tag as Tag
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 import RationalNat exposing (RationalNat)
@@ -195,14 +188,16 @@ type alias Update =
     }
 
 
-{-| -}
+{-| VKey witness
+-}
 type alias VKeyWitness =
     { vkey : Bytes Ed25519PublicKey -- 0
     , signature : Bytes Ed25519Signature -- 1
     }
 
 
-{-| -}
+{-| Bootstrap witness
+-}
 type alias BootstrapWitness =
     { publicKey : Bytes Ed25519PublicKey -- 0
     , signature : Bytes Ed25519Signature -- 1
@@ -675,7 +670,7 @@ encodeBootstrapWitness =
 encodeRedeemersAsMap : List Redeemer -> E.Encoder
 encodeRedeemersAsMap redeemers =
     List.map (\r -> ( ( r.tag, r.index ), ( r.data, r.exUnits ) )) redeemers
-        |> E.associativeList
+        |> E.ledgerAssociativeList
             (E.tuple <|
                 E.elems
                     >> E.elem Redeemer.encodeTag Tuple.first
