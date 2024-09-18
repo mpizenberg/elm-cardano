@@ -453,7 +453,8 @@ prettyTx tx =
                         |> Maybe.map (prettyList "Tx plutus V2 scripts:" prettyBytes)
                     , tx.witnessSet.redeemer
                         |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
-                    , Nothing -- TODO: plutusData
+
+                    -- TODO: plutusData
                     ]
 
         -- Pretty print auxiliary data

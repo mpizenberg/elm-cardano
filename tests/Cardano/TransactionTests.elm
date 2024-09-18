@@ -4,10 +4,8 @@ import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.AuxiliaryData exposing (AuxiliaryData)
-import Cardano.Data exposing (Data(..))
 import Cardano.Gov exposing (Nonce(..), noParamUpdate)
 import Cardano.Metadatum as Metadatum
-import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet)
 import Cardano.Value as Value
@@ -16,7 +14,6 @@ import Expect
 import Integer
 import Natural as N exposing (Natural)
 import Test exposing (Test, describe, test)
-import Tests exposing (expectBytes)
 
 
 suite : Test

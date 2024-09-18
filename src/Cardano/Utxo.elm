@@ -50,6 +50,7 @@ module Cardano.Utxo exposing
 
 -}
 
+import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address)
 import Cardano.Data as Data exposing (Data)
@@ -63,7 +64,6 @@ import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Dict.Any exposing (AnyDict)
 import Natural as N exposing (Natural)
-import Set exposing (Set)
 
 
 {-| The reference for a eUTxO.
@@ -222,7 +222,7 @@ minAda ({ amount } as output) =
                 output
     in
     E.encode (encodeOutput updatedOutput)
-        |> (Bytes.fromBytes >> Bytes.width)
+        |> ElmBytes.width
         |> (\w -> N.fromSafeInt ((160 + w) * 4310))
 
 

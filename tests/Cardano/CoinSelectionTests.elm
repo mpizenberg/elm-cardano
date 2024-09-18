@@ -3,7 +3,7 @@ module Cardano.CoinSelectionTests exposing (..)
 import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (Address, NetworkId(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import Cardano.Utxo exposing (Output, OutputReference, fromLovelace, totalLovelace)
+import Cardano.Utxo exposing (Output, OutputReference, fromLovelace)
 import Cardano.Value as Value exposing (Value, onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)

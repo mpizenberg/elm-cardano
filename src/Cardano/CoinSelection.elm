@@ -21,9 +21,9 @@ selection algorithm as described in CIP2 (<https://cips.cardano.org/cips/cip2/>)
 -}
 
 import Bytes.Comparable exposing (Bytes)
-import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
-import Cardano.Utxo as Utxo exposing (Output, OutputReference, compareLovelace, lovelace, totalLovelace)
-import Cardano.Value as Value exposing (Value, onlyLovelace)
+import Cardano.MultiAsset as MultiAsset exposing (AssetName, PolicyId)
+import Cardano.Utxo as Utxo exposing (Output, OutputReference)
+import Cardano.Value as Value exposing (Value)
 import Natural as N exposing (Natural)
 
 
@@ -64,6 +64,9 @@ selected UTXOs, requested outputs, and change address, along with an `Int`
 representing the maximum number of inputs allowed. Returns either a
 `Error` or a `Selection`. See <https://cips.cardano.org/cips/cip2/#largestfirst>
 
+TODO: if possible, remove extraneous inputs.
+Indeed, when selecting later CNT, they might contain enough previous CNT too.
+
 -}
 largestFirst : Algorithm
 largestFirst maxInputCount context =
@@ -103,9 +106,6 @@ largestFirst maxInputCount context =
                         Just (Value.substract state.accumulatedAmount context.targetAmount |> Value.normalize)
                 }
             )
-        -- TODO: if possible, remove extraneous inputs.
-        -- Indeed, when selecting later CNT, they might contain enough previous CNT too.
-        |> identity
 
 
 type alias SelectionState =

@@ -4,6 +4,7 @@ module Cardano exposing
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
     , dummyBytes
+    , Todo
     )
 
 {-| Cardano stuff
@@ -370,21 +371,19 @@ We can embed it directly in the transaction witness.
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
+import Cardano.Address as Address exposing (Address(..), CredentialHash, StakeAddress)
 import Cardano.AuxiliaryData exposing (AuxiliaryData)
-import Cardano.Cip30 exposing (Utxo)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.Metadatum as Metadatum exposing (Metadatum)
+import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
-import Cardano.Uplc as Uplc exposing (VmConfig, evalScriptsCosts)
-import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
+import Cardano.Uplc as Uplc
+import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
-import Dict exposing (Dict)
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
@@ -544,23 +543,20 @@ finalize :
     -> List TxIntent
     -> Result TxFinalizationError Transaction
 finalize localStateUtxos txOtherInfo txIntents =
-    let
-        defaultCoinSelectionAlgo =
-            CoinSelection.largestFirst
-
-        defaultEvalScriptsCosts =
-            if containPlutusScripts txIntents then
-                Uplc.evalScriptsCosts Uplc.defaultVmConfig
-
-            else
-                \_ _ -> Ok []
-    in
     guessFeeSource localStateUtxos txIntents
         |> Result.andThen
             (\feeSource ->
+                let
+                    defaultEvalScriptsCosts =
+                        if containPlutusScripts txIntents then
+                            Uplc.evalScriptsCosts Uplc.defaultVmConfig
+
+                        else
+                            \_ _ -> Ok []
+                in
                 finalizeAdvanced
                     { localStateUtxos = localStateUtxos
-                    , coinSelectionAlgo = defaultCoinSelectionAlgo
+                    , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = defaultEvalScriptsCosts
                     }
                     (AutoFee { paymentSource = feeSource })
@@ -822,7 +818,6 @@ finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee tx
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
-                |> identity
 
 
 {-| Helper function to compute the total size of reference scripts.
@@ -839,7 +834,7 @@ The rule is detailed in that document:
 computeRefScriptBytes : Utxo.RefDict Output -> List OutputReference -> Int
 computeRefScriptBytes localStateUtxos references =
     -- merge all inputs uniquely
-    Utxo.refDictFromList (List.map (\r -> Tuple.pair r ()) references)
+    Utxo.refDictFromList (List.map (\r -> ( r, () )) references)
         |> Dict.Any.keys
         -- retrieve outputs reference scripts for all inputs
         |> List.filterMap
@@ -1026,10 +1021,6 @@ type alias ProcessedIntents =
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     }
-
-
-type TxIntentError
-    = TxIntentError String
 
 
 {-| Process already pre-processed intents and validate them all.
@@ -1237,10 +1228,6 @@ noInfo =
     , metadata = []
     , timeValidityRange = Nothing
     }
-
-
-type TxOtherInfoError
-    = TxOtherInfoError String
 
 
 processOtherInfo : List TxOtherInfo -> Result TxFinalizationError ProcessedOtherInfo
@@ -1543,7 +1530,7 @@ accumPerAddressSelection :
     -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
 accumPerAddressSelection allSelections =
     Dict.Any.foldl
-        (\addr ( { selectedUtxos }, createdOutputs ) acc ->
+        (\_ ( { selectedUtxos }, createdOutputs ) acc ->
             { selectedInputs =
                 List.foldl (\( ref, output ) -> Dict.Any.insert ref output) acc.selectedInputs selectedUtxos
             , createdOutputs = createdOutputs ++ acc.createdOutputs

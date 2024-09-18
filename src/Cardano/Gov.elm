@@ -17,6 +17,7 @@ module Cardano.Gov exposing
     , Voter(..), voterFromCbor, encodeVoter
     , Anchor, decodeAnchor, encodeAnchor
     , TODO
+    , AnchorDataHash
     )
 
 {-| Handling gov-related stuff.
@@ -59,8 +60,8 @@ module Cardano.Gov exposing
 
 -}
 
-import Bytes.Comparable as Bytes exposing (Any, Bytes, width)
-import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
+import Bytes.Comparable as Bytes exposing (Any, Bytes)
+import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
 import Cardano.MultiAsset exposing (PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits)
 import Cardano.Utxo exposing (TransactionId)
@@ -69,7 +70,6 @@ import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as E
 import Cbor.Tag as Tag
-import Dict.Any exposing (AnyDict)
 import Natural exposing (Natural)
 
 

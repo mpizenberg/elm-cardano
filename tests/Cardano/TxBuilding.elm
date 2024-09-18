@@ -5,12 +5,11 @@ import Bytes.Map as Map
 import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
-import Cardano.Metadatum as Metadatum exposing (Metadatum)
-import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
+import Cardano.Metadatum as Metadatum
+import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script as Script
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
-import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
@@ -538,7 +537,7 @@ failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, tx
                 Err error ->
                     expectedFailure error
 
-                Ok tx ->
+                Ok _ ->
                     Expect.fail "This Tx building was not supposed to succeed"
 
 

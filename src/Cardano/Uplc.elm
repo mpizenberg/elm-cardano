@@ -21,9 +21,7 @@ import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo exposing (Output)
 import Cbor.Decode as CD
 import Cbor.Encode as CE
-import Cbor.Encode.Extra as CE
 import Dict.Any
-import Json.Decode as JD
 import Json.Encode as JE
 import Natural exposing (Natural)
 
@@ -96,9 +94,6 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
                 , ( "slot_config_zero_slot", JE.int (Natural.toInt vmConfig.slotConfig.zeroSlot) )
                 , ( "slot_config_slot_length", JE.int vmConfig.slotConfig.slotLengthMs )
                 ]
-
-        kernelResult =
-            evalScriptsCostsKernel jsArguments
 
         decodeRedeemer : String -> Maybe Redeemer
         decodeRedeemer redeemerHex =
