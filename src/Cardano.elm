@@ -2037,7 +2037,7 @@ prettyDatum datumOption =
         Utxo.DatumHash h ->
             "datumHash: " ++ Maybe.withDefault "" (Bytes.toText h)
 
-        Utxo.Datum data ->
+        Utxo.DatumValue data ->
             "datum: " ++ prettyCbor Data.toCbor data
 
 
@@ -2331,7 +2331,7 @@ example3 _ =
         makeLockedOutput adaAmount =
             { address = lockScriptAddress
             , amount = adaAmount
-            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
+            , datumOption = Just (DatumValue (Data.Bytes <| Bytes.toAny myKeyCred))
             , referenceScript = Nothing
             }
 

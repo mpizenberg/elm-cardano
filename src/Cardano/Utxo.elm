@@ -275,7 +275,7 @@ encodeOutput output =
 -}
 type DatumOption
     = DatumHash (Bytes DatumHash)
-    | Datum Data
+    | DatumValue Data
 
 
 {-| CBOR encoder for [DatumOption].
@@ -289,7 +289,7 @@ encodeDatumOption datumOption =
                 , Bytes.toCbor hash
                 ]
 
-            Datum datum ->
+            DatumValue datum ->
                 [ E.int 1
                 , datum
                     |> Data.toCbor
@@ -365,7 +365,7 @@ datumOptionFromCbor =
                         D.map (DatumHash << Bytes.fromBytes) D.bytes
 
                     1 ->
-                        D.map Datum decodeOutputDatum
+                        D.map DatumValue decodeOutputDatum
 
                     _ ->
                         D.failWith ("Unknown datum option tag: " ++ String.fromInt tag)

@@ -184,7 +184,7 @@ payToContract address amount datum tx =
         |> output
             { address = address
             , amount = Value.onlyLovelace amount
-            , datumOption = Just (Datum datum)
+            , datumOption = Just (DatumValue datum)
             , referenceScript = Nothing
             }
 
