@@ -25,6 +25,8 @@
         "Cardano.Uplc",
         "Cardano.Utxo",
         "Cardano.Value",
+        "Cbor.Decode.Extra",
+        "Cbor.Encode.Extra",
         "RationalNat",
         "Word7"
     ],
