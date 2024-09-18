@@ -39,7 +39,6 @@ import Simplify
 
 config : List Rule
 config =
-    -- TODO: globally ignore src/TempTxTest.elm for all rules
     [ Docs.NoMissing.rule
         { document = onlyExposed
         , from = exposedModules
@@ -55,8 +54,9 @@ config =
     , NoExposingEverything.rule
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoImportingEverything.rule []
-    , NoMissingTypeAnnotation.rule -- TODO: ignore src/Cardano/TxExamples.elm
+    , NoMissingTypeAnnotation.rule
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
+        |> Rule.ignoreErrorsForFiles [ "src/Cardano/TxExamples.elm" ]
 
     -- , NoMissingTypeAnnotationInLetIn.rule
     , NoMissingTypeExpose.rule
@@ -65,7 +65,8 @@ config =
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.Dependencies.rule
-    , NoUnused.Exports.rule -- TODO: ignore src/Cardano/TxExamples.elm
+    , NoUnused.Exports.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Cardano/TxExamples.elm" ]
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
@@ -85,3 +86,5 @@ config =
           )
         ]
     ]
+        -- Globally ignore src/TempTxTest.elm for all rules
+        |> List.map (Rule.ignoreErrorsForFiles [ "src/TempTxTest.elm" ])
