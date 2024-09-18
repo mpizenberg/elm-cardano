@@ -136,14 +136,14 @@ compress state block (Int128 ctrHigh ctrLow) finalBlockFlag =
                 |> List.indexedMap
                     (\i word ->
                         if i == 12 then
-                            UInt64.or word ctrLow
+                            UInt64.xor word ctrLow
 
                         else if i == 13 then
-                            UInt64.or word ctrHigh
+                            UInt64.xor word ctrHigh
 
                         else if i == 14 then
                             if finalBlockFlag then
-                                UInt64.or word UInt64.maxValue
+                                UInt64.xor word UInt64.maxValue
 
                             else
                                 word
