@@ -1085,97 +1085,115 @@ decodeBody =
                 (D.oneOf [ D.natural, D.failWith "Failed to decode treasury donation (22)" ])
 
 
+decodeBodyFold : D.Decoder TransactionBody
+decodeBodyFold =
+    D.fold D.int
+        (\k ->
+            case k of
+                -- inputs
+                0 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setInputs
+                        , D.failWith "Failed to decode inputs (0)"
+                        ]
 
--- decodeBodyFold : D.Decoder TransactionBody
--- decodeBodyFold =
---     D.fold D.int
---         (\k ->
---             case k of
---                 -- inputs
---                 0 ->
---                     D.oneOf
---                         [ D.list Utxo.decodeOutputReference |> D.map setInputs
---                         , D.failWith "Failed to decode inputs (0)"
---                         ]
---                 -- outputs
---                 1 ->
---                     D.oneOf
---                         [ D.list Utxo.decodeOutput |> D.map setOutputs
---                         , D.failWith "Failed to decode outputs (1)"
---                         ]
---                 -- fee
---                 2 ->
---                     D.oneOf [ D.natural |> D.map setFee, D.failWith "Failed to decode fee (2)" ]
---                 -- ttl
---                 3 ->
---                     D.oneOf [ D.natural |> D.map setTtl, D.failWith "Failed to decode TTL (3)" ]
---                 -- certificates
---                 4 ->
---                     D.oneOf
---                         [ D.set decodeCertificate |> D.map setCertificates
---                         , D.failWith "Failed to decode certificate (4)"
---                         ]
---                 -- withdrawals
---                 5 ->
---                     D.oneOf [ decodeWithdrawals |> D.map setWithdrawals, D.failWith "Failed to decode withdrawals (5)" ]
---                 -- update
---                 6 ->
---                     D.oneOf [ decodeUpdate |> D.map setUpdate, D.failWith "Failed to decode protocol update (6)" ]
---                 -- auxiliary data hash
---                 7 ->
---                     D.oneOf
---                         [ D.map Bytes.fromBytes D.bytes |> D.map setAuxiliaryDataHash
---                         , D.failWith "Failed to decode auxiliary data hash (7)"
---                         ]
---                 -- validity interval start
---                 8 ->
---                     D.oneOf [ D.int |> D.map setValidityIntervalStart, D.failWith "Failed to decode validity interval start (8)" ]
---                 -- mint
---                 9 ->
---                     D.oneOf [ MultiAsset.mintFromCbor |> D.map setMint, D.failWith "Failed to decode mint (9)" ]
---                 -- (DEPRECATED) expansion rate
---                 10 ->
---                     D.succeed identity
---                 -- script data hash
---                 11 ->
---                     D.oneOf
---                         [ D.map Bytes.fromBytes D.bytes |> D.map setScriptDataHash
---                         , D.failWith "Failed to decode script data hash (11)"
---                         ]
---                 -- (DEPRECATED) decentralization constant
---                 12 ->
---                     D.succeed identity
---                 -- collateral
---                 13 ->
---                     D.oneOf
---                         [ D.list Utxo.decodeOutputReference |> D.map setCollateral
---                         , D.failWith "Failed to decode collateral (13)"
---                         ]
---                 -- required signers
---                 14 ->
---                     D.oneOf
---                         [ D.list (D.map Bytes.fromBytes D.bytes) |> D.map setRequiredSigners
---                         , D.failWith "Failed to decode required signers (14)"
---                         ]
---                 -- network ID
---                 15 ->
---                     D.oneOf [ decodeNetworkId |> D.map setNetworkId, D.failWith "Failed to decode network id (15)" ]
---                 -- collateral return
---                 16 ->
---                     D.oneOf [ Utxo.decodeOutput |> D.map setCollateralReturn, D.failWith "Failed to decode collateral return (16)" ]
---                 -- total collateral
---                 17 ->
---                     D.oneOf [ D.int |> D.map setTotalCollateral, D.failWith "Failed to decode total collateral (17)" ]
---                 -- reference inputs
---                 18 ->
---                     D.oneOf
---                         [ D.list Utxo.decodeOutputReference |> D.map setReferenceInputs
---                         , D.failWith "Failed to decode reference inputs (18)"
---                         ]
---                 _ ->
---                     D.failWith ("Unknown tx body tag: " ++ String.fromInt k)
---         )
---         newBody
+                -- outputs
+                1 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutput |> D.map setOutputs
+                        , D.failWith "Failed to decode outputs (1)"
+                        ]
+
+                -- fee
+                2 ->
+                    D.oneOf [ D.natural |> D.map setFee, D.failWith "Failed to decode fee (2)" ]
+
+                -- ttl
+                3 ->
+                    D.oneOf [ D.natural |> D.map setTtl, D.failWith "Failed to decode TTL (3)" ]
+
+                -- certificates
+                4 ->
+                    D.oneOf
+                        [ D.set decodeCertificate |> D.map setCertificates
+                        , D.failWith "Failed to decode certificate (4)"
+                        ]
+
+                -- withdrawals
+                5 ->
+                    D.oneOf [ decodeWithdrawals |> D.map setWithdrawals, D.failWith "Failed to decode withdrawals (5)" ]
+
+                -- update
+                6 ->
+                    D.oneOf [ decodeUpdate |> D.map setUpdate, D.failWith "Failed to decode protocol update (6)" ]
+
+                -- auxiliary data hash
+                7 ->
+                    D.oneOf
+                        [ D.map Bytes.fromBytes D.bytes |> D.map setAuxiliaryDataHash
+                        , D.failWith "Failed to decode auxiliary data hash (7)"
+                        ]
+
+                -- validity interval start
+                8 ->
+                    D.oneOf [ D.int |> D.map setValidityIntervalStart, D.failWith "Failed to decode validity interval start (8)" ]
+
+                -- mint
+                9 ->
+                    D.oneOf [ MultiAsset.mintFromCbor |> D.map setMint, D.failWith "Failed to decode mint (9)" ]
+
+                -- (DEPRECATED) expansion rate
+                10 ->
+                    D.succeed identity
+
+                -- script data hash
+                11 ->
+                    D.oneOf
+                        [ D.map Bytes.fromBytes D.bytes |> D.map setScriptDataHash
+                        , D.failWith "Failed to decode script data hash (11)"
+                        ]
+
+                -- (DEPRECATED) decentralization constant
+                12 ->
+                    D.succeed identity
+
+                -- collateral
+                13 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setCollateral
+                        , D.failWith "Failed to decode collateral (13)"
+                        ]
+
+                -- required signers
+                14 ->
+                    D.oneOf
+                        [ D.list (D.map Bytes.fromBytes D.bytes) |> D.map setRequiredSigners
+                        , D.failWith "Failed to decode required signers (14)"
+                        ]
+
+                -- network ID
+                15 ->
+                    D.oneOf [ decodeNetworkId |> D.map setNetworkId, D.failWith "Failed to decode network id (15)" ]
+
+                -- collateral return
+                16 ->
+                    D.oneOf [ Utxo.decodeOutput |> D.map setCollateralReturn, D.failWith "Failed to decode collateral return (16)" ]
+
+                -- total collateral
+                17 ->
+                    D.oneOf [ D.int |> D.map setTotalCollateral, D.failWith "Failed to decode total collateral (17)" ]
+
+                -- reference inputs
+                18 ->
+                    D.oneOf
+                        [ D.list Utxo.decodeOutputReference |> D.map setReferenceInputs
+                        , D.failWith "Failed to decode reference inputs (18)"
+                        ]
+
+                _ ->
+                    D.failWith ("Unknown tx body tag: " ++ String.fromInt k)
+        )
+        newBody
 
 
 decodeCertificate : D.Decoder Certificate

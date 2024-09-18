@@ -4,7 +4,6 @@ module Cardano exposing
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
     , dummyBytes
-    , Todo
     )
 
 {-| Cardano stuff
@@ -365,7 +364,6 @@ We can embed it directly in the transaction witness.
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
 @docs dummyBytes
-@docs Todo
 
 -}
 
@@ -391,13 +389,8 @@ import Natural exposing (Natural)
 import Set
 
 
-{-| TODO
+{-| Represents different types of transaction intents.
 -}
-type Todo
-    = Todo
-
-
-{-| -}
 type TxIntent
     = SendTo Address Value
     | SendToOutput Output
@@ -411,7 +404,7 @@ type TxIntent
         , scriptWitness : ScriptWitness
         }
       -- Issuing certificates
-    | IssueCertificate Todo
+    | IssueCertificate -- TODO
       -- Withdrawing rewards
     | WithdrawRewards
         -- TODO: check that the addres type match the scriptWitness field
@@ -419,11 +412,14 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
-    | Vote Todo
-    | Propose Todo
+    | Vote -- TODO
+    | Propose -- TODO
 
 
-{-| TODO: check that output references match the type of source (script VS not script)
+{-| Represents different sources for spending assets.
+
+TODO: check that output references match the type of source (script VS not script)
+
 -}
 type SpendSource
     = FromWallet Address Value
@@ -442,7 +438,8 @@ type SpendSource
         }
 
 
-{-| -}
+{-| Represents the inputs and outputs of a transaction.
+-}
 type alias InputsOutputs =
     { referenceInputs : List OutputReference
     , spentInputs : List OutputReference
@@ -457,13 +454,15 @@ noInputsOutputs =
     { referenceInputs = [], spentInputs = [], createdOutputs = [] }
 
 
-{-| -}
+{-| Represents different types of script witnesses.
+-}
 type ScriptWitness
     = NativeWitness (WitnessSource NativeScript)
     | PlutusWitness PlutusScriptWitness
 
 
-{-| -}
+{-| Represents a Plutus script witness.
+-}
 type alias PlutusScriptWitness =
     { script : WitnessSource PlutusScript
     , redeemerData : InputsOutputs -> Data
@@ -471,7 +470,8 @@ type alias PlutusScriptWitness =
     }
 
 
-{-| -}
+{-| Represents different sources for witnesses.
+-}
 type WitnessSource a
     = WitnessValue a
     | WitnessReference OutputReference
@@ -490,14 +490,16 @@ extractWitnessRef witnessSource =
             Just ref
 
 
-{-| -}
+{-| Represents additional information for a transaction.
+-}
 type TxOtherInfo
     = TxReferenceInput OutputReference
     | TxMetadata { tag : Natural, metadata : Metadatum }
     | TxTimeValidityRange { start : Int, end : Natural }
 
 
-{-| -}
+{-| Configure fees manually or automatically for a transaction.
+-}
 type Fee
     = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
     | AutoFee { paymentSource : Address }
@@ -681,8 +683,8 @@ containPlutusScripts txIntents =
                 PlutusWitness _ ->
                     True
 
-        (IssueCertificate _) :: _ ->
-            True
+        IssueCertificate :: _ ->
+            Debug.todo "certificateHasScript?"
 
         (WithdrawRewards { scriptWitness }) :: otherIntents ->
             case scriptWitness of
@@ -692,10 +694,10 @@ containPlutusScripts txIntents =
                 _ ->
                     containPlutusScripts otherIntents
 
-        (Vote _) :: _ ->
+        Vote :: _ ->
             Debug.todo "voteHasScript?"
 
-        (Propose _) :: _ ->
+        Propose :: _ ->
             Debug.todo "proposeHasScript?"
 
 
@@ -998,13 +1000,13 @@ preProcessIntents txIntents =
                             }
 
                 -- TODO: Handle certificates
-                IssueCertificate _ ->
+                IssueCertificate ->
                     Debug.todo "certificates"
 
-                Vote _ ->
+                Vote ->
                     Debug.todo "vote"
 
-                Propose _ ->
+                Propose ->
                     Debug.todo "propose"
     in
     -- Use fold right so that the outputs list is in the correct order
@@ -1051,12 +1053,6 @@ processIntents localStateUtxos txIntents =
         absentOutputReferencesInLocalState =
             Dict.Any.diff allOutputReferencesInIntents
                 (Dict.Any.map (\_ _ -> ()) localStateUtxos)
-
-        totalMintedAndBurned : MultiAsset Integer
-        totalMintedAndBurned =
-            List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
-                |> List.foldl MultiAsset.mintAdd MultiAsset.empty
-                |> MultiAsset.normalize Integer.isZero
 
         -- Extract total minted value and total burned value
         splitMintsBurns =
@@ -1121,6 +1117,13 @@ processIntents localStateUtxos txIntents =
         Err <| UnbalancedIntents "Tx is not balanced.\n"
 
     else
+        let
+            totalMintedAndBurned : MultiAsset Integer
+            totalMintedAndBurned =
+                List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
+                    |> List.foldl MultiAsset.mintAdd MultiAsset.empty
+                    |> MultiAsset.normalize Integer.isZero
+        in
         validMinAdaPerOutput preCreatedOutputs.outputs
             |> Result.mapError NotEnoughMinAda
             |> Result.map
