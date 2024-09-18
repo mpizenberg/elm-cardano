@@ -55,15 +55,19 @@ config =
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoImportingEverything.rule []
     , NoMissingTypeAnnotation.rule
+        |> Rule.ignoreErrorsForDirectories [ "tests/" ]
+        |> Rule.ignoreErrorsForFiles [ "src/Cardano/TxExamples.elm" ]
 
     -- , NoMissingTypeAnnotationInLetIn.rule
     , NoMissingTypeExpose.rule
     , NoSimpleLetBody.rule
     , NoPrematureLetComputation.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Cardano.elm" ]
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.Dependencies.rule
     , NoUnused.Exports.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Cardano/TxExamples.elm" ]
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
@@ -77,7 +81,11 @@ config =
             , "Cbor.Encode.associativeList"
             , "Cbor.Encode.dict"
             ]
-          , [ "Cbor.Encode.Extra" ]
+          , [ "Cbor.Encode.Extra"
+            , "Cardano.Script"
+            ]
           )
         ]
     ]
+        -- Globally ignore src/TempTxTest.elm for all rules
+        |> List.map (Rule.ignoreErrorsForFiles [ "src/TempTxTest.elm" ])

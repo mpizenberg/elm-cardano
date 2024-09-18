@@ -1,8 +1,9 @@
 module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
-    , finalize
-    , example1, example2, example3, prettyTx
+    , Fee(..)
+    , finalize, finalizeAdvanced, TxFinalizationError(..)
+    , dummyBytes
     )
 
 {-| Cardano stuff
@@ -10,15 +11,16 @@ module Cardano exposing
 
 # Transaction Building Overview
 
-In order to provide elegant transaction building blocks,
-we must understand what transactions are.
-Here is an example framework composed of 4 points:
+This framework aims to provide intuitive and correct building blocks
+for transaction building, based on the following aspects of transactions.
 
 1.  Intent: what we want to achieve with this transaction
       - Transfer: send some tokens from somewhere to somewhere else
       - Mint and burn: create and destroy tokens
       - Use a script: provide/spend tokens and data to/from a script
       - Stake management: collect rewards, manage delegations and pool registrations
+      - Voting: vote on proposals
+      - Propose: make your own proposals
 2.  Metadata: additional information
 3.  Constraints: what additional constraints do we want to set
       - Temporal validity range: first/last slots when the Tx is valid
@@ -34,31 +36,32 @@ That’s enough theory, let’s get more concrete.
 
 Let’s first define some addresses we are going to be using.
 
-    me =
-        Address.fromAddr "addr..."
+    fromBech32 addressString =
+        Address.fromBech32 addressString
             |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
 
-    you =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
-
-    someone =
-        Address.fromAddr "addr..."
-            |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
+    ( me, you, someone ) =
+        ( fromBech32 "addr..."
+        , fromBech32 "addr..."
+        , fromBech32 "addr..."
+        )
 
 Here is a simple way to send 1 Ada to someone else.
 
+    -- 1 Ada is 1000000 Lovelaces
+    -- Asset amounts are typed with unbounded Natural numbers
     oneAda =
-        -- Asset amounts are typed with unbounded Natural numbers
         Value.onlyLovelace (Natural.fromSafeString "1000000")
 
-    -- Some config required for Tx finalization
-    ({ localStateUtxos, coinSelectionAlgo } as config) =
-        Debug.todo "{ localStateUtxos, coinSelectionAlgo }"
+    -- We need to provide available UTxOs for Tx finalization.
+    -- For this simple Tx, it only needs to know of our own UTxOs,
+    -- that we would typically retrieve via an API provider.
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
 
-    sendToSomeoneTx =
-        [ Spend <| From me oneAda, SendTo you oneAda ]
-            |> finalize config []
+    sendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda), SendTo someone oneAda ]
+            |> finalize localStateUtxos []
 
 The finalization step validates the Tx, compute the fees and add other required fields.
 
@@ -68,44 +71,51 @@ Here is an example where me and you both contribute 1 Ada.
     twoAda =
         Value.add oneAda oneAda
 
-    bothSendToSomeoneTx =
-        [ Spend <| From me oneAda
-        , Spend <| From you oneAda
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ yourUtxos)
+
+    bothSendOneAdaToSomeoneTx =
+        [ Spend (FromWallet me oneAda)
+        , Spend (FromWallet you oneAda)
         , SendTo someone twoAda
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 To mint or burn via a native script, here is what we can do.
 
-    ( dogOutputRef, dogPolicyId, dogAssetName ) =
+    ( dogScriptRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
 
-    ( catOutputRef, catPolicyId, catAssetName ) =
+    ( catScriptRef, catPolicyId, catAssetName ) =
         Debug.todo "cat info is provided"
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     mintAndBurnTx =
-        -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
+        -- minting 1 dog
+        -- Mint amounts are of type Integer: unbounded positive or negative integers
         [ MintBurn
             { policyId = dogPolicyId
             , assets = Map.singleton dogAssetName Integer.one
-            , scriptWitness = NativeWitness (WitnessReference dogOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference dogScriptRef)
             }
-        , SendTo me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
-            , scriptWitness = NativeWitness (WitnessReference catOutputRef)
+            , scriptWitness = NativeWitness (WitnessReference catScriptRef)
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
 
 Let’s show how to use a native script to lock some tokens,
 that can only be retrieved with our signature.
 
-    -- Retrieve my public key credential from the address
+    -- Retrieve my public key credential from my address
     myKeyCred =
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
@@ -115,42 +125,60 @@ that can only be retrieved with our signature.
         ScriptPubkey myKeyCred
 
     lockScriptHash =
-        -- `computeNativeScriptHash` will be provided by elm-cardano
-        computeNativeScriptHash lockScript
+        -- TODO: Script.hash
+        Script.hash (Script.Native lockScript)
 
-    -- Deriving the script address from the lock script hash
+    -- Deriving the script address from the script hash
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
 
             -- Adding our stake credential while we are at it
-            -- so that our ada stays staked and yields rewards
+            -- so that our ada stays staked and yields staking rewards
             , stakeCredential = Address.extractStakeCredential me
             }
 
+    localStateUtxos =
+        Utxo.refDictFromList myUtxos
+
     nativeLockTx =
-        [ Spend <| From me twoAda, SendTo scriptAddress twoAda ]
-            |> finalize config []
+        [ Spend (FromWallet me twoAda), SendTo scriptAddress twoAda ]
+            |> finalize localStateUtxos []
 
 As you can see, we could even keep our stake credential
-while locking our ada into the script address,
-meaning the locked ada will still be counted in our stake for the rewards.
+while locking our ada into the script address.
+It means the locked ada will still be counted in our stake for the rewards.
 This is thanks to Cardano addresses which have two parts.
-The native script logic only affects the first part of the address.
+The script logic only determines the first part of the address.
 
 Let’s show an example how to spend utxos from this native script.
 We want to retrieve 1 ada from it, and keep the other ada locked.
+We need to do that in two actions.
 
-    lockedUtxo =
-        Debug.todo "the locked utxo with 2 ada"
+1.  Spend the whole UTxO, with its 2 ada in it.
+2.  Send 1 ada back to the same address.
+
+We cannot partially spend UTxOs.
+UTxOs are like bills, you spend them whole and get change for overspending.
+
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress nativeLockTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
 
     nativeUnlockTx =
-        -- This native script is so small,
-        -- the easiest way to provide it is directly by value
         [ Spend <|
             FromNativeScript
-                { spentInput = lockedUtxo
+                -- spend the whole UTxO
+                { spentInput = lockedUtxoRef
+
+                -- This native script is so small,
+                -- the easiest way to provide it is directly by value instead of by reference
                 , nativeScriptWitness = WitnessValue lockScript
                 }
 
@@ -158,7 +186,7 @@ We want to retrieve 1 ada from it, and keep the other ada locked.
         , SendTo me oneAda
         , SendTo scriptAddress oneAda
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 Alright, how about doing all those things with Plutus scripts now?
 Plutus scripts can be used for many purposes such as minting,
@@ -171,11 +199,12 @@ This enables very efficient script executions since they can just check
 that a public key is present in that `requiredSigners` field.
 
 Let’s start with a simple minting and burning example.
-For this example, we suppose the plutus script was already written.
-This plutus script will accept any mint or burn
+For this example, we suppose the Plutus script was already written,
+in some onchain language, like [Aiken](https://aiken-lang.org/).
+This Plutus script will accept any mint or burn
 as long as we present our signature in the transaction.
 The redeemer is not used at all so we can define a dummy one,
-of the smallest size possible.
+of the smallest size possible since a redeemer is mandatory.
 
     ( dogScriptOutputRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
@@ -192,6 +221,9 @@ of the smallest size possible.
     dummyRedeemer =
         Data.Int Integer.zero
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     mintAndBurnTx =
         -- minting 1 dog
         [ MintBurn
@@ -207,7 +239,7 @@ of the smallest size possible.
         , SendTo me (Value.onlyToken dogPolicyId dogAssetName Natural.one)
 
         -- burning 1 cat
-        , Spend <| From me (Value.onlyToken catPolicyId catAssetName Natural.one)
+        , Spend <| FromWallet me (Value.onlyToken catPolicyId catAssetName Natural.one)
         , MintBurn
             { policyId = catPolicyId
             , assets = Map.singleton catAssetName Integer.negativeOne
@@ -219,28 +251,34 @@ of the smallest size possible.
                     }
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
+
+You may have noticed that `redeemerData` is taking a function instead of just a redeemer.
+This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
+But for simple use cases, we can just ignore that argument with an underscore `_`.
+
+[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
 
 Ok now let’s show how sending to a Plutus script would be done.
 As before, we’ll use the simple example of a lock script.
 But this time, we don’t write it directly (as in the NativeScript example).
-Instead we suppose the script was written in some onchain language (Aiken, plu-ts, Opshin, ...),
+Instead we suppose the script was written in some onchain language (Aiken, Opshin, Plutus Tx, ...),
 and the blueprint of the script is available, with its hash.
 
-In the eUTxO model, UTxOs created at a script address must have a piece of data attached.
+In the eUTxO model, UTxOs sent to a script address must have a piece of data attached.
 That piece of data is referred to as the "datum".
-It will be passed as argument to the script execution, in addition to the redeemer.
+It will be passed as argument to the script execution
+when some future transaction try to spend that UTxO later.
 
     lockScriptHash =
         extractedFromBlueprint
 
+    -- A script address is directly tied to the script hash
+    -- and so indirectly also tied to the (immutable) script code.
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
-
-            -- This is our staking credential
-            -- We use it to keep our locked ada staked!
             , stakeCredential = Address.extractStakeCredential me
             }
 
@@ -248,53 +286,57 @@ It will be passed as argument to the script execution, in addition to the redeem
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
 
-    -- Put the unlocking pubkey in the datum of the funds we lock
+    -- Put the unlocking pubkey hash in the datum of the funds we lock
     datumWithKeyCred =
         Data.Bytes (Bytes.toAny myKeyCred)
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     lockInPlutusScriptTx =
-        [ Spend <| From me twoAda
+        [ Spend (FromWallet me fourAda)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = twoAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = fourAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
-
-You may have noticed that `SendToOutput` is taking a function parameter
-instead of just an `Output`.
-This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
-But for simple use cases, we can just ignore that argument with an underscore `_`.
-
-[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
+            |> finalize localStateUtxos []
 
 Now that we know how to send values to a script, let’s see how to collect them.
-We will show how to retrieve 1 ada from the previously locked 2 ada.
+We will show how to retrieve 2 ada from the previously locked 4 ada.
 For that, we need to do a few things:
 
-1.  Spend the whole UTxO, with its 2 ada in it.
+1.  Spend the whole UTxO, with its 4 ada in it.
     We cannot partially spend UTxOs.
+    UTxOs are like bills, you spend them whole and get change for overspending.
 2.  Provide the script code to the transaction.
     The script hash must match with the first part of the UTxO address we are spending.
 3.  Provide our signature for the proof that the script needs.
-4.  Retrieve 1 ada from that spent UTxO, and send 1 ada back to the same script.
+4.  Retrieve 2 ada from that spent UTxO, and send 2 ada back to the same script.
 
 For such a tiny script, which just checks if our signature is present,
 no need to put it in a reference UTxO first.
 We can embed it directly in the transaction witness.
 
-    ( lockScript, lockScriptHash ) =
-        Debug.todo "Extracted from the script blueprint"
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress lockInPlutusScriptTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
+
+    lockScript =
+        extractedFromTheBlueprint
 
     unlockFromPlutusScriptTx =
-        -- Collect 1 ada from the locked UTxO at the script address
+        -- Collect the locked UTxO at the script address
         [ Spend <|
             FromPlutusScript
-                { spentInput = Debug.todo "the locked utxo with 2 ada"
+                { spentInput = lockedUtxoRef
                 , datumWitness = Nothing -- not needed, the datum was given by value
                 , plutusScriptWitness =
                     { script = WitnessValue lockScript -- script passed by value
@@ -302,58 +344,57 @@ We can embed it directly in the transaction witness.
                     , requiredSigners = [ myKeyCred ]
                     }
                 }
-        , SendTo me oneAda
+        , SendTo me twoAda
 
-        -- Return the other 1 ada to the lock script (there was 2 ada initially)
+        -- Return the other 2 ada to the lock script (there was 4 ada initially)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = oneAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = twoAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 
 ## Code Documentation
 
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
 @docs TxOtherInfo
-@docs finalize
+@docs Fee
+@docs finalize, finalizeAdvanced, TxFinalizationError
+@docs dummyBytes
 
 -}
 
+import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
-import Cardano.Cip30 exposing (Utxo)
+import Cardano.Address as Address exposing (Address(..), CredentialHash, StakeAddress)
+import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
+import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction exposing (Transaction, TransactionBody, WitnessSet)
-import Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum)
-import Cardano.Transaction.Builder exposing (requiredSigner)
-import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
+import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
+import Cardano.Uplc as Uplc
+import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
-import Dict exposing (Dict)
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
+import Set
 
 
-type Todo
-    = Todo
-
-
-{-| -}
+{-| Represents different types of transaction intents.
+-}
 type TxIntent
     = SendTo Address Value
-    | SendToOutput (InputsOutputs -> Output)
+    | SendToOutput Output
+    | SendToOutputAdvanced (InputsOutputs -> Output)
       -- Spending assets from somewhere
     | Spend SpendSource
       -- Minting / burning assets
@@ -363,19 +404,26 @@ type TxIntent
         , scriptWitness : ScriptWitness
         }
       -- Issuing certificates
-    | IssueCertificate Todo
+    | IssueCertificate -- TODO
       -- Withdrawing rewards
     | WithdrawRewards
+        -- TODO: check that the addres type match the scriptWitness field
         { stakeCredential : StakeAddress
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
+    | Vote -- TODO
+    | Propose -- TODO
 
 
-{-| -}
+{-| Represents different sources for spending assets.
+
+TODO: check that output references match the type of source (script VS not script)
+
+-}
 type SpendSource
-    = From Address Value
-      -- Eventually improve "From Address Value"" with variants like:
+    = FromWallet Address Value
+      -- (Maybe) Eventually improve "From Address Value"" with variants like:
       -- FromAnywhere Value
       -- FromPaymentKey (Bytes CredentialHash)
     | FromWalletUtxo OutputReference
@@ -390,7 +438,8 @@ type SpendSource
         }
 
 
-{-| -}
+{-| Represents the inputs and outputs of a transaction.
+-}
 type alias InputsOutputs =
     { referenceInputs : List OutputReference
     , spentInputs : List OutputReference
@@ -398,13 +447,22 @@ type alias InputsOutputs =
     }
 
 
-{-| -}
+{-| Helper initialization for InputsOutputs.
+-}
+noInputsOutputs : InputsOutputs
+noInputsOutputs =
+    { referenceInputs = [], spentInputs = [], createdOutputs = [] }
+
+
+{-| Represents different types of script witnesses.
+-}
 type ScriptWitness
     = NativeWitness (WitnessSource NativeScript)
     | PlutusWitness PlutusScriptWitness
 
 
-{-| -}
+{-| Represents a Plutus script witness.
+-}
 type alias PlutusScriptWitness =
     { script : WitnessSource PlutusScript
     , redeemerData : InputsOutputs -> Data
@@ -412,18 +470,64 @@ type alias PlutusScriptWitness =
     }
 
 
-{-| -}
+{-| Represents different sources for witnesses.
+-}
 type WitnessSource a
     = WitnessValue a
     | WitnessReference OutputReference
 
 
-{-| -}
+{-| Extract the [OutputReference] from a witness source,
+if passed by reference. Return [Nothing] if passed by value.
+-}
+extractWitnessRef : WitnessSource a -> Maybe OutputReference
+extractWitnessRef witnessSource =
+    case witnessSource of
+        WitnessValue _ ->
+            Nothing
+
+        WitnessReference ref ->
+            Just ref
+
+
+{-| Represents additional information for a transaction.
+-}
 type TxOtherInfo
     = TxReferenceInput OutputReference
     | TxMetadata { tag : Natural, metadata : Metadatum }
     | TxTimeValidityRange { start : Int, end : Natural }
-    | TxManualFee { lovelace : Natural }
+
+
+{-| Configure fees manually or automatically for a transaction.
+-}
+type Fee
+    = ManualFee (List { paymentSource : Address, exactFeeAmount : Natural })
+    | AutoFee { paymentSource : Address }
+
+
+{-| Initialize fee estimation by setting the fee field to ₳0.5
+This is represented as 500K lovelace, which is encoded as a 32bit uint.
+32bit uint can represent a range from ₳0.065 to ₳4200 so it most likely won’t change.
+-}
+defaultAutoFee : Natural
+defaultAutoFee =
+    Natural.fromSafeInt 500000
+
+
+{-| Errors that may happen during Tx finalization.
+-}
+type TxFinalizationError
+    = UnableToGuessFeeSource
+    | UnbalancedIntents String
+    | InsufficientManualFee { declared : Natural, computed : Natural }
+    | NotEnoughMinAda String
+    | ReferenceOutputsMissingFromLocalState (List OutputReference)
+    | FailedToPerformCoinSelection CoinSelection.Error
+    | CollateralSelectionError CoinSelection.Error
+    | DuplicatedMetadataTags Int
+    | IncorrectTimeValidityRange String
+    | UplcVmError String
+    | FailurePleaseReportToElmCardano String
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -431,102 +535,482 @@ type TxOtherInfo
 Analyze all intents and perform the following actions:
 
   - Check the Tx balance
-  - Select the input UTxOs
-  - Evaluate script execution costs
-  - Compute Tx fee
+  - Select the input UTxOs with a default coin selection algorithm
+  - Evaluate script execution costs with default mainnet parameters
+  - Try to find fee payment source automatically and compute automatic Tx fee
+
+In case you want more customization, please use [finalizeAdvanced].
 
 -}
 finalize :
-    { localStateUtxos : Utxo.RefDict Output
-    , coinSelectionAlgo : CoinSelection.Algorithm
-    }
+    Utxo.RefDict Output
     -> List TxOtherInfo
     -> List TxIntent
-    -> Result String Transaction
-finalize { localStateUtxos, coinSelectionAlgo } txOtherInfo txIntents =
-    -- TODO: Check that all spent referenced inputs are present in the local state
+    -> Result TxFinalizationError Transaction
+finalize localStateUtxos txOtherInfo txIntents =
+    guessFeeSource localStateUtxos txIntents
+        |> Result.andThen
+            (\feeSource ->
+                let
+                    defaultEvalScriptsCosts =
+                        if containPlutusScripts txIntents then
+                            Uplc.evalScriptsCosts Uplc.defaultVmConfig
+
+                        else
+                            \_ _ -> Ok []
+                in
+                finalizeAdvanced
+                    { localStateUtxos = localStateUtxos
+                    , coinSelectionAlgo = CoinSelection.largestFirst
+                    , evalScriptsCosts = defaultEvalScriptsCosts
+                    }
+                    (AutoFee { paymentSource = feeSource })
+                    txOtherInfo
+                    txIntents
+            )
+
+
+{-| Attempt to guess the [Address] used to pay the fees from the list of intents.
+
+It will use an address coming from either of these below options,
+in the preference order of that list:
+
+  - an address coming from a `From address value` spend source
+  - an address coming from a `FromWalletUtxo ref` input spend source
+  - an address coming from a `SendTo address value` destination
+
+If none of these are present, this will return an `UnableToGuessFeeSource` error.
+If a wallet UTxO reference is found but not present in the local state UTxOs,
+this will return a `ReferenceOutputsMissingFromLocalState` error.
+
+-}
+guessFeeSource : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError Address
+guessFeeSource localStateUtxos txIntents =
     let
-        -- Initialize InputsOutputs
-        -- TODO: better initalization?
-        inputsOutputs =
-            { referenceInputs = []
-            , spentInputs = []
-            , createdOutputs = []
-            }
+        findFromAddress intents =
+            case intents of
+                [] ->
+                    Nothing
 
-        -- TODO: Deduplicate eventual duplicate witnesses (both value and reference) after processedIntents
-        processedIntents =
-            processIntents localStateUtxos txIntents
+                (Spend (FromWallet address _)) :: _ ->
+                    Just address
 
-        totalInput =
-            Dict.Any.foldl (\_ -> Value.add)
-                processedIntents.preSelected.sum
-                processedIntents.freeInputs
+                _ :: rest ->
+                    findFromAddress rest
 
-        preCreatedOutputs =
-            processedIntents.preCreated inputsOutputs
+        findFromWalletUtxo intents =
+            case intents of
+                [] ->
+                    Ok Nothing
 
-        totalOutput =
-            Dict.Any.foldl (\_ -> Value.add)
-                preCreatedOutputs.sum
-                processedIntents.freeOutputs
+                (Spend (FromWalletUtxo ref)) :: _ ->
+                    case Dict.Any.get ref localStateUtxos of
+                        Just { address } ->
+                            Ok (Just address)
+
+                        Nothing ->
+                            Err (ReferenceOutputsMissingFromLocalState [ ref ])
+
+                _ :: rest ->
+                    findFromWalletUtxo rest
+
+        findSendTo intents =
+            case intents of
+                [] ->
+                    Nothing
+
+                (SendTo address _) :: _ ->
+                    Just address
+
+                _ :: rest ->
+                    findSendTo rest
     in
-    if totalInput == totalOutput then
-        -- check that pre-created outputs have correct min ada
-        -- TODO: change this step to use processed intents directly
-        validMinAdaPerOutput inputsOutputs txIntents
-            -- UTxO selection
-            |> Result.andThen (\_ -> computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo)
-            --> Result String (Address.Dict Selection)
-            -- Accumulate all selected UTxOs and newly created outputs
-            |> Result.map (accumPerAddressSelection processedIntents.freeOutputs)
-            --> Result String { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
-            -- Aggregate with pre-selected inputs and pre-created outputs
-            |> Result.map (\selection -> updateInputsOutputs processedIntents selection inputsOutputs)
-            --> Result String InputsOutputs
-            |> Result.map (buildTx processedIntents)
-        -- TODO: without estimating cost of plutus script exec, do few loops of:
-        --   - estimate Tx fees
-        --   - adjust coin selection
-        --   - adjust redeemers
-        -- TODO: evaluate plutus script cost, and do a final round of above
+    case findFromAddress txIntents of
+        Just address ->
+            Ok address
 
-    else
-        let
-            _ =
-                Debug.log "totalInput" totalInput
+        Nothing ->
+            case findFromWalletUtxo txIntents of
+                Err err ->
+                    Err err
 
-            _ =
-                Debug.log "totalOutput" totalOutput
-        in
-        Err "Tx is not balanced.\n"
+                Ok (Just address) ->
+                    Ok address
+
+                Ok Nothing ->
+                    case findSendTo txIntents of
+                        Just address ->
+                            Ok address
+
+                        Nothing ->
+                            Err UnableToGuessFeeSource
 
 
-validMinAdaPerOutput : InputsOutputs -> List TxIntent -> Result String ()
-validMinAdaPerOutput inputsOutputs txIntents =
-    -- TODO: change this to be checked on processed intents
+{-| Helper function to detect the presence of Plutus scripts in the transaction.
+-}
+containPlutusScripts : List TxIntent -> Bool
+containPlutusScripts txIntents =
     case txIntents of
         [] ->
-            Ok ()
+            False
 
-        first :: others ->
-            case first of
-                SendToOutput f ->
-                    let
-                        output =
-                            f inputsOutputs
+        (SendTo _ _) :: otherIntents ->
+            containPlutusScripts otherIntents
 
-                        outputMinAda =
-                            Utxo.minAda output
-                    in
-                    if Utxo.lovelace output |> Natural.isGreaterThanOrEqual outputMinAda then
-                        validMinAdaPerOutput inputsOutputs others
+        (SendToOutput _) :: otherIntents ->
+            containPlutusScripts otherIntents
 
-                    else
-                        Err ("Output has less ada than its required min ada (" ++ Natural.toString outputMinAda ++ "):\n" ++ Debug.toString output)
+        (SendToOutputAdvanced _) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromWallet _ _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromWalletUtxo _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromNativeScript _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (Spend (FromPlutusScript _)) :: _ ->
+            True
+
+        (MintBurn { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                NativeWitness _ ->
+                    containPlutusScripts otherIntents
+
+                PlutusWitness _ ->
+                    True
+
+        IssueCertificate :: _ ->
+            Debug.todo "certificateHasScript?"
+
+        (WithdrawRewards { scriptWitness }) :: otherIntents ->
+            case scriptWitness of
+                Just (PlutusWitness _) ->
+                    True
 
                 _ ->
-                    validMinAdaPerOutput inputsOutputs others
+                    containPlutusScripts otherIntents
+
+        Vote :: _ ->
+            Debug.todo "voteHasScript?"
+
+        Propose :: _ ->
+            Debug.todo "proposeHasScript?"
+
+
+{-| Finalize a transaction before signing and sending it.
+
+Analyze all intents and perform the following actions:
+
+  - Check the Tx balance
+  - Select the input UTxOs with the provided coin selection algorithm
+  - Evaluate script execution costs with the provided function
+  - Compute Tx fee if set to auto
+
+-}
+finalizeAdvanced :
+    { localStateUtxos : Utxo.RefDict Output
+    , coinSelectionAlgo : CoinSelection.Algorithm
+    , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
+    }
+    -> Fee
+    -> List TxOtherInfo
+    -> List TxIntent
+    -> Result TxFinalizationError Transaction
+finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+    case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
+        ( Err err, _ ) ->
+            Err err
+
+        ( _, Err err ) ->
+            Err err
+
+        ( Ok processedIntents, Ok processedOtherInfo ) ->
+            let
+                buildTxRound : InputsOutputs -> Fee -> Result TxFinalizationError Transaction
+                buildTxRound roundInputsOutputs roundFees =
+                    let
+                        ( feeAmount, feeAddresses ) =
+                            case roundFees of
+                                ManualFee perAddressFee ->
+                                    ( List.foldl (\{ exactFeeAmount } -> Natural.add exactFeeAmount) Natural.zero perAddressFee
+                                    , List.map .paymentSource perAddressFee
+                                    )
+
+                                AutoFee { paymentSource } ->
+                                    ( defaultAutoFee, [ paymentSource ] )
+
+                        ( collateralAmount, collateralSources ) =
+                            if List.isEmpty processedIntents.plutusScriptSources then
+                                ( Natural.zero, Address.emptyDict )
+
+                            else
+                                -- collateral = 1.5 * fee
+                                -- It’s an euclidean division, so if there is a non-zero rest,
+                                -- we add 1 to make sure we aren’t short 1 lovelace.
+                                ( feeAmount
+                                    |> Natural.mul (Natural.fromSafeInt 15)
+                                    |> Natural.divModBy (Natural.fromSafeInt 10)
+                                    |> Maybe.withDefault ( Natural.zero, Natural.zero )
+                                    |> (\( q, r ) -> Natural.add q <| Natural.min r Natural.one)
+                                  -- Identify automatically collateral sources
+                                  -- from fee addresses, free inputs addresses or spent inputs addresses.
+                                , [ feeAddresses
+                                  , Dict.Any.keys processedIntents.freeInputs
+                                  , Dict.Any.keys processedIntents.preSelected.inputs
+                                        |> List.filterMap (\addr -> Dict.Any.get addr localStateUtxos |> Maybe.map .address)
+                                  ]
+                                    |> List.concat
+                                    |> List.filter Address.isShelleyWallet
+                                    -- make the list unique
+                                    |> List.map (\addr -> ( addr, () ))
+                                    |> Address.dictFromList
+                                )
+                    in
+                    -- UTxO selection
+                    Result.map2
+                        (\coinSelection collateralSelection ->
+                            --> coinSelection : Address.Dict (Selection, List Output)
+                            -- Accumulate all selected UTxOs and newly created outputs
+                            accumPerAddressSelection coinSelection
+                                --> { selectedInputs : Utxo.RefDict Ouptut, createdOutputs : List Output }
+                                -- Aggregate with pre-selected inputs and pre-created outputs
+                                |> (\selection -> updateInputsOutputs processedIntents selection roundInputsOutputs)
+                                --> InputsOutputs
+                                |> buildTx localStateUtxos feeAmount collateralSelection processedIntents processedOtherInfo
+                        )
+                        (computeCoinSelection localStateUtxos roundFees processedIntents coinSelectionAlgo)
+                        (computeCollateralSelection localStateUtxos collateralSources collateralAmount)
+
+                extractInputsOutputs tx =
+                    { referenceInputs = tx.body.referenceInputs
+                    , spentInputs = tx.body.inputs
+                    , createdOutputs = tx.body.outputs
+                    }
+
+                computeRefScriptBytesForTx tx =
+                    computeRefScriptBytes localStateUtxos (tx.body.referenceInputs ++ tx.body.inputs)
+
+                adjustFees tx =
+                    case fee of
+                        ManualFee _ ->
+                            fee
+
+                        AutoFee { paymentSource } ->
+                            let
+                                refScriptBytes =
+                                    computeRefScriptBytesForTx tx
+                            in
+                            Transaction.computeFees Transaction.defaultTxFeeParams { refScriptBytes = refScriptBytes } tx
+                                |> Debug.log "computed Tx fee"
+                                |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
+                                |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
+            in
+            -- Without estimating cost of plutus script exec, do couple loops of:
+            --   - estimate Tx fees
+            --   - adjust coin selection
+            --   - adjust redeemers
+            buildTxRound noInputsOutputs fee
+                --> Result String Transaction
+                |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
+                -- Evaluate plutus script cost
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
+                -- Redo a final round of above
+                |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
+                |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
+                -- Finally, check if final fees are correct
+                |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
+
+
+{-| Helper function to compute the total size of reference scripts.
+
+Inputs are only counted once (even if present in both regular and reference inputs).
+But scripts duplicates in different inputs are counted multiple times.
+Both native and Plutus scripts are counted.
+One issue here is I don’t think we still have the original bytes representation of these.
+
+The rule is detailed in that document:
+<https://github.com/IntersectMBO/cardano-ledger/blob/master/docs/adr/2024-08-14_009-refscripts-fee-change.md#reference-scripts-total-size>
+
+-}
+computeRefScriptBytes : Utxo.RefDict Output -> List OutputReference -> Int
+computeRefScriptBytes localStateUtxos references =
+    -- merge all inputs uniquely
+    Utxo.refDictFromList (List.map (\r -> ( r, () )) references)
+        |> Dict.Any.keys
+        -- retrieve outputs reference scripts for all inputs
+        |> List.filterMap
+            (\ref ->
+                Dict.Any.get ref localStateUtxos
+                    |> Maybe.andThen .referenceScript
+            )
+        -- extract reference script bytes size
+        |> List.map (\script -> ElmBytes.width <| E.encode (Script.toCbor script))
+        |> List.sum
+
+
+type alias PreProcessedIntents =
+    { freeInputs : Address.Dict Value
+    , freeOutputs : Address.Dict Value
+    , preSelected : List { input : OutputReference, redeemer : Maybe (InputsOutputs -> Data) }
+    , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
+    , nativeScriptSources : List (WitnessSource NativeScript)
+    , plutusScriptSources : List (WitnessSource PlutusScript)
+    , datumSources : List (WitnessSource Data)
+    , requiredSigners : List (List (Bytes CredentialHash))
+    , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
+    , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
+    }
+
+
+noIntent : PreProcessedIntents
+noIntent =
+    { freeInputs = Address.emptyDict
+    , freeOutputs = Address.emptyDict
+    , preSelected = []
+    , preCreated = \_ -> { sum = Value.zero, outputs = [] }
+    , nativeScriptSources = []
+    , plutusScriptSources = []
+    , datumSources = []
+    , requiredSigners = []
+    , mints = []
+    , withdrawals = []
+    }
+
+
+{-| Initial processing step in order to categorize all intents.
+
+This pre-processing step does not need the local utxo state.
+It only aggregates all intents into relevant fields
+to make following processing steps easier.
+
+-}
+preProcessIntents : List TxIntent -> PreProcessedIntents
+preProcessIntents txIntents =
+    let
+        freeValueAdd : Address -> Value -> Address.Dict Value -> Address.Dict Value
+        freeValueAdd addr v freeValue =
+            Dict.Any.update addr (Just << Value.add v << Maybe.withDefault Value.zero) freeValue
+
+        -- Step function that pre-processes each TxIntent
+        stepIntent : TxIntent -> PreProcessedIntents -> PreProcessedIntents
+        stepIntent txIntent preProcessedIntents =
+            case txIntent of
+                SendTo addr v ->
+                    { preProcessedIntents
+                        | freeOutputs = freeValueAdd addr v preProcessedIntents.freeOutputs
+                    }
+
+                SendToOutput newOutput ->
+                    let
+                        newPreCreated inputsOutputs =
+                            let
+                                { sum, outputs } =
+                                    preProcessedIntents.preCreated inputsOutputs
+                            in
+                            { sum = Value.add sum newOutput.amount
+                            , outputs = newOutput :: outputs
+                            }
+                    in
+                    { preProcessedIntents | preCreated = newPreCreated }
+
+                SendToOutputAdvanced f ->
+                    let
+                        newPreCreated inputsOutputs =
+                            let
+                                { sum, outputs } =
+                                    preProcessedIntents.preCreated inputsOutputs
+
+                                newOutput =
+                                    f inputsOutputs
+                            in
+                            { sum = Value.add sum newOutput.amount
+                            , outputs = newOutput :: outputs
+                            }
+                    in
+                    { preProcessedIntents | preCreated = newPreCreated }
+
+                Spend (FromWallet addr v) ->
+                    { preProcessedIntents
+                        | freeInputs = freeValueAdd addr v preProcessedIntents.freeInputs
+                    }
+
+                Spend (FromWalletUtxo ref) ->
+                    { preProcessedIntents | preSelected = { input = ref, redeemer = Nothing } :: preProcessedIntents.preSelected }
+
+                Spend (FromNativeScript { spentInput, nativeScriptWitness }) ->
+                    { preProcessedIntents
+                        | preSelected = { input = spentInput, redeemer = Nothing } :: preProcessedIntents.preSelected
+                        , nativeScriptSources = nativeScriptWitness :: preProcessedIntents.nativeScriptSources
+                    }
+
+                Spend (FromPlutusScript { spentInput, datumWitness, plutusScriptWitness }) ->
+                    let
+                        newDatumSources =
+                            case datumWitness of
+                                Nothing ->
+                                    preProcessedIntents.datumSources
+
+                                Just datumSource ->
+                                    datumSource :: preProcessedIntents.datumSources
+                    in
+                    { preProcessedIntents
+                        | preSelected = { input = spentInput, redeemer = Just plutusScriptWitness.redeemerData } :: preProcessedIntents.preSelected
+                        , datumSources = newDatumSources
+                        , requiredSigners = plutusScriptWitness.requiredSigners :: preProcessedIntents.requiredSigners
+                        , plutusScriptSources = plutusScriptWitness.script :: preProcessedIntents.plutusScriptSources
+                    }
+
+                MintBurn { policyId, assets, scriptWitness } ->
+                    case scriptWitness of
+                        NativeWitness script ->
+                            { preProcessedIntents
+                                | nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                                , mints = { policyId = policyId, assets = assets, redeemer = Nothing } :: preProcessedIntents.mints
+                            }
+
+                        PlutusWitness { script, redeemerData, requiredSigners } ->
+                            { preProcessedIntents
+                                | plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                                , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                                , mints = { policyId = policyId, assets = assets, redeemer = Just redeemerData } :: preProcessedIntents.mints
+                            }
+
+                WithdrawRewards { stakeCredential, amount, scriptWitness } ->
+                    case scriptWitness of
+                        Nothing ->
+                            { preProcessedIntents
+                                | withdrawals = { stakeAddress = stakeCredential, amount = amount, redeemer = Nothing } :: preProcessedIntents.withdrawals
+                            }
+
+                        Just (NativeWitness script) ->
+                            { preProcessedIntents
+                                | withdrawals = { stakeAddress = stakeCredential, amount = amount, redeemer = Nothing } :: preProcessedIntents.withdrawals
+                                , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                            }
+
+                        Just (PlutusWitness { script, redeemerData, requiredSigners }) ->
+                            { preProcessedIntents
+                                | withdrawals = { stakeAddress = stakeCredential, amount = amount, redeemer = Just redeemerData } :: preProcessedIntents.withdrawals
+                                , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                                , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                            }
+
+                -- TODO: Handle certificates
+                IssueCertificate ->
+                    Debug.todo "certificates"
+
+                Vote ->
+                    Debug.todo "vote"
+
+                Propose ->
+                    Debug.todo "propose"
+    in
+    -- Use fold right so that the outputs list is in the correct order
+    List.foldr stepIntent noIntent txIntents
 
 
 type alias ProcessedIntents =
@@ -544,25 +1028,46 @@ type alias ProcessedIntents =
     }
 
 
-noIntent : ProcessedIntents
-noIntent =
-    { freeInputs = Address.emptyDict
-    , freeOutputs = Address.emptyDict
-    , preSelected = { sum = Value.zero, inputs = Utxo.emptyRefDict }
-    , preCreated = \_ -> { sum = Value.zero, outputs = [] }
-    , nativeScriptSources = []
-    , plutusScriptSources = []
-    , datumSources = []
-    , requiredSigners = []
-    , totalMinted = MultiAsset.empty
-    , mintRedeemers = Map.empty
-    , withdrawals = Address.emptyStakeDict
-    }
-
-
-processIntents : Utxo.RefDict Output -> List TxIntent -> ProcessedIntents
+{-| Process already pre-processed intents and validate them all.
+-}
+processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
 processIntents localStateUtxos txIntents =
     let
+        preProcessedIntents =
+            preProcessIntents txIntents
+
+        -- Accumulate all output references from inputs and witnesses.
+        allOutputReferencesInIntents : Utxo.RefDict ()
+        allOutputReferencesInIntents =
+            List.concat
+                [ List.map .input preProcessedIntents.preSelected
+                , List.filterMap extractWitnessRef preProcessedIntents.nativeScriptSources
+                , List.filterMap extractWitnessRef preProcessedIntents.plutusScriptSources
+                , List.filterMap extractWitnessRef preProcessedIntents.datumSources
+                ]
+                |> List.map (\ref -> ( ref, () ))
+                |> Utxo.refDictFromList
+
+        -- Check that all referenced inputs are present in the local state
+        absentOutputReferencesInLocalState : Utxo.RefDict ()
+        absentOutputReferencesInLocalState =
+            Dict.Any.diff allOutputReferencesInIntents
+                (Dict.Any.map (\_ _ -> ()) localStateUtxos)
+
+        -- Extract total minted value and total burned value
+        splitMintsBurns =
+            List.map (\m -> ( m.policyId, MultiAsset.balance m.assets )) preProcessedIntents.mints
+
+        totalMintedValue =
+            List.foldl (\( p, { minted } ) -> Value.addTokens (Map.singleton p minted)) Value.zero splitMintsBurns
+
+        totalBurnedValue =
+            List.foldl (\( p, { burned } ) -> Value.addTokens (Map.singleton p burned)) Value.zero splitMintsBurns
+
+        -- Extract total ada amount withdrawn
+        totalWithdrawalAmount =
+            List.foldl (\w acc -> Natural.add w.amount acc) Natural.zero preProcessedIntents.withdrawals
+
         -- Retrieve the ada and tokens amount at a given output reference
         getValueFromRef : OutputReference -> Value
         getValueFromRef ref =
@@ -570,167 +1075,280 @@ processIntents localStateUtxos txIntents =
                 |> Maybe.map .amount
                 |> Maybe.withDefault Value.zero
 
-        freeValueAdd : Address -> Value -> Address.Dict Value -> Address.Dict Value
-        freeValueAdd addr v freeValue =
-            Dict.Any.update addr (Just << Value.add v << Maybe.withDefault Value.zero) freeValue
-
-        -- Step function that processes each TxIntent
-        stepIntent : TxIntent -> ProcessedIntents -> ProcessedIntents
-        stepIntent txIntent processedIntents =
-            case txIntent of
-                SendTo addr v ->
-                    { processedIntents
-                        | freeOutputs = freeValueAdd addr v processedIntents.freeOutputs
+        -- Extract value thanks to input refs
+        -- Also add minted tokens and withdrawals to preSelected
+        preSelected =
+            preProcessedIntents.preSelected
+                |> List.foldl (\s -> addPreSelectedInput s.input (getValueFromRef s.input) s.redeemer)
+                    { sum = Value.add totalMintedValue (Value.onlyLovelace totalWithdrawalAmount)
+                    , inputs = Utxo.emptyRefDict
                     }
 
-                SendToOutput f ->
-                    let
-                        newPreCreated inputsOutputs =
-                            let
-                                { sum, outputs } =
-                                    processedIntents.preCreated inputsOutputs
+        -- Add burned tokens to preCreated
+        preCreated =
+            \inputsOutputs ->
+                let
+                    { sum, outputs } =
+                        preProcessedIntents.preCreated inputsOutputs
+                in
+                { sum = Value.add sum totalBurnedValue, outputs = outputs }
 
-                                newOutput =
-                                    f inputsOutputs
-                            in
-                            { sum = Value.add sum newOutput.amount
-                            , outputs = newOutput :: outputs
-                            }
-                    in
-                    { processedIntents | preCreated = newPreCreated }
+        preCreatedOutputs =
+            preCreated noInputsOutputs
 
-                Spend (From addr v) ->
-                    { processedIntents
-                        | freeInputs = freeValueAdd addr v processedIntents.freeInputs
-                    }
+        -- Compute total inputs and outputs to check the Tx balance
+        totalInput =
+            Dict.Any.foldl (\_ -> Value.add) preSelected.sum preProcessedIntents.freeInputs
 
-                Spend (FromWalletUtxo ref) ->
-                    { processedIntents | preSelected = addPreSelectedInput ( ref, Nothing ) (getValueFromRef ref) processedIntents.preSelected }
-
-                Spend (FromNativeScript { spentInput, nativeScriptWitness }) ->
-                    { processedIntents
-                        | preSelected = addPreSelectedInput ( spentInput, Nothing ) (getValueFromRef spentInput) processedIntents.preSelected
-                        , nativeScriptSources = nativeScriptWitness :: processedIntents.nativeScriptSources
-                    }
-
-                Spend (FromPlutusScript { spentInput, datumWitness, plutusScriptWitness }) ->
-                    let
-                        newDatumSources =
-                            case datumWitness of
-                                Nothing ->
-                                    processedIntents.datumSources
-
-                                Just datumSource ->
-                                    datumSource :: processedIntents.datumSources
-                    in
-                    { processedIntents
-                        | preSelected = addPreSelectedInput ( spentInput, Just plutusScriptWitness.redeemerData ) (getValueFromRef spentInput) processedIntents.preSelected
-                        , datumSources = newDatumSources
-                        , requiredSigners = plutusScriptWitness.requiredSigners ++ processedIntents.requiredSigners
-                        , plutusScriptSources = plutusScriptWitness.script :: processedIntents.plutusScriptSources
-                    }
-
-                -- TODO: check that policyId wasn’t already present in totalMinted
-                MintBurn { policyId, assets, scriptWitness } ->
-                    let
-                        { minted, burned } =
-                            MultiAsset.balance assets
-
-                        newPreCreated inputsOutputs =
-                            let
-                                { sum, outputs } =
-                                    processedIntents.preCreated inputsOutputs
-                            in
-                            { sum = Value.addTokens (Map.singleton policyId burned) sum
-                            , outputs = outputs
-                            }
-
-                        addWitnessAndRedeemer : ProcessedIntents -> ProcessedIntents
-                        addWitnessAndRedeemer before =
-                            case scriptWitness of
-                                NativeWitness script ->
-                                    { before
-                                        | nativeScriptSources = script :: before.nativeScriptSources
-                                        , mintRedeemers = Map.insert policyId Nothing before.mintRedeemers
-                                    }
-
-                                PlutusWitness { script, redeemerData, requiredSigners } ->
-                                    { before
-                                        | plutusScriptSources = script :: before.plutusScriptSources
-                                        , requiredSigners = requiredSigners ++ before.requiredSigners
-                                        , mintRedeemers = Map.insert policyId (Just redeemerData) before.mintRedeemers
-                                    }
-                    in
-                    addWitnessAndRedeemer
-                        { processedIntents
-                            | preSelected =
-                                { sum = Value.addTokens (Map.singleton policyId minted) processedIntents.preSelected.sum
-                                , inputs = processedIntents.preSelected.inputs
-                                }
-                            , preCreated = newPreCreated
-                            , totalMinted = MultiAsset.mintAdd processedIntents.totalMinted (Map.singleton policyId assets)
-                        }
-
-                WithdrawRewards { stakeCredential, amount, scriptWitness } ->
-                    let
-                        addWitnessAndRedeemer : ProcessedIntents -> ProcessedIntents
-                        addWitnessAndRedeemer before =
-                            case scriptWitness of
-                                Nothing ->
-                                    { before
-                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Nothing } processedIntents.withdrawals
-                                    }
-
-                                Just (NativeWitness script) ->
-                                    { before
-                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Nothing } processedIntents.withdrawals
-                                        , nativeScriptSources = script :: before.nativeScriptSources
-                                    }
-
-                                Just (PlutusWitness { script, redeemerData, requiredSigners }) ->
-                                    { before
-                                        | withdrawals = Dict.Any.insert stakeCredential { amount = amount, redeemer = Just redeemerData } processedIntents.withdrawals
-                                        , plutusScriptSources = script :: before.plutusScriptSources
-                                        , requiredSigners = requiredSigners ++ before.requiredSigners
-                                    }
-                    in
-                    addWitnessAndRedeemer
-                        { processedIntents
-                            | preSelected =
-                                { sum = Value.add (Value.onlyLovelace amount) processedIntents.preSelected.sum
-                                , inputs = processedIntents.preSelected.inputs
-                                }
-                        }
-
-                -- TODO: Handle certificates
-                _ ->
-                    processedIntents
+        totalOutput =
+            Dict.Any.foldl (\_ -> Value.add) preCreatedOutputs.sum preProcessedIntents.freeOutputs
     in
-    -- Use fold right so that the outputs list is in the correct order
-    List.foldr stepIntent noIntent txIntents
+    if not <| Dict.Any.isEmpty absentOutputReferencesInLocalState then
+        Err <| ReferenceOutputsMissingFromLocalState (Dict.Any.keys absentOutputReferencesInLocalState)
+
+    else if totalInput /= totalOutput then
+        let
+            _ =
+                Debug.log "totalInput" totalInput
+
+            _ =
+                Debug.log "totalOutput" totalOutput
+        in
+        Err <| UnbalancedIntents "Tx is not balanced.\n"
+
+    else
+        let
+            totalMintedAndBurned : MultiAsset Integer
+            totalMintedAndBurned =
+                List.map (\m -> Map.singleton m.policyId m.assets) preProcessedIntents.mints
+                    |> List.foldl MultiAsset.mintAdd MultiAsset.empty
+                    |> MultiAsset.normalize Integer.isZero
+        in
+        validMinAdaPerOutput preCreatedOutputs.outputs
+            |> Result.mapError NotEnoughMinAda
+            |> Result.map
+                (\_ ->
+                    let
+                        -- Dedup required signers
+                        requiredSigners =
+                            List.concat preProcessedIntents.requiredSigners
+                                |> List.map (\signer -> ( signer, () ))
+                                |> Map.fromList
+                                |> Map.keys
+                    in
+                    { freeInputs = preProcessedIntents.freeInputs
+                    , freeOutputs = preProcessedIntents.freeOutputs
+                    , preSelected = preSelected
+                    , preCreated = preCreated
+                    , nativeScriptSources = dedupWitnessSources Script.encodeNativeScript preProcessedIntents.nativeScriptSources
+                    , plutusScriptSources = dedupWitnessSources Script.encodePlutusScript preProcessedIntents.plutusScriptSources
+                    , datumSources = dedupWitnessSources Data.toCbor preProcessedIntents.datumSources
+                    , requiredSigners = requiredSigners
+                    , totalMinted = totalMintedAndBurned
+                    , mintRedeemers =
+                        List.map (\m -> ( m.policyId, m.redeemer )) preProcessedIntents.mints
+                            |> Map.fromList
+                    , withdrawals =
+                        List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
+                            |> Address.stakeDictFromList
+                    }
+                )
+
+
+{-| Helper function
+-}
+dedupWitnessSources : (a -> E.Encoder) -> List (WitnessSource a) -> List (WitnessSource a)
+dedupWitnessSources toCbor sources =
+    let
+        -- Split values and references in two lists
+        ( values, refs ) =
+            List.foldl
+                (\source ( vs, rs ) ->
+                    case source of
+                        WitnessValue v ->
+                            ( v :: vs, rs )
+
+                        WitnessReference ref ->
+                            ( vs, ref :: rs )
+                )
+                ( [], [] )
+                sources
+
+        -- Create the comparable function from the encoder
+        toComparable v =
+            E.encode (toCbor v) |> Bytes.fromBytes |> Bytes.toString
+
+        -- Dedup values
+        dedupedValues =
+            List.map (\v -> ( v, () )) values
+                |> Dict.Any.fromList toComparable
+                |> Dict.Any.keys
+
+        dedupedRefs =
+            List.map (\ref -> ( ref, () )) refs
+                |> Utxo.refDictFromList
+                |> Dict.Any.keys
+    in
+    List.map WitnessValue dedupedValues ++ List.map WitnessReference dedupedRefs
 
 
 {-| Helper function
 -}
 addPreSelectedInput :
-    ( OutputReference, Maybe (InputsOutputs -> Data) )
+    OutputReference
     -> Value
+    -> Maybe (InputsOutputs -> Data)
     -> { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
     -> { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
-addPreSelectedInput ( ref, maybeDatum ) value { sum, inputs } =
+addPreSelectedInput ref value maybeRedeemer { sum, inputs } =
     { sum = Value.add value sum
-    , inputs = Dict.Any.insert ref maybeDatum inputs
+    , inputs = Dict.Any.insert ref maybeRedeemer inputs
     }
 
 
+validMinAdaPerOutput : List Output -> Result String ()
+validMinAdaPerOutput outputs =
+    case outputs of
+        [] ->
+            Ok ()
+
+        output :: rest ->
+            case Utxo.checkMinAda output of
+                Ok _ ->
+                    validMinAdaPerOutput rest
+
+                Err err ->
+                    Err err
+
+
+type alias ProcessedOtherInfo =
+    { referenceInputs : List OutputReference
+    , metadata : List { tag : Natural, metadata : Metadatum }
+    , timeValidityRange : Maybe { start : Int, end : Natural }
+    }
+
+
+noInfo : ProcessedOtherInfo
+noInfo =
+    { referenceInputs = []
+    , metadata = []
+    , timeValidityRange = Nothing
+    }
+
+
+processOtherInfo : List TxOtherInfo -> Result TxFinalizationError ProcessedOtherInfo
+processOtherInfo otherInfo =
+    let
+        processedOtherInfo =
+            List.foldl
+                (\info acc ->
+                    case info of
+                        TxReferenceInput ref ->
+                            { acc | referenceInputs = ref :: acc.referenceInputs }
+
+                        TxMetadata m ->
+                            { acc | metadata = m :: acc.metadata }
+
+                        TxTimeValidityRange ({ start, end } as newVR) ->
+                            { acc
+                                | timeValidityRange =
+                                    case acc.timeValidityRange of
+                                        Nothing ->
+                                            Just newVR
+
+                                        Just vr ->
+                                            Just { start = max start vr.start, end = Natural.min end vr.end }
+                            }
+                )
+                noInfo
+                otherInfo
+
+        -- Check if there are duplicate metadata tags.
+        -- (use Int instead of Natural for this purpose)
+        metadataTags =
+            List.map (.tag >> Natural.toInt) processedOtherInfo.metadata
+
+        hasDuplicatedMetadataTags =
+            List.length metadataTags /= Set.size (Set.fromList metadataTags)
+
+        -- Check that the time range intersection is still valid
+        validTimeRange =
+            case processedOtherInfo.timeValidityRange of
+                Nothing ->
+                    True
+
+                Just range ->
+                    Natural.fromSafeInt range.start |> Natural.isLessThan range.end
+    in
+    if hasDuplicatedMetadataTags then
+        let
+            findDuplicate current tags =
+                case tags of
+                    [] ->
+                        Nothing
+
+                    t :: biggerTags ->
+                        if t == current then
+                            Just t
+
+                        else
+                            findDuplicate t biggerTags
+
+            dupTag =
+                findDuplicate -1 (List.sort metadataTags)
+                    |> Maybe.withDefault -1
+        in
+        Err <| DuplicatedMetadataTags dupTag
+
+    else if not validTimeRange then
+        Err <| IncorrectTimeValidityRange <| "Invalid time range (or intersection of multiple time ranges). The time range end must be > than the start." ++ Debug.toString processedOtherInfo.timeValidityRange
+
+    else
+        Ok processedOtherInfo
+
+
+{-| Perform collateral selection.
+
+Only UTxOs at the provided whitelist of addresses are viable.
+Only UTxOs containing only Ada, without other CNT or datums are viable.
+
+-}
+computeCollateralSelection :
+    Utxo.RefDict Output
+    -> Address.Dict ()
+    -> Natural
+    -> Result TxFinalizationError CoinSelection.Selection
+computeCollateralSelection localStateUtxos collateralSources collateralAmount =
+    CoinSelection.largestFirst 10
+        { alreadySelectedUtxos = []
+        , targetAmount = Value.onlyLovelace collateralAmount
+        , availableUtxos =
+            Dict.Any.toList localStateUtxos
+                |> List.filter
+                    (\( _, output ) ->
+                        Utxo.isAdaOnly output
+                            && Dict.Any.member output.address collateralSources
+                    )
+        }
+        |> Result.mapError CollateralSelectionError
+
+
 {-| Perform coin selection for the required input per address.
+
+For each address, create an [Output] with the change.
+The output must satisfy minAda.
+
+TODO: If there is more than 5 ada free in the change (after minAda),
+also create a pure-ada output so that we don’t deplete all outputs viable for collateral.
+
 -}
 computeCoinSelection :
     Utxo.RefDict Output
+    -> Fee
     -> ProcessedIntents
     -> CoinSelection.Algorithm
-    -> Result String (Address.Dict CoinSelection.Selection)
-computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
+    -> Result TxFinalizationError (Address.Dict ( CoinSelection.Selection, List Output ))
+computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
     let
         dummyOutput =
             { address = Byron <| Bytes.fromStringUnchecked ""
@@ -744,93 +1362,196 @@ computeCoinSelection localStateUtxos processedIntents coinSelectionAlgo =
             -- Using dummyOutput to have the same type as localStateUtxos
             Dict.Any.map (\_ _ -> dummyOutput) processedIntents.preSelected.inputs
 
-        -- Precompute selectable inputs accross all addresses
+        -- Precompute selectable inputs per addresses
+        availableInputs : Address.Dict (List ( OutputReference, Output ))
         availableInputs =
             Dict.Any.diff localStateUtxos notAvailableInputs
+                --> Utxo.RefDict Output
+                |> Dict.Any.foldl
+                    (\ref output ->
+                        -- append the output to the list of outputs for the same address
+                        Dict.Any.update output.address
+                            (Just << (::) ( ref, output ) << Maybe.withDefault [])
+                    )
+                    Address.emptyDict
 
         -- TODO: adjust at least with the number of different tokens in target Amount
         maxInputCount =
             10
-    in
-    processedIntents.freeInputs
-        -- Apply the selection algo for each address with input requirements
-        |> Dict.Any.map
-            (\addr freeValue ->
-                coinSelectionAlgo maxInputCount
-                    { alreadySelectedUtxos = []
-                    , targetAmount = freeValue
 
-                    -- Only keep inputs from this address
-                    , availableUtxos =
-                        availableInputs
-                            |> Dict.Any.filter (\_ output -> output.address == addr)
-                            |> Dict.Any.toList
-                    }
-            )
-        -- Join the Dict (Result _ _) into Result _ Dict
-        |> Dict.Any.foldl
-            (\addr selectRes accumRes ->
-                Result.map2 (Dict.Any.insert addr) selectRes accumRes
-            )
-            (Ok Address.emptyDict)
-        -- |> Result.map (Debug.log "coin selection")
-        |> Result.mapError Debug.toString
+        -- Add the fee to free inputs
+        addFee : Address -> Natural -> Address.Dict Value -> Address.Dict Value
+        addFee addr amount dict =
+            Dict.Any.update addr (Just << Value.add (Value.onlyLovelace amount) << Maybe.withDefault Value.zero) dict
+
+        freeInputsWithFee : Address.Dict Value
+        freeInputsWithFee =
+            case fee of
+                ManualFee perAddressFee ->
+                    List.foldl
+                        (\{ paymentSource, exactFeeAmount } -> addFee paymentSource exactFeeAmount)
+                        processedIntents.freeInputs
+                        perAddressFee
+
+                AutoFee { paymentSource } ->
+                    addFee paymentSource defaultAutoFee processedIntents.freeInputs
+
+        -- These are the free outputs that are unrelated to any address with fees or free input.
+        -- It’s address dict keys are all different from those of freeInputsWithFee
+        independentFreeOutputValues : Address.Dict Value
+        independentFreeOutputValues =
+            Dict.Any.diff processedIntents.freeOutputs freeInputsWithFee
+
+        -- These will require they have enough minAda to make their own independent outputs.
+        validIndependentFreeOutputs : Result TxFinalizationError (Address.Dict Output)
+        validIndependentFreeOutputs =
+            independentFreeOutputValues
+                |> Dict.Any.map (\addr output -> Utxo.checkMinAda <| Utxo.simpleOutput addr output)
+                |> resultDictJoin
+                |> Result.mapError NotEnoughMinAda
+
+        -- These are the free outputs that are related to any address with fees or free input.
+        -- It’s address dict keys are a subset of those of freeInputsWithFee
+        relatedFreeOutputValues : Address.Dict Value
+        relatedFreeOutputValues =
+            Dict.Any.diff processedIntents.freeOutputs independentFreeOutputValues
+
+        -- Merge the two dicts :
+        --   - freeInputsWithFee (that will become the coin selection target value)
+        --   - relatedFreeOutputValues (that will be added to the coin selection change)
+        targetValuesAndOutputs : Address.Dict { targetInputValue : Value, freeOutput : Value }
+        targetValuesAndOutputs =
+            let
+                whenInput addr v =
+                    Dict.Any.insert addr { targetInputValue = v, freeOutput = Value.zero }
+
+                whenOutput addr v =
+                    Dict.Any.insert addr { targetInputValue = Value.zero, freeOutput = v }
+
+                whenBoth addr input output =
+                    Dict.Any.insert addr { targetInputValue = input, freeOutput = output }
+            in
+            Dict.Any.merge whenInput
+                whenBoth
+                whenOutput
+                freeInputsWithFee
+                relatedFreeOutputValues
+                Address.emptyDict
+
+        -- Perform coin selection and output creation with the change
+        -- for all address where there are target values (inputs and fees)
+        coinSelectionAndChangeOutputs : Result TxFinalizationError (Address.Dict ( CoinSelection.Selection, List Output ))
+        coinSelectionAndChangeOutputs =
+            targetValuesAndOutputs
+                -- Apply the selection algo for each address with input requirements
+                |> Dict.Any.map
+                    (\addr { targetInputValue, freeOutput } ->
+                        let
+                            hasFreeOutput =
+                                freeOutput /= Value.zero
+
+                            availableUtxosDict =
+                                Maybe.withDefault [] (Dict.Any.get addr availableInputs)
+                                    |> Utxo.refDictFromList
+
+                            context targetAmount alreadySelected =
+                                { targetAmount = targetAmount
+                                , alreadySelectedUtxos = alreadySelected
+                                , availableUtxos =
+                                    Dict.Any.diff availableUtxosDict (Utxo.refDictFromList alreadySelected)
+                                        |> Dict.Any.toList
+                                }
+
+                            -- Create the output(s) with the change + free output, if there is enough minAda
+                            makeChangeOutput : CoinSelection.Selection -> Result CoinSelection.Error ( CoinSelection.Selection, List Output )
+                            makeChangeOutput selection =
+                                case ( selection.change, hasFreeOutput ) of
+                                    ( Nothing, False ) ->
+                                        Ok ( selection, [] )
+
+                                    _ ->
+                                        let
+                                            change =
+                                                Value.add (Maybe.withDefault Value.zero selection.change) freeOutput
+
+                                            changeOutput =
+                                                { address = addr
+                                                , amount = change
+                                                , datumOption = Nothing
+                                                , referenceScript = Nothing
+                                                }
+
+                                            minAda =
+                                                Utxo.minAda changeOutput
+                                        in
+                                        if change.lovelace |> Natural.isGreaterThanOrEqual minAda then
+                                            -- TODO: later, if there is more than 5 free ada, make an additional ada-only output
+                                            Ok ( selection, [ changeOutput ] )
+
+                                        else
+                                            Err <|
+                                                CoinSelection.UTxOBalanceInsufficient
+                                                    { selectedUtxos = selection.selectedUtxos
+                                                    , missingValue = Value.onlyLovelace <| Natural.sub minAda change.lovelace
+                                                    }
+
+                            coinSelectIter targetValue alreadySelected =
+                                coinSelectionAlgo maxInputCount (context targetValue alreadySelected)
+                                    |> Result.andThen makeChangeOutput
+                        in
+                        -- Try coin selection up to 2 times if the only missing value is Ada.
+                        -- Why 2 times? because the first time, it might be missing minAda for the change output.
+                        case coinSelectIter targetInputValue [] of
+                            (Err (CoinSelection.UTxOBalanceInsufficient err1)) as err ->
+                                if MultiAsset.isEmpty err1.missingValue.assets then
+                                    coinSelectIter (Value.add targetInputValue err1.missingValue) err1.selectedUtxos
+
+                                else
+                                    err
+
+                            selectionResult ->
+                                selectionResult
+                    )
+                -- Join the Dict (Result _ _) into Result _ Dict
+                |> resultDictJoin
+                |> Result.mapError FailedToPerformCoinSelection
+    in
+    Result.map2
+        (Dict.Any.foldl (\addr output -> Dict.Any.insert addr ( { selectedUtxos = [], change = Nothing }, [ output ] )))
+        coinSelectionAndChangeOutputs
+        validIndependentFreeOutputs
+
+
+{-| Helper function to join Dict Result into Result Dict.
+-}
+resultDictJoin : AnyDict comparable key (Result err value) -> Result err (AnyDict comparable key value)
+resultDictJoin dict =
+    Dict.Any.foldl (\key -> Result.map2 (Dict.Any.insert key)) (Ok <| Dict.Any.removeAll dict) dict
 
 
 {-| Helper function to accumulate all selected UTxOs and newly created outputs.
 -}
 accumPerAddressSelection :
-    Address.Dict Value
-    -> Address.Dict CoinSelection.Selection
+    Address.Dict ( CoinSelection.Selection, List Output )
     -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output }
-accumPerAddressSelection freeOutput allSelections =
-    let
-        -- Reshape freeOutput as a selection to be able to merge with the selection change
-        freeOutputAsSelection =
-            Dict.Any.map (\_ v -> { selectedUtxos = [], change = Just v }) freeOutput
-
-        mergeHelper sel freeSel =
-            case freeSel.change of
-                Nothing ->
-                    sel
-
-                Just v ->
-                    { selectedUtxos = sel.selectedUtxos, change = Just <| Value.add v (Maybe.withDefault Value.zero sel.change) }
-
-        -- Merge the freeOutput value with the change from coin selection
-        mergedSelection =
-            Dict.Any.merge
-                Dict.Any.insert
-                (\addr sel freeSel acc ->
-                    Dict.Any.insert addr (mergeHelper sel freeSel) acc
-                )
-                Dict.Any.insert
-                allSelections
-                freeOutputAsSelection
-                Address.emptyDict
-    in
+accumPerAddressSelection allSelections =
     Dict.Any.foldl
-        (\addr { selectedUtxos, change } acc ->
+        (\_ ( { selectedUtxos }, createdOutputs ) acc ->
             { selectedInputs =
                 List.foldl (\( ref, output ) -> Dict.Any.insert ref output) acc.selectedInputs selectedUtxos
-            , createdOutputs =
-                case change of
-                    Nothing ->
-                        acc.createdOutputs
-
-                    Just value ->
-                        { address = addr, amount = value, datumOption = Nothing, referenceScript = Nothing } :: acc.createdOutputs
+            , createdOutputs = createdOutputs ++ acc.createdOutputs
             }
         )
         { selectedInputs = Utxo.emptyRefDict, createdOutputs = [] }
-        mergedSelection
+        allSelections
 
 
 {-| Helper function to update Tx inputs/outputs after coin selection.
 -}
 updateInputsOutputs : ProcessedIntents -> { selectedInputs : Utxo.RefDict Output, createdOutputs : List Output } -> InputsOutputs -> InputsOutputs
 updateInputsOutputs intents { selectedInputs, createdOutputs } old =
-    { referenceInputs = [] -- TODO: handle reference inputs
+    -- reference inputs do not change with UTxO selection, only spent inputs
+    { referenceInputs = old.referenceInputs
     , spentInputs =
         let
             preSelected : Utxo.RefDict ()
@@ -842,20 +1563,24 @@ updateInputsOutputs intents { selectedInputs, createdOutputs } old =
                 Dict.Any.map (\_ _ -> ()) selectedInputs
         in
         Dict.Any.keys (Dict.Any.union preSelected algoSelected)
-    , createdOutputs = .outputs (intents.preCreated old) ++ createdOutputs
+    , createdOutputs = (intents.preCreated old).outputs ++ createdOutputs
     }
 
 
 {-| Build the Transaction from the processed intents and the latest inputs/outputs.
 -}
-buildTx : ProcessedIntents -> InputsOutputs -> Transaction
-buildTx processedIntents inputsOutputs =
+buildTx :
+    Utxo.RefDict Output
+    -> Natural
+    -> CoinSelection.Selection
+    -> ProcessedIntents
+    -> ProcessedOtherInfo
+    -> InputsOutputs
+    -> Transaction
+buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo inputsOutputs =
     let
-        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
-        sortedWithdrawals =
-            Dict.Any.toList processedIntents.withdrawals
-                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
-
+        -- WitnessSet ######################################
+        --
         ( nativeScripts, nativeScriptRefs ) =
             splitWitnessSources processedIntents.nativeScriptSources
 
@@ -864,32 +1589,6 @@ buildTx processedIntents inputsOutputs =
 
         ( datumWitnessValues, datumWitnessRefs ) =
             splitWitnessSources processedIntents.datumSources
-
-        -- Regroup all OutputReferences from witnesses
-        -- TODO: better handle inputsOutputs.referenceInputs?
-        allReferenceInputs =
-            List.concat [ inputsOutputs.referenceInputs, nativeScriptRefs, plutusScriptRefs, datumWitnessRefs ]
-
-        txBody : TransactionBody
-        txBody =
-            { inputs = inputsOutputs.spentInputs
-            , outputs = inputsOutputs.createdOutputs
-            , fee = Just Natural.zero -- TODO
-            , ttl = Nothing -- TODO
-            , certificates = [] -- TODO
-            , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
-            , update = Nothing -- TODO
-            , auxiliaryDataHash = Nothing -- TODO
-            , validityIntervalStart = Nothing -- TODO
-            , mint = processedIntents.totalMinted
-            , scriptDataHash = Nothing -- TODO
-            , collateral = [] -- TODO
-            , requiredSigners = processedIntents.requiredSigners
-            , networkId = Nothing -- TODO
-            , collateralReturn = Nothing -- TODO
-            , totalCollateral = Nothing -- TODO
-            , referenceInputs = allReferenceInputs
-            }
 
         -- Compute datums for pre-selected inputs.
         preSelected : Utxo.RefDict (Maybe Data)
@@ -939,6 +1638,11 @@ buildTx processedIntents inputsOutputs =
                     )
                 |> List.filterMap identity
 
+        sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
+        sortedWithdrawals =
+            Dict.Any.toList processedIntents.withdrawals
+                |> List.map (\( addr, w ) -> ( addr, w.amount, Maybe.map (\f -> f inputsOutputs) w.redeemer ))
+
         -- Build the withdrawals redeemers while keeping the index in the sorted list.
         sortedWithdrawalsRedeemers : List Redeemer
         sortedWithdrawalsRedeemers =
@@ -954,14 +1658,44 @@ buildTx processedIntents inputsOutputs =
         sortedCertRedeemers =
             []
 
+        -- Look for inputs at addresses that will need signatures
+        walletCredsInInputs : List (Bytes CredentialHash)
+        walletCredsInInputs =
+            inputsOutputs.spentInputs
+                |> List.filterMap
+                    (\ref ->
+                        Dict.Any.get ref localStateUtxos
+                            |> Maybe.andThen (Address.extractPubKeyHash << .address)
+                    )
+
+        -- Create a dummy VKey Witness for each input wallet address or required signer
+        -- so that fees are correctly estimated.
+        dummyVKeyWitness : List VKeyWitness
+        dummyVKeyWitness =
+            (walletCredsInInputs ++ processedIntents.requiredSigners)
+                |> List.map
+                    (\cred ->
+                        let
+                            credAsText =
+                                Bytes.toText cred
+                                    |> Maybe.withDefault (Bytes.toString cred)
+                                    |> String.left 28
+                        in
+                        ( cred, { vkey = dummyBytes 32 ("VKEY" ++ credAsText), signature = dummyBytes 64 ("SIGNATURE" ++ credAsText) } )
+                    )
+                -- Convert to a BytesMap to ensure credentials unicity
+                |> Map.fromList
+                |> Map.values
+
         txWitnessSet : WitnessSet
         txWitnessSet =
-            { vkeywitness = Nothing -- TODO
-            , bootstrapWitness = Nothing -- TODO
+            { vkeywitness = nothingIfEmptyList dummyVKeyWitness
+            , bootstrapWitness = Nothing
             , plutusData = nothingIfEmptyList datumWitnessValues
             , nativeScripts = nothingIfEmptyList nativeScripts
             , plutusV1Script = nothingIfEmptyList <| filterScriptVersion PlutusV1 plutusScripts
             , plutusV2Script = nothingIfEmptyList <| filterScriptVersion PlutusV2 plutusScripts
+            , plutusV3Script = nothingIfEmptyList <| filterScriptVersion PlutusV3 plutusScripts
             , redeemer =
                 nothingIfEmptyList <|
                     List.concat
@@ -971,12 +1705,120 @@ buildTx processedIntents inputsOutputs =
                         , sortedCertRedeemers
                         ]
             }
+
+        -- AuxiliaryData ###################################
+        --
+        txAuxData : Maybe AuxiliaryData
+        txAuxData =
+            case otherInfo.metadata of
+                [] ->
+                    Nothing
+
+                _ ->
+                    Just
+                        { labels = List.map (\{ tag, metadata } -> ( tag, metadata )) otherInfo.metadata
+                        , nativeScripts = []
+                        , plutusV1Scripts = []
+                        , plutusV2Scripts = []
+                        , plutusV3Scripts = []
+                        }
+
+        -- TransactionBody #################################
+        --
+        -- Regroup all OutputReferences from witnesses
+        allReferenceInputs =
+            List.concat
+                [ inputsOutputs.referenceInputs
+                , otherInfo.referenceInputs
+                , nativeScriptRefs
+                , plutusScriptRefs
+                , datumWitnessRefs
+                ]
+                |> List.map (\ref -> ( ref, () ))
+                |> Utxo.refDictFromList
+                |> Dict.Any.keys
+
+        -- Script data is serialized in a very specific way to compute the hash.
+        -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
+        -- See Blaze impl: https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935
+        -- See cardano-js-sdk serialization of redeemers: https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29
+        scriptDataHash : Maybe (Bytes ScriptDataHash)
+        scriptDataHash =
+            if txWitnessSet.redeemer == Nothing && txWitnessSet.plutusData == Nothing then
+                Nothing
+
+            else
+                -- TODO: actual hashing
+                Just (dummyBytes 32 "ScriptDataHash")
+
+        collateralReturnAmount =
+            (Maybe.withDefault Value.zero collateralSelection.change).lovelace
+
+        collateralReturn : Maybe Output
+        collateralReturn =
+            List.head collateralSelection.selectedUtxos
+                |> Maybe.map (\( _, output ) -> Utxo.fromLovelace output.address collateralReturnAmount)
+
+        totalCollateral : Maybe Int
+        totalCollateral =
+            if List.isEmpty collateralSelection.selectedUtxos then
+                Nothing
+
+            else
+                collateralSelection.selectedUtxos
+                    |> List.foldl (\( _, o ) -> Natural.add o.amount.lovelace) Natural.zero
+                    |> Natural.toInt
+                    |> Just
+
+        txBody : TransactionBody
+        txBody =
+            { inputs = inputsOutputs.spentInputs
+            , outputs = inputsOutputs.createdOutputs
+            , fee = Just feeAmount
+            , ttl = Maybe.map .end otherInfo.timeValidityRange
+            , certificates = [] -- TODO
+            , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
+            , update = Nothing
+            , auxiliaryDataHash =
+                case otherInfo.metadata of
+                    [] ->
+                        Nothing
+
+                    _ ->
+                        -- TODO: compute actual auxiliary data hash
+                        Just (dummyBytes 32 "AuxDataHash")
+            , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
+            , mint = processedIntents.totalMinted
+            , scriptDataHash = scriptDataHash
+            , collateral = List.map Tuple.first collateralSelection.selectedUtxos
+            , requiredSigners = processedIntents.requiredSigners
+            , networkId = Nothing -- not mandatory
+            , collateralReturn = collateralReturn
+            , totalCollateral = totalCollateral
+            , referenceInputs = allReferenceInputs
+            , votingProcedures = [] -- TODO votingProcedures
+            , proposalProcedures = [] -- TODO proposalProcedures
+            , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
+            , treasuryDonation = Nothing -- TODO treasuryDonation
+            }
     in
     { body = txBody
     , witnessSet = txWitnessSet
     , isValid = True
-    , auxiliaryData = Nothing -- TODO
+    , auxiliaryData = txAuxData
     }
+
+
+{-| Unsafe helper function to make up some bytes of a given length,
+starting by the given text when decoded as text.
+-}
+dummyBytes : Int -> String -> Bytes a
+dummyBytes length prefix =
+    let
+        zeroSuffix =
+            String.repeat (length - String.length prefix) "0"
+    in
+    Bytes.fromText (prefix ++ zeroSuffix)
 
 
 {-| Helper function to split native script into a list of script value and a list of output references.
@@ -1021,377 +1863,45 @@ filterScriptVersion v =
         )
 
 
+{-| Adjust the steps/mem scripts execution costs with UPLC phase 2 evaluation of the transaction.
+-}
+adjustExecutionCosts : (Transaction -> Result String (List Redeemer)) -> Transaction -> Result TxFinalizationError Transaction
+adjustExecutionCosts evalScriptsCosts tx =
+    evalScriptsCosts tx
+        |> Result.mapError UplcVmError
+        |> Result.map
+            (\redeemers ->
+                if List.isEmpty redeemers then
+                    tx
 
--- EXAMPLES ##########################################################
-
-
-makeWalletAddress : String -> Address
-makeWalletAddress name =
-    Address.Shelley
-        { networkId = Mainnet
-        , paymentCredential = VKeyHash (Bytes.fromText name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| Bytes.fromText name))
-        }
-
-
-makeAddress : String -> Address
-makeAddress name =
-    Bytes.fromText ("key:" ++ name)
-        |> Address.enterprise Mainnet
-
-
-makeRef : String -> Int -> OutputReference
-makeRef id index =
-    { transactionId = Bytes.fromText id
-    , outputIndex = index
-    }
-
-
-makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
-makeAsset index address policyId name amount =
-    ( makeRef (String.fromInt index) index
-    , { address = address
-      , amount = makeToken policyId name amount
-      , datumOption = Nothing
-      , referenceScript = Nothing
-      }
-    )
-
-
-makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
-makeAdaOutput index address amount =
-    ( makeRef (String.fromInt index) index
-    , Utxo.fromLovelace address (Natural.fromSafeInt <| 1000000 * amount)
-    )
-
-
-makeToken : String -> String -> Int -> Value
-makeToken policyId name amount =
-    Value.onlyToken (Bytes.fromText policyId) (Bytes.fromText name) (Natural.fromSafeInt amount)
-
-
-prettyAddr address =
-    case address of
-        Byron b ->
-            (Bytes.toText >> Maybe.withDefault "") b
-
-        Shelley { paymentCredential, stakeCredential } ->
-            [ Just "Addr:", Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
-                |> List.filterMap identity
-                |> String.join " "
-
-        Reward stakeAddr ->
-            "StakeAddr:" ++ prettyCred stakeAddr.stakeCredential
-
-
-prettyStakeCred stakeCred =
-    case stakeCred of
-        Address.InlineCredential cred ->
-            "stake:" ++ prettyCred cred
-
-        Address.PointerCredential _ ->
-            "stake:PointerAddr"
-
-
-prettyCred cred =
-    case cred of
-        Address.VKeyHash b ->
-            "key:" ++ (Bytes.toText >> Maybe.withDefault "") b
-
-        Address.ScriptHash b ->
-            "script:" ++ (Bytes.toText >> Maybe.withDefault "") b
-
-
-prettyValue : Value -> List String
-prettyValue { lovelace, assets } =
-    if MultiAsset.isEmpty assets then
-        [ "₳ " ++ Natural.toString lovelace ]
-
-    else
-        "with native assets:"
-            :: ("   ₳ " ++ Natural.toString lovelace)
-            :: List.map (indent 3) (prettyAssets Natural.toString assets)
-
-
-prettyAssets toStr multiAsset =
-    Map.toList multiAsset
-        |> List.concatMap
-            (\( policyId, assets ) ->
-                Map.toList assets
-                    |> List.map
-                        (\( name, amount ) ->
-                            String.join " "
-                                [ (Bytes.toText >> Maybe.withDefault "") policyId
-                                , (Bytes.toText >> Maybe.withDefault "") name
-                                , toStr amount
-                                ]
-                        )
+                else
+                    let
+                        witnessSet =
+                            tx.witnessSet
+                    in
+                    { tx | witnessSet = { witnessSet | redeemer = Just redeemers } }
             )
 
 
-prettyDatum datumOption =
-    case datumOption of
-        Utxo.DatumHash h ->
-            "datumHash: " ++ Maybe.withDefault "" (Bytes.toText h)
+{-| Final check for the Tx fees.
+-}
+checkInsufficientFee : { refScriptBytes : Int } -> Fee -> Transaction -> Result TxFinalizationError Transaction
+checkInsufficientFee refSize fee tx =
+    let
+        declaredFee =
+            Maybe.withDefault Natural.zero tx.body.fee
 
-        Utxo.Datum data ->
-            "datum: " ++ prettyCbor Data.toCbor data
+        computedFee =
+            Transaction.computeFees Transaction.defaultTxFeeParams refSize tx
+                |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
+    in
+    if declaredFee |> Natural.isLessThan computedFee then
+        case fee of
+            ManualFee _ ->
+                Err <| InsufficientManualFee { declared = declaredFee, computed = computedFee }
 
-
-prettyCbor toCbor x =
-    E.encode (toCbor x) |> Bytes.fromBytes |> Bytes.toString
-
-
-prettyScript script =
-    case script of
-        Script.Native nativeScript ->
-            "NativeScript: " ++ prettyCbor Script.encodeNativeScript nativeScript
-
-        Script.Plutus plutusScript ->
-            "PlutusScript: " ++ prettyCbor Script.encodePlutusScript plutusScript
-
-
-prettyInput ref =
-    String.join " "
-        [ "TxId:" ++ (Bytes.toText >> Maybe.withDefault "") ref.transactionId
-        , "#" ++ String.fromInt ref.outputIndex
-        ]
-
-
-prettyOutput : Output -> List String
-prettyOutput { address, amount, datumOption, referenceScript } =
-    ("- " ++ prettyAddr address)
-        :: ([ Just <| prettyValue amount
-            , Maybe.map (List.singleton << prettyDatum) datumOption
-            , Maybe.map (List.singleton << prettyScript) referenceScript
-            ]
-                |> List.filterMap identity
-                |> List.concat
-                |> List.map (indent 2)
-           )
-
-
-prettyList sectionTitle prettify list =
-    if List.isEmpty list then
-        []
+            AutoFee _ ->
+                Err <| FailurePleaseReportToElmCardano "Insufficient AutoFee. Maybe we need another buildTx round?"
 
     else
-        sectionTitle
-            :: List.map (indent 3 << prettify) list
-
-
-prettyMints sectionTitle multiAsset =
-    if MultiAsset.isEmpty multiAsset then
-        []
-
-    else
-        sectionTitle
-            :: List.map (indent 3) (prettyAssets Integer.toString multiAsset)
-
-
-prettyRedeemer redeemer =
-    String.join " "
-        [ Debug.toString redeemer.tag
-        , "index:" ++ String.fromInt redeemer.index
-        , "exUnits:?"
-        , "data:" ++ prettyCbor Data.toCbor redeemer.data
-        ]
-
-
-indent spaces str =
-    String.repeat spaces " " ++ str
-
-
-prettyTx : Transaction -> String
-prettyTx tx =
-    let
-        prettyBytes b =
-            Maybe.withDefault (Bytes.toString b) (Bytes.toText b)
-
-        body =
-            List.concat
-                [ prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
-                , prettyList "Tx inputs:" prettyInput tx.body.inputs
-                , [ "Tx outputs:" ]
-                , List.concatMap prettyOutput tx.body.outputs
-                    |> List.map (indent 3)
-                , prettyMints "Tx mints:" tx.body.mint
-                , [] -- TODO: witdrawals
-                , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
-                , [] -- TODO: collateral
-                ]
-
-        witnessSet =
-            List.concat <|
-                List.filterMap identity
-                    [ Nothing -- TODO: vkeywitness
-                    , tx.witnessSet.nativeScripts
-                        |> Maybe.map (prettyList "Tx native scripts:" (prettyScript << Script.Native))
-                    , tx.witnessSet.plutusV1Script
-                        |> Maybe.map (prettyList "Tx plutus V1 scripts:" prettyBytes)
-                    , tx.witnessSet.plutusV2Script
-                        |> Maybe.map (prettyList "Tx plutus V2 scripts:" prettyBytes)
-                    , tx.witnessSet.redeemer
-                        |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
-                    , Nothing -- TODO: plutusData
-                    ]
-
-        -- TODO: pretty print auxiliary data
-        auxData =
-            []
-    in
-    List.concat [ body, witnessSet, auxData ]
-        |> String.join "\n"
-
-
-
--- EXAMPLES global state
-
-
-ada =
-    -- Asset amounts are typed with unbounded Natural numbers
-    { one = Value.onlyLovelace (Natural.fromSafeString "1000000")
-    , two = Value.onlyLovelace (Natural.fromSafeString "2000000")
-    , ten = Value.onlyLovelace (Natural.fromSafeString "10000000")
-    }
-
-
-exAddr =
-    { me = makeWalletAddress "me"
-    , you = makeWalletAddress "you"
-    }
-
-
-dog =
-    { scriptRef = makeRef "dogScriptRef" 0
-    , policyId = Bytes.fromText "dog"
-    , policyIdStr = "dog"
-    , assetName = Bytes.fromText "yksoh"
-    , assetNameStr = "yksoh"
-    }
-
-
-cat =
-    { scriptRef = makeRef "catScriptRef" 0
-    , policyId = Bytes.fromText "cat"
-    , policyIdStr = "cat"
-    , assetName = Bytes.fromText "felix"
-    , assetNameStr = "felix"
-    }
-
-
-globalStateUtxos : Utxo.RefDict Output
-globalStateUtxos =
-    Utxo.refDictFromList
-        [ makeAdaOutput 0 exAddr.me 2 --   2 ada at my address
-        , makeAdaOutput 1 exAddr.me 10 -- 10 ada at my address
-        , makeAdaOutput 2 exAddr.me 5 --   5 ada at my address
-        , makeAsset 3 exAddr.me dog.policyIdStr dog.assetNameStr 2
-        , makeAsset 4 exAddr.me cat.policyIdStr cat.assetNameStr 5
-        ]
-
-
-configGlobalLargest =
-    { localStateUtxos = globalStateUtxos
-    , coinSelectionAlgo = CoinSelection.largestFirst
-    }
-
-
-
--- EXAMPLE 1: Simple transfer
-
-
-example1 _ =
-    [ Spend <| From exAddr.me ada.one
-    , SendTo exAddr.you ada.one
-    ]
-        |> finalize configGlobalLargest []
-
-
-
--- EXAMPLE 2: mint/burn with native script
-
-
-example2 _ =
-    -- minting 1 dog (amounts are of type Integer: unbounded positive or negative integers)
-    [ MintBurn
-        { policyId = dog.policyId
-        , assets = Map.singleton dog.assetName Integer.one
-        , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
-        }
-    , SendTo exAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
-
-    -- burning 1 cat
-    , Spend <| From exAddr.me (Value.onlyToken cat.policyId cat.assetName Natural.one)
-    , MintBurn
-        { policyId = cat.policyId
-        , assets = Map.singleton cat.assetName Integer.negativeOne
-        , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
-        }
-    ]
-        |> finalize configGlobalLargest []
-
-
-
--- EXAMPLE 3: spend from a Plutus script
-
-
-example3 _ =
-    let
-        ( myKeyCred, myStakeCred ) =
-            ( Address.extractPubKeyHash exAddr.me
-                |> Maybe.withDefault (Bytes.fromText "should not fail")
-            , Address.extractStakeCredential exAddr.me
-            )
-
-        lock =
-            { script = PlutusScript PlutusV2 (Bytes.fromText "LockScript")
-            , scriptHash = Bytes.fromText "LockHash"
-            }
-
-        -- Combining the script hash with our stake credential
-        -- to keep the locked add staked.
-        lockScriptAddress =
-            Address.Shelley
-                { networkId = Mainnet
-                , paymentCredential = ScriptHash lock.scriptHash
-                , stakeCredential = myStakeCred
-                }
-
-        -- Dummy redeemer of the smallest size possible.
-        -- A redeemer is mandatory, but unchecked by this contract anyway.
-        dummyRedeemer =
-            Data.Int Integer.zero
-
-        -- Helper function to create an output at the lock script address.
-        -- It contains our key credential in the datum.
-        makeLockedOutput adaAmount =
-            { address = lockScriptAddress
-            , amount = adaAmount
-            , datumOption = Just (Datum (Data.Bytes <| Bytes.toAny myKeyCred))
-            , referenceScript = Nothing
-            }
-
-        -- Add to local state utxos some previously sent 2 ada.
-        localStateUtxos =
-            configGlobalLargest.localStateUtxos
-                |> Dict.Any.insert (makeRef "previouslySentToLock" 0)
-                    (makeLockedOutput ada.two)
-    in
-    -- Collect 1 ada from the lock script
-    [ Spend <|
-        FromPlutusScript
-            { spentInput = makeRef "previouslySentToLock" 0
-            , datumWitness = Nothing
-            , plutusScriptWitness =
-                { script = WitnessValue lock.script
-                , redeemerData = \_ -> dummyRedeemer
-                , requiredSigners = [ myKeyCred ]
-                }
-            }
-    , SendTo exAddr.me ada.one
-
-    -- Return the other 1 ada to the lock script (there was 2 ada initially)
-    , SendToOutput (\_ -> makeLockedOutput ada.one)
-    ]
-        |> finalize { configGlobalLargest | localStateUtxos = localStateUtxos } []
+        Ok tx

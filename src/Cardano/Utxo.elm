@@ -1,9 +1,10 @@
 module Cardano.Utxo exposing
     ( OutputReference, TransactionId, Output, DatumHash, DatumOption(..)
     , RefDict, emptyRefDict, refDictFromList
-    , fromLovelace
-    , lovelace, totalLovelace, compareLovelace
-    , minAda
+    , fromLovelace, simpleOutput
+    , refAsString
+    , lovelace, totalLovelace, compareLovelace, isAdaOnly
+    , minAda, checkMinAda, minAdaForAssets
     , encodeOutputReference, encodeOutput, encodeDatumOption
     , decodeOutputReference, decodeOutput
     )
@@ -23,17 +24,22 @@ module Cardano.Utxo exposing
 
 ## Build
 
-@docs fromLovelace
+@docs fromLovelace, simpleOutput
+
+
+## Display
+
+@docs refAsString
 
 
 ## Query
 
-@docs lovelace, totalLovelace, compareLovelace
+@docs lovelace, totalLovelace, compareLovelace, isAdaOnly
 
 
 ## Compute
 
-@docs minAda
+@docs minAda, checkMinAda, minAdaForAssets
 
 
 ## Convert
@@ -44,9 +50,11 @@ module Cardano.Utxo exposing
 
 -}
 
+import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address)
 import Cardano.Data as Data exposing (Data)
+import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
 import Cardano.Script as Script exposing (Script)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
@@ -56,7 +64,6 @@ import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Dict.Any exposing (AnyDict)
 import Natural as N exposing (Natural)
-import Set exposing (Set)
 
 
 {-| The reference for a eUTxO.
@@ -75,12 +82,18 @@ type TransactionId
 
 
 {-| Convenience type for `Dict` with [OutputReference] keys.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias RefDict a =
     AnyDict ( String, Int ) OutputReference a
 
 
 {-| Convenience empty initialization for `Dict` with [OutputReference] keys.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyRefDict : RefDict a
 emptyRefDict =
@@ -88,6 +101,9 @@ emptyRefDict =
 
 
 {-| Convenience function to create a `Dict` with [OutputReference] keys from a list.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 refDictFromList : List ( OutputReference, a ) -> RefDict a
 refDictFromList =
@@ -142,11 +158,21 @@ compareLovelace a b =
 -}
 fromLovelace : Address -> Natural -> Output
 fromLovelace address amount =
-    { address = address
-    , amount = Value.onlyLovelace amount
-    , datumOption = Nothing
-    , referenceScript = Nothing
-    }
+    simpleOutput address (Value.onlyLovelace amount)
+
+
+{-| Create a simple [Output] with just an [Address] and a [Value].
+-}
+simpleOutput : Address -> Value -> Output
+simpleOutput address value =
+    { address = address, amount = value, datumOption = Nothing, referenceScript = Nothing }
+
+
+{-| Display the [OutputReference] as a String.
+-}
+refAsString : OutputReference -> String
+refAsString { transactionId, outputIndex } =
+    Bytes.toString transactionId ++ " #" ++ String.fromInt outputIndex
 
 
 {-| Extract the amount of lovelace in an `Output`
@@ -163,7 +189,20 @@ totalLovelace =
     List.foldr (\output total -> N.add (lovelace output) total) N.zero
 
 
+{-| Check if the output contains only Ada.
+Nothing else is allowed, no tokens, no datum, no ref script.
+-}
+isAdaOnly : Output -> Bool
+isAdaOnly { amount, datumOption, referenceScript } =
+    (amount.assets == MultiAsset.empty)
+        && (datumOption == Nothing)
+        && (referenceScript == Nothing)
+
+
 {-| Compute minimum Ada lovelace for a given [Output].
+
+Since the size of the lovelace field may impact minAda,
+we adjust its value if it is too low before computation.
 
 The formula is given by CIP 55,
 with current value of `4310` for `coinsPerUTxOByte`.
@@ -172,10 +211,45 @@ TODO: provide `coinsPerUTxOByte` in function arguments?
 
 -}
 minAda : Output -> Natural
-minAda output =
-    E.encode (encodeOutput output)
-        |> (Bytes.fromBytes >> Bytes.width)
+minAda ({ amount } as output) =
+    let
+        -- make sure lovelace is encoded with at least 32 bits (so >= 2^16)
+        updatedOutput =
+            if amount.lovelace |> N.isLessThan (N.fromSafeInt <| 2 ^ 16) then
+                { output | amount = { amount | lovelace = N.fromSafeInt <| 2 ^ 16 } }
+
+            else
+                output
+    in
+    E.encode (encodeOutput updatedOutput)
+        |> ElmBytes.width
         |> (\w -> N.fromSafeInt ((160 + w) * 4310))
+
+
+{-| Check that an [Output] has enough ada to cover its size.
+-}
+checkMinAda : Output -> Result String Output
+checkMinAda output =
+    let
+        outputMinAda =
+            minAda output
+    in
+    if lovelace output |> N.isGreaterThanOrEqual outputMinAda then
+        Ok output
+
+    else
+        Err ("Output has less ada than its required min ada (" ++ N.toString outputMinAda ++ "):\n" ++ Debug.toString output)
+
+
+{-| Compute minimum Ada lovelace for a given [MultiAsset] that would be sent to a given address.
+
+TODO: provide `coinsPerUTxOByte` in function arguments?
+
+-}
+minAdaForAssets : Address -> MultiAsset Natural -> Natural
+minAdaForAssets address assets =
+    simpleOutput address { lovelace = N.fromSafeInt <| 2 ^ 16, assets = assets }
+        |> minAda
 
 
 {-| CBOR encoder for [Output].
@@ -188,7 +262,7 @@ encodeOutput output =
             >> E.field 1 Value.encode .amount
             >> E.optionalField 2 encodeDatumOption .datumOption
             >> E.optionalField 3
-                (Script.encodeScript
+                (Script.toCbor
                     >> E.encode
                     >> E.tagged Tag.Cbor E.bytes
                 )
@@ -201,7 +275,7 @@ encodeOutput output =
 -}
 type DatumOption
     = DatumHash (Bytes DatumHash)
-    | Datum Data
+    | DatumValue Data
 
 
 {-| CBOR encoder for [DatumOption].
@@ -215,7 +289,7 @@ encodeDatumOption datumOption =
                 , Bytes.toCbor hash
                 ]
 
-            Datum datum ->
+            DatumValue datum ->
                 [ E.int 1
                 , datum
                     |> Data.toCbor
@@ -291,7 +365,7 @@ datumOptionFromCbor =
                         D.map (DatumHash << Bytes.fromBytes) D.bytes
 
                     1 ->
-                        D.map Datum decodeOutputDatum
+                        D.map DatumValue decodeOutputDatum
 
                     _ ->
                         D.failWith ("Unknown datum option tag: " ++ String.fromInt tag)

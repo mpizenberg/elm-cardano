@@ -1,4 +1,4 @@
-module Cardano.Transaction.AuxiliaryData.Metadatum exposing (Metadatum(..), fromCbor, toCbor)
+module Cardano.Metadatum exposing (Metadatum(..), fromCbor, toCbor)
 
 {-|
 

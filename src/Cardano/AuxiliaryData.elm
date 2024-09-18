@@ -1,4 +1,4 @@
-module Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
+module Cardano.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
 
 {-|
 
@@ -7,8 +7,8 @@ module Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCb
 -}
 
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
-import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
@@ -25,6 +25,7 @@ type alias AuxiliaryData =
     , nativeScripts : List NativeScript
     , plutusV1Scripts : List (Bytes ScriptCbor)
     , plutusV2Scripts : List (Bytes ScriptCbor)
+    , plutusV3Scripts : List (Bytes ScriptCbor)
     }
 
 
@@ -36,12 +37,24 @@ toCbor data =
         |> E.tagged (Tag.Unknown 259)
             (E.record E.int
                 (E.fields
-                    >> E.field 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) .labels
-                    >> E.field 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
-                    >> E.field 2 (E.ledgerList Bytes.toCbor) .plutusV1Scripts
-                    >> E.field 3 (E.ledgerList Bytes.toCbor) .plutusV2Scripts
+                    >> E.optionalField 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) (nonEmptyList << .labels)
+                    >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) (nonEmptyList << .nativeScripts)
+                    >> E.optionalField 2 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV1Scripts)
+                    >> E.optionalField 3 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV2Scripts)
+                    >> E.optionalField 4 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV3Scripts)
                 )
             )
+
+
+{-| Helper function to convert empty lists to [Nothing].
+-}
+nonEmptyList : List a -> Maybe (List a)
+nonEmptyList list =
+    if List.isEmpty list then
+        Nothing
+
+    else
+        Just list
 
 
 {-| Decode transaction auxiliary data from CBOR.
@@ -50,11 +63,11 @@ fromCbor : D.Decoder AuxiliaryData
 fromCbor =
     D.oneOf
         -- Shelley variant
-        [ D.map (\labels -> { labels = labels, nativeScripts = [], plutusV1Scripts = [], plutusV2Scripts = [] }) <|
+        [ D.map (\labels -> { labels = labels, nativeScripts = [], plutusV1Scripts = [], plutusV2Scripts = [], plutusV3Scripts = [] }) <|
             D.associativeList D.natural Metadatum.fromCbor
 
         -- Allegra variant
-        , D.tuple (\txMetadata auxiliaryScripts -> { labels = txMetadata, nativeScripts = auxiliaryScripts, plutusV1Scripts = [], plutusV2Scripts = [] }) <|
+        , D.tuple (\txMetadata auxiliaryScripts -> { labels = txMetadata, nativeScripts = auxiliaryScripts, plutusV1Scripts = [], plutusV2Scripts = [], plutusV3Scripts = [] }) <|
             D.elems
                 >> D.elem (D.associativeList D.natural Metadatum.fromCbor)
                 >> D.elem (D.list Script.decodeNativeScript)
@@ -66,11 +79,12 @@ fromCbor =
                     case tag of
                         Tag.Unknown 259 ->
                             let
-                                optionalAuxiliaryData maybeMetadata maybeNativeScripts maybePlutusV1Scripts maybePlutusV2Scripts =
+                                optionalAuxiliaryData maybeMetadata maybeNativeScripts maybePlutusV1Scripts maybePlutusV2Scripts maybePlutusV3Scripts =
                                     { labels = Maybe.withDefault [] maybeMetadata
                                     , nativeScripts = Maybe.withDefault [] maybeNativeScripts
                                     , plutusV1Scripts = Maybe.withDefault [] maybePlutusV1Scripts
                                     , plutusV2Scripts = Maybe.withDefault [] maybePlutusV2Scripts
+                                    , plutusV3Scripts = Maybe.withDefault [] maybePlutusV3Scripts
                                     }
                             in
                             D.record D.int optionalAuxiliaryData <|
@@ -79,6 +93,7 @@ fromCbor =
                                     >> D.optionalField 1 (D.list Script.decodeNativeScript)
                                     >> D.optionalField 2 (D.list (D.map Bytes.fromBytes D.bytes))
                                     >> D.optionalField 3 (D.list (D.map Bytes.fromBytes D.bytes))
+                                    >> D.optionalField 4 (D.list (D.map Bytes.fromBytes D.bytes))
 
                         _ ->
                             D.fail

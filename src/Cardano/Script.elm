@@ -1,6 +1,6 @@
 module Cardano.Script exposing
     ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
-    , encodeScript, encodeNativeScript, encodePlutusScript
+    , toCbor, encodeNativeScript, encodePlutusScript
     , fromCbor, decodeNativeScript
     )
 
@@ -11,7 +11,7 @@ module Cardano.Script exposing
 
 ## Encoders
 
-@docs encodeScript, encodeNativeScript, encodePlutusScript
+@docs toCbor, encodeNativeScript, encodePlutusScript
 
 
 ## Decoders
@@ -74,6 +74,7 @@ type alias PlutusScript =
 type PlutusVersion
     = PlutusV1
     | PlutusV2
+    | PlutusV3
 
 
 {-| Phantom type describing the kind of bytes within a [PlutusScript] object.
@@ -84,17 +85,17 @@ type ScriptCbor
 
 {-| Cbor Encoder for [Script]
 -}
-encodeScript : Script -> E.Encoder
-encodeScript script =
+toCbor : Script -> E.Encoder
+toCbor script =
     case script of
         Native nativeScript ->
-            EE.ledgerList identity
+            E.list identity
                 [ E.int 0
                 , encodeNativeScript nativeScript
                 ]
 
         Plutus plutusScript ->
-            EE.ledgerList identity
+            E.list identity
                 [ encodePlutusVersion plutusScript.version
                 , encodePlutusScript plutusScript
                 ]
@@ -104,7 +105,7 @@ encodeScript script =
 -}
 encodeNativeScript : NativeScript -> E.Encoder
 encodeNativeScript nativeScript =
-    EE.ledgerList identity <|
+    E.list identity <|
         case nativeScript of
             ScriptPubkey addrKeyHash ->
                 [ E.int 0
@@ -113,18 +114,18 @@ encodeNativeScript nativeScript =
 
             ScriptAll nativeScripts ->
                 [ E.int 1
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             ScriptAny nativeScripts ->
                 [ E.int 2
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             ScriptNofK atLeast nativeScripts ->
                 [ E.int 3
                 , E.int atLeast
-                , EE.ledgerList encodeNativeScript nativeScripts
+                , E.list encodeNativeScript nativeScripts
                 ]
 
             InvalidBefore start ->
@@ -155,6 +156,9 @@ encodePlutusVersion version =
             PlutusV2 ->
                 2
 
+            PlutusV3 ->
+                3
+
 
 
 -- Decoders
@@ -181,6 +185,9 @@ fromCbor =
 
                     2 ->
                         D.map (\s -> Plutus { version = PlutusV2, script = Bytes.fromBytes s }) D.bytes
+
+                    3 ->
+                        D.map (\s -> Plutus { version = PlutusV3, script = Bytes.fromBytes s }) D.bytes
 
                     _ ->
                         D.failWith ("Unknown script version: " ++ String.fromInt v)

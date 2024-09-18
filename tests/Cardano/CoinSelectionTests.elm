@@ -3,7 +3,7 @@ module Cardano.CoinSelectionTests exposing (..)
 import Bytes.Comparable as Bytes
 import Cardano.Address as Address exposing (Address, NetworkId(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..), largestFirst)
-import Cardano.Utxo exposing (Output, OutputReference, fromLovelace, totalLovelace)
+import Cardano.Utxo exposing (Output, OutputReference, fromLovelace)
 import Cardano.Value as Value exposing (Value, onlyLovelace)
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
@@ -82,7 +82,7 @@ noOutputsTest _ =
             5
     in
     largestFirst maxInputCount context
-        |> Expect.equal (Err UTxOBalanceInsufficient)
+        |> Expect.equal (Err <| UTxOBalanceInsufficient { selectedUtxos = [], missingValue = context.targetAmount })
 
 
 insufficientFundsTest : a -> Expectation
@@ -98,11 +98,15 @@ insufficientFundsTest _ =
             , alreadySelectedUtxos = []
             , targetAmount = onlyLovelace <| N.fromSafeInt 30
             }
-
-        result =
-            largestFirst 5 context
     in
-    Expect.equal (Err UTxOBalanceInsufficient) result
+    largestFirst 5 context
+        |> Expect.equal
+            (Err <|
+                UTxOBalanceInsufficient
+                    { selectedUtxos = availableOutputs
+                    , missingValue = onlyLovelace <| N.fromSafeInt 15
+                    }
+            )
 
 
 singleUtxoSingleOutputEqualValueTest : a -> Expectation
@@ -301,7 +305,7 @@ noOutputsMultiAssetTest _ =
             5
     in
     largestFirst maxInputCount context
-        |> Expect.equal (Err UTxOBalanceInsufficient)
+        |> Expect.equal (Err <| UTxOBalanceInsufficient { selectedUtxos = [], missingValue = context.targetAmount })
 
 
 insufficientFundsMultiAssetTest : a -> Expectation
@@ -317,11 +321,15 @@ insufficientFundsMultiAssetTest _ =
             , alreadySelectedUtxos = []
             , targetAmount = token "policy" "name" 30
             }
-
-        result =
-            largestFirst 5 context
     in
-    Expect.equal (Err UTxOBalanceInsufficient) result
+    largestFirst 5 context
+        |> Expect.equal
+            (Err <|
+                UTxOBalanceInsufficient
+                    { selectedUtxos = availableOutputs
+                    , missingValue = token "policy" "name" 15
+                    }
+            )
 
 
 singleUtxoSingleOutputEqualValueMultiAssetTest : a -> Expectation

@@ -1,12 +1,12 @@
 module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
-    , enterprise, script, base, pointer
-    , extractPubKeyHash, extractStakeCredential
-    , Dict, emptyDict
-    , StakeDict, emptyStakeDict
+    , fromBech32, enterprise, script, base, pointer
+    , isShelleyWallet, extractPubKeyHash, extractStakeCredential
+    , Dict, emptyDict, dictFromList
+    , StakeDict, emptyStakeDict, stakeDictFromList
     , toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
-    , decode, decodeReward
+    , decode, decodeReward, decodeCredential
     )
 
 {-| Handling Cardano addresses.
@@ -15,17 +15,17 @@ module Cardano.Address exposing
 
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
-@docs enterprise, script, base, pointer
+@docs fromBech32, enterprise, script, base, pointer
 
-@docs extractPubKeyHash, extractStakeCredential
+@docs isShelleyWallet, extractPubKeyHash, extractStakeCredential
 
-@docs Dict, emptyDict
+@docs Dict, emptyDict, dictFromList
 
-@docs StakeDict, emptyStakeDict
+@docs StakeDict, emptyStakeDict, stakeDictFromList
 
 @docs toCbor, stakeAddressToCbor, credentialToCbor, encodeNetworkId
 
-@docs decode, decodeReward
+@docs decode, decodeReward, decodeCredential
 
 -}
 
@@ -111,6 +111,13 @@ type CredentialHash
     = CredentialHash Never
 
 
+{-| Build an [Address] from its Bech32 string representation.
+-}
+fromBech32 : String -> Maybe Address
+fromBech32 _ =
+    Debug.todo "fromBech32"
+
+
 {-| Create a simple enterprise address, with only a payment credential and no stake credential.
 -}
 enterprise : NetworkId -> Bytes CredentialHash -> Address
@@ -155,6 +162,13 @@ pointer networkId paymentCredential p =
         }
 
 
+{-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.
+-}
+isShelleyWallet : Address -> Bool
+isShelleyWallet address =
+    extractPubKeyHash address /= Nothing
+
+
 {-| Extract the pubkey hash of a Shelley wallet address.
 -}
 extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
@@ -186,6 +200,9 @@ extractStakeCredential address =
 
 {-| Convenient alias for a `Dict` with [Address] keys.
 When converting to a `List`, its keys are sorted by address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias Dict a =
     AnyDict String Address a
@@ -193,14 +210,31 @@ type alias Dict a =
 
 {-| Initialize an empty address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyDict : Dict a
 emptyDict =
     Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
+{-| Create an address dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+dictFromList : List ( Address, a ) -> Dict a
+dictFromList =
+    Dict.Any.fromList (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
 {-| Convenient alias for a `Dict` with [StakeAddress] keys.
 When converting to a `List`, its keys are sorted by stake address.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 type alias StakeDict a =
     AnyDict String StakeAddress a
@@ -208,10 +242,24 @@ type alias StakeDict a =
 
 {-| Initialize an empty stake address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
     Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+
+
+{-| Create a stake address dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
+stakeDictFromList =
+    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
 
 
 {-| Encode an [Address] to CBOR.
@@ -489,3 +537,32 @@ networkIdFromHeader header =
 
         n ->
             Debug.todo ("Unrecognized network id:" ++ String.fromInt n)
+
+
+{-| Decode [Credential] which is either from a key or a script.
+-}
+decodeCredential : D.Decoder Credential
+decodeCredential =
+    D.length
+        |> D.andThen
+            (\length ->
+                -- A stake credential contains 2 elements
+                if length == 2 then
+                    D.int
+                        |> D.andThen
+                            (\id ->
+                                if id == 0 then
+                                    -- If the id is 0, it's a vkey hash
+                                    D.map (VKeyHash << Bytes.fromBytes) D.bytes
+
+                                else if id == 1 then
+                                    -- If the id is 1, it's a script hash
+                                    D.map (ScriptHash << Bytes.fromBytes) D.bytes
+
+                                else
+                                    D.fail
+                            )
+
+                else
+                    D.fail
+            )

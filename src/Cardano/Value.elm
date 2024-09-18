@@ -116,7 +116,7 @@ sum allValues =
 normalize : Value -> Value
 normalize v =
     { lovelace = v.lovelace
-    , assets = MultiAsset.normalize v.assets
+    , assets = MultiAsset.normalize Natural.isZero v.assets
     }
 
 
@@ -135,12 +135,13 @@ encode { lovelace, assets } =
         EE.natural lovelace
 
     else
-        E.sequence
-            [ E.beginList
-            , EE.natural lovelace
-            , MultiAsset.coinsToCbor assets
-            , E.break
-            ]
+        (E.tuple <|
+            E.elems
+                >> E.elem EE.natural (\_ -> lovelace)
+                >> E.elem MultiAsset.coinsToCbor
+                    (\_ -> assets)
+        )
+            ()
 
 
 {-| CBOR decoder for [Value].

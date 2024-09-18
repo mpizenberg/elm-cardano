@@ -3,6 +3,6 @@
   "automatically created by": "elm-review suppress",
   "learn more": "elm-review suppress --help",
   "suppressions": [
-    { "count": 9, "filePath": "src/Cardano/Transaction.elm" }
+    { "count": 1, "filePath": "src/Cardano/Transaction.elm" }
   ]
 }
