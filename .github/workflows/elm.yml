@@ -37,6 +37,7 @@ jobs:
           cache-restore-key: elm-home-examples
       - run: cd examples/wallet-cip30 && elm make Main.elm --output /dev/null
       - run: cd examples/ogmios && elm make Main.elm --output /dev/null
+      - run: cd examples/txbuild && elm make Main.elm --output /dev/null
 
   format:
     runs-on: ubuntu-latest
