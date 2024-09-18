@@ -6,10 +6,10 @@ import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
 import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data(..))
 import Cardano.Gov exposing (Action(..), Drep(..), Nonce(..), Vote(..), Voter(..), noParamUpdate)
+import Cardano.Metadatum as Metadatum
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
-import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Utxo as Utxo exposing (DatumOption(..))
 import Cardano.Value as Value
 import Cbor.Decode as D

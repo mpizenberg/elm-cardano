@@ -6,10 +6,10 @@ import Cardano.Address as Address exposing (NetworkId(..))
 import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data exposing (Data(..))
 import Cardano.Gov exposing (Nonce(..), noParamUpdate)
+import Cardano.Metadatum as Metadatum
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet)
-import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Value as Value
 import Dict exposing (Dict)
 import Expect
