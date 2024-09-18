@@ -188,14 +188,16 @@ type alias Update =
     }
 
 
-{-| -}
+{-| VKey witness
+-}
 type alias VKeyWitness =
     { vkey : Bytes Ed25519PublicKey -- 0
     , signature : Bytes Ed25519Signature -- 1
     }
 
 
-{-| -}
+{-| Bootstrap witness
+-}
 type alias BootstrapWitness =
     { publicKey : Bytes Ed25519PublicKey -- 0
     , signature : Bytes Ed25519Signature -- 1
