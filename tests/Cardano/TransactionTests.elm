@@ -3,12 +3,12 @@ module Cardano.TransactionTests exposing (suite)
 import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (NetworkId(..))
+import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data exposing (Data(..))
 import Cardano.Gov exposing (Nonce(..), noParamUpdate)
 import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (NativeScript(..))
 import Cardano.Transaction as Transaction exposing (TransactionBody, WitnessSet, newBody, newWitnessSet)
-import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum
 import Cardano.Transaction.Builder as Tx
 import Cardano.Value as Value

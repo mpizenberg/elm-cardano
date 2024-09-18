@@ -44,12 +44,12 @@ module Cardano.Transaction exposing
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
+import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data)
 import Cardano.Gov as Gov exposing (ActionDict, ActionId, Anchor, Drep(..), ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
-import Cardano.Transaction.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D

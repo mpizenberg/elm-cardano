@@ -1,4 +1,4 @@
-module Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
+module Cardano.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
 
 {-|
 

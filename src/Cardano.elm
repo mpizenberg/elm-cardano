@@ -370,6 +370,7 @@ import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
+import Cardano.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Cip30 exposing (Utxo)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
@@ -377,7 +378,6 @@ import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyI
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
-import Cardano.Transaction.AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Transaction.AuxiliaryData.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Transaction.Builder exposing (requiredSigner, totalCollateral)
 import Cardano.Uplc as Uplc exposing (VmConfig, evalScriptsCosts)
