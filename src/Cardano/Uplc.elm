@@ -54,7 +54,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
     in
     if not (List.isEmpty missingUtxos) then
         String.join ", " (List.map Utxo.refAsString missingUtxos)
-            |> (++) "Missing UTxOs in local state: "
+            |> (\missing -> "Missing UTxOs in local state: " ++ missing)
             |> Err
 
     else

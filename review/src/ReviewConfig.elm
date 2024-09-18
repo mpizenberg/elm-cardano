@@ -39,6 +39,7 @@ import Simplify
 
 config : List Rule
 config =
+    -- TODO: globally ignore src/TempTxTest.elm for all rules
     [ Docs.NoMissing.rule
         { document = onlyExposed
         , from = exposedModules
@@ -54,7 +55,8 @@ config =
     , NoExposingEverything.rule
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoImportingEverything.rule []
-    , NoMissingTypeAnnotation.rule
+    , NoMissingTypeAnnotation.rule -- TODO: ignore src/Cardano/TxExamples.elm
+        |> Rule.ignoreErrorsForDirectories [ "tests/" ]
 
     -- , NoMissingTypeAnnotationInLetIn.rule
     , NoMissingTypeExpose.rule
@@ -63,7 +65,7 @@ config =
     , NoUnused.CustomTypeConstructors.rule []
     , NoUnused.CustomTypeConstructorArgs.rule
     , NoUnused.Dependencies.rule
-    , NoUnused.Exports.rule
+    , NoUnused.Exports.rule -- TODO: ignore src/Cardano/TxExamples.elm
     , NoUnused.Parameters.rule
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
@@ -77,7 +79,9 @@ config =
             , "Cbor.Encode.associativeList"
             , "Cbor.Encode.dict"
             ]
-          , [ "Cbor.Encode.Extra" ]
+          , [ "Cbor.Encode.Extra"
+            , "Cardano.Script"
+            ]
           )
         ]
     ]
