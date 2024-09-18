@@ -2,7 +2,7 @@ module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalize)
+import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset)
@@ -328,7 +328,7 @@ okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIn
                     , evalScriptsCosts = evalScriptsCosts
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     Expect.fail (Debug.toString error)
 
@@ -515,7 +515,7 @@ failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, tx
                     , evalScriptsCosts = evalScriptsCosts
                     }
             in
-            case finalize buildingConfig fee txOtherInfo txIntents of
+            case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of
                 Err error ->
                     expectedFailure error
 

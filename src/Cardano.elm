@@ -2,8 +2,8 @@ module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
     , TxOtherInfo(..)
     , Fee(..)
-    , finalize, TxFinalizationError(..)
-    , example1, example2, example3, prettyTx
+    , TxFinalizationError(..)
+    , example1, example2, example3, finalizeAdvanced, prettyTx
     )
 
 {-| Cardano stuff
@@ -492,7 +492,7 @@ Analyze all intents and perform the following actions:
   - Compute Tx fee
 
 -}
-finalize :
+finalizeAdvanced :
     { localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
@@ -501,7 +501,7 @@ finalize :
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalize { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
     case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -2048,7 +2048,7 @@ example1 _ =
     [ Spend <| From exAddr.me ada.one
     , SendTo exAddr.you ada.one
     ]
-        |> finalize globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
+        |> finalizeAdvanced globalConfigNoPlutus autoFee [ TxMetadata { tag = Natural.fromSafeInt 14, metadata = Metadatum.Int (Integer.fromSafeInt 42) } ]
 
 
 
@@ -2072,7 +2072,7 @@ example2 _ =
         , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
         }
     ]
-        |> finalize globalConfigNoPlutus autoFee []
+        |> finalizeAdvanced globalConfigNoPlutus autoFee []
 
 
 
@@ -2159,4 +2159,4 @@ example3 _ =
     -- Return the other 2 ada to the lock script (there was 4 ada initially)
     , SendToOutput (makeLockedOutput ada.two)
     ]
-        |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []
+        |> finalizeAdvanced { globalConfig | localStateUtxos = localStateUtxos } autoFee []
