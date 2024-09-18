@@ -1,4 +1,4 @@
-name: test
+name: elm
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           cache-key: elm-home-tests${{ hashFiles('elm-tooling.json', 'elm.json') }}
           cache-restore-key: elm-home-tests
       - run: elm-test-rs
-  
+
   examples:
     runs-on: ubuntu-latest
     steps:
@@ -37,7 +37,7 @@ jobs:
           cache-restore-key: elm-home-examples
       - run: cd examples/wallet-cip30 && elm make Main.elm --output /dev/null
       - run: cd examples/ogmios && elm make Main.elm --output /dev/null
-  
+
   format:
     runs-on: ubuntu-latest
     steps:
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
-          cache: 'npm'
+          cache: "npm"
       - name: npm ci
         env:
           # elm-tooling install is handled by elm-tooling-action
