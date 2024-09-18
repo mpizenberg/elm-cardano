@@ -359,6 +359,7 @@ type Todo
 {-| -}
 type TxIntent
     = SendTo Address Value
+    | SendToOutput Output
     | SendToOutputAdvanced (InputsOutputs -> Output)
       -- Spending assets from somewhere
     | Spend SpendSource
@@ -685,6 +686,19 @@ preProcessIntents txIntents =
                         | freeOutputs = freeValueAdd addr v preProcessedIntents.freeOutputs
                     }
 
+                SendToOutput newOutput ->
+                    let
+                        newPreCreated inputsOutputs =
+                            let
+                                { sum, outputs } =
+                                    preProcessedIntents.preCreated inputsOutputs
+                            in
+                            { sum = Value.add sum newOutput.amount
+                            , outputs = newOutput :: outputs
+                            }
+                    in
+                    { preProcessedIntents | preCreated = newPreCreated }
+
                 SendToOutputAdvanced f ->
                     let
                         newPreCreated inputsOutputs =
@@ -768,7 +782,7 @@ preProcessIntents txIntents =
                             }
 
                 -- TODO: Handle certificates
-                _ ->
+                IssueCertificate _ ->
                     Debug.todo "certificates"
     in
     -- Use fold right so that the outputs list is in the correct order
@@ -2143,6 +2157,6 @@ example3 _ =
     , SendTo exAddr.me ada.two
 
     -- Return the other 2 ada to the lock script (there was 4 ada initially)
-    , SendToOutputAdvanced (\_ -> makeLockedOutput ada.two)
+    , SendToOutput (makeLockedOutput ada.two)
     ]
         |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []
