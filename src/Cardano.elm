@@ -154,6 +154,13 @@ The script logic only determines the first part of the address.
 
 Let’s show an example how to spend utxos from this native script.
 We want to retrieve 1 ada from it, and keep the other ada locked.
+We need to do that in two actions.
+
+1.  Spend the whole UTxO, with its 2 ada in it.
+2.  Send 1 ada back to the same address.
+
+We cannot partially spend UTxOs.
+UTxOs are like bills, you spend them whole and get change for overspending.
 
     ( lockedUtxoRef, lockedOutput ) =
         -- TODO: Transaction.findOutputUtxosAt
@@ -165,11 +172,13 @@ We want to retrieve 1 ada from it, and keep the other ada locked.
         Transaction.updateUtxoState localStateUtxos nativeLockTx
 
     nativeUnlockTx =
-        -- This native script is so small,
-        -- the easiest way to provide it is directly by value
         [ Spend <|
             FromNativeScript
+                -- spend the whole UTxO
                 { spentInput = lockedUtxoRef
+
+                -- This native script is so small,
+                -- the easiest way to provide it is directly by value instead of by reference
                 , nativeScriptWitness = WitnessValue lockScript
                 }
 
@@ -190,11 +199,12 @@ This enables very efficient script executions since they can just check
 that a public key is present in that `requiredSigners` field.
 
 Let’s start with a simple minting and burning example.
-For this example, we suppose the plutus script was already written.
-This plutus script will accept any mint or burn
+For this example, we suppose the Plutus script was already written,
+in some onchain language, like [Aiken](https://aiken-lang.org/).
+This Plutus script will accept any mint or burn
 as long as we present our signature in the transaction.
 The redeemer is not used at all so we can define a dummy one,
-of the smallest size possible.
+of the smallest size possible since a redeemer is mandatory.
 
     ( dogScriptOutputRef, dogPolicyId, dogAssetName ) =
         Debug.todo "dog info is provided"
@@ -210,6 +220,9 @@ of the smallest size possible.
     -- A redeemer is mandatory, but unchecked by this contract anyway.
     dummyRedeemer =
         Data.Int Integer.zero
+
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
 
     mintAndBurnTx =
         -- minting 1 dog
@@ -238,28 +251,34 @@ of the smallest size possible.
                     }
             }
         ]
-            |> finalize config []
+            |> finalize localStateUtxos []
+
+You may have noticed that `redeemerData` is taking a function instead of just a redeemer.
+This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
+But for simple use cases, we can just ignore that argument with an underscore `_`.
+
+[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
 
 Ok now let’s show how sending to a Plutus script would be done.
 As before, we’ll use the simple example of a lock script.
 But this time, we don’t write it directly (as in the NativeScript example).
-Instead we suppose the script was written in some onchain language (Aiken, plu-ts, Opshin, ...),
+Instead we suppose the script was written in some onchain language (Aiken, Opshin, Plutus Tx, ...),
 and the blueprint of the script is available, with its hash.
 
-In the eUTxO model, UTxOs created at a script address must have a piece of data attached.
+In the eUTxO model, UTxOs sent to a script address must have a piece of data attached.
 That piece of data is referred to as the "datum".
-It will be passed as argument to the script execution, in addition to the redeemer.
+It will be passed as argument to the script execution
+when some future transaction try to spend that UTxO later.
 
     lockScriptHash =
         extractedFromBlueprint
 
+    -- A script address is directly tied to the script hash
+    -- and so indirectly also tied to the (immutable) script code.
     scriptAddress =
         Address.Shelley
             { networkId = Mainnet
             , paymentCredential = ScriptHash lockScriptHash
-
-            -- This is our staking credential
-            -- We use it to keep our locked ada staked!
             , stakeCredential = Address.extractStakeCredential me
             }
 
@@ -267,53 +286,57 @@ It will be passed as argument to the script execution, in addition to the redeem
         Address.extractPubKeyHash me
             |> Maybe.withDefault dummyCredential
 
-    -- Put the unlocking pubkey in the datum of the funds we lock
+    -- Put the unlocking pubkey hash in the datum of the funds we lock
     datumWithKeyCred =
         Data.Bytes (Bytes.toAny myKeyCred)
 
+    localStateUtxos =
+        Utxo.refDictFromList (myUtxos ++ scriptsRefsUtxos)
+
     lockInPlutusScriptTx =
-        [ Spend <| FromWallet me twoAda
+        [ Spend (FromWallet me fourAda)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = twoAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = fourAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
-
-You may have noticed that `SendToOutput` is taking a function parameter
-instead of just an `Output`.
-This is to enable more advanced use cases such as [UTxO indexers][utxo-indexers].
-But for simple use cases, we can just ignore that argument with an underscore `_`.
-
-[utxo-indexers]: https://github.com/Anastasia-Labs/aiken-design-patterns
+            |> finalize localStateUtxos []
 
 Now that we know how to send values to a script, let’s see how to collect them.
-We will show how to retrieve 1 ada from the previously locked 2 ada.
+We will show how to retrieve 2 ada from the previously locked 4 ada.
 For that, we need to do a few things:
 
-1.  Spend the whole UTxO, with its 2 ada in it.
+1.  Spend the whole UTxO, with its 4 ada in it.
     We cannot partially spend UTxOs.
+    UTxOs are like bills, you spend them whole and get change for overspending.
 2.  Provide the script code to the transaction.
     The script hash must match with the first part of the UTxO address we are spending.
 3.  Provide our signature for the proof that the script needs.
-4.  Retrieve 1 ada from that spent UTxO, and send 1 ada back to the same script.
+4.  Retrieve 2 ada from that spent UTxO, and send 2 ada back to the same script.
 
 For such a tiny script, which just checks if our signature is present,
 no need to put it in a reference UTxO first.
 We can embed it directly in the transaction witness.
 
-    ( lockScript, lockScriptHash ) =
-        Debug.todo "Extracted from the script blueprint"
+    ( lockedUtxoRef, lockedOutput ) =
+        -- TODO: Transaction.findOutputUtxosAt
+        Transaction.findOutputUtxosAt scriptAddress lockInPlutusScriptTx
+            |> List.head
+
+    updatedLocalStateUtxos =
+        -- TODO: Transaction.updateUtxoState
+        Transaction.updateUtxoState localStateUtxos nativeLockTx
+
+    lockScript =
+        extractedFromTheBlueprint
 
     unlockFromPlutusScriptTx =
-        -- Collect 1 ada from the locked UTxO at the script address
+        -- Collect the locked UTxO at the script address
         [ Spend <|
             FromPlutusScript
-                { spentInput = Debug.todo "the locked utxo with 2 ada"
+                { spentInput = lockedUtxoRef
                 , datumWitness = Nothing -- not needed, the datum was given by value
                 , plutusScriptWitness =
                     { script = WitnessValue lockScript -- script passed by value
@@ -321,19 +344,17 @@ We can embed it directly in the transaction witness.
                     , requiredSigners = [ myKeyCred ]
                     }
                 }
-        , SendTo me oneAda
+        , SendTo me twoAda
 
-        -- Return the other 1 ada to the lock script (there was 2 ada initially)
+        -- Return the other 2 ada to the lock script (there was 4 ada initially)
         , SendToOutput
-            (\_ ->
-                { address = scriptAddress
-                , amount = oneAda
-                , datumOption = Just (Datum datumWithKeyCred)
-                , referenceScript = Nothing
-                }
-            )
+            { address = scriptAddress
+            , amount = twoAda
+            , datumOption = Just (Datum datumWithKeyCred)
+            , referenceScript = Nothing
+            }
         ]
-            |> finalize config []
+            |> finalize updatedLocalStateUtxos []
 
 
 ## Code Documentation
