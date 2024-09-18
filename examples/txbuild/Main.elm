@@ -2,8 +2,8 @@ module Main exposing (main)
 
 import Browser
 import Bytes.Comparable as Bytes
-import Cardano
 import Cardano.Transaction as Transaction
+import Cardano.TxExamples exposing (example1, example2, example3, prettyTx)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo
 import Html exposing (Html, div, text)
@@ -25,7 +25,7 @@ example ex =
             Debug.toString error
 
         Ok tx ->
-            Cardano.prettyTx tx
+            prettyTx tx
 
 
 snekTxBytes =
@@ -114,12 +114,12 @@ view : () -> Html ()
 view _ =
     div []
         [ div [] [ text "Example transaction 1: send 1 ada from me to you." ]
-        , Html.pre [] [ text <| example Cardano.example1 ]
+        , Html.pre [] [ text <| example example1 ]
         , div [] [ text "Example transaction 2: mint 1 dog & burn 1 cat." ]
-        , Html.pre [] [ text <| example Cardano.example2 ]
+        , Html.pre [] [ text <| example example2 ]
         , div [] [ text "Example transaction 3: spend 2 ada from a plutus script with 4 ada." ]
         , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
-        , Html.pre [] [ text <| example Cardano.example3 ]
+        , Html.pre [] [ text <| example example3 ]
 
         -- , div [] [ text "SnekDotFun Tx:" ]
         -- , Html.pre [] [ text <| Cardano.prettyTx snekTx ]
