@@ -424,7 +424,7 @@ failTxBuilding =
             , txOtherInfo = []
             , txIntents =
                 [ Spend <| From testAddr.me (Value.onlyLovelace <| Natural.fromSafeInt 100)
-                , SendToOutput (\_ -> Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
+                , SendToOutputAdvanced (\_ -> Utxo.fromLovelace testAddr.me <| Natural.fromSafeInt 100)
                 ]
             }
             (\error ->

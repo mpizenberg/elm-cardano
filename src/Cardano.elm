@@ -359,7 +359,7 @@ type Todo
 {-| -}
 type TxIntent
     = SendTo Address Value
-    | SendToOutput (InputsOutputs -> Output)
+    | SendToOutputAdvanced (InputsOutputs -> Output)
       -- Spending assets from somewhere
     | Spend SpendSource
       -- Minting / burning assets
@@ -685,7 +685,7 @@ preProcessIntents txIntents =
                         | freeOutputs = freeValueAdd addr v preProcessedIntents.freeOutputs
                     }
 
-                SendToOutput f ->
+                SendToOutputAdvanced f ->
                     let
                         newPreCreated inputsOutputs =
                             let
@@ -2143,6 +2143,6 @@ example3 _ =
     , SendTo exAddr.me ada.two
 
     -- Return the other 2 ada to the lock script (there was 4 ada initially)
-    , SendToOutput (\_ -> makeLockedOutput ada.two)
+    , SendToOutputAdvanced (\_ -> makeLockedOutput ada.two)
     ]
         |> finalize { globalConfig | localStateUtxos = localStateUtxos } autoFee []
