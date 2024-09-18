@@ -1,19 +1,45 @@
-module RationalNat exposing (..)
+module RationalNat exposing
+    ( RationalNat
+    , zero, fromSafeInt
+    , add, mul, floor
+    )
+
+{-| Unbounded positive rational numbers,
+based on [Natural] numbers for the fraction.
+
+@docs RationalNat
+
+@docs zero, fromSafeInt
+
+@docs add, mul, floor
+
+-}
 
 import Natural exposing (Natural)
 
 
+{-| Unbounded positive rational numbers,
+based on [Natural] numbers for both sides of the fraction.
+-}
 type alias RationalNat =
     { num : Natural
     , denom : Natural
     }
 
 
+{-| 0
+-}
 zero : RationalNat
 zero =
     fromSafeInt 0
 
 
+{-| Convert from a safe JS integer (< 2^53) to [RationalNat],
+using 1 for the denominator.
+
+This has the same limitations than the [Natural] function with the same name.
+
+-}
 fromSafeInt : Int -> RationalNat
 fromSafeInt int =
     { num = Natural.fromSafeInt int
@@ -21,6 +47,12 @@ fromSafeInt int =
     }
 
 
+{-| Addition
+
+Remark that the denominator part will grow due to exact computation.
+Not simplification is performed.
+
+-}
 add : RationalNat -> RationalNat -> RationalNat
 add r1 r2 =
     { num = Natural.add (Natural.mul r1.num r2.denom) (Natural.mul r2.num r1.denom)
@@ -28,6 +60,12 @@ add r1 r2 =
     }
 
 
+{-| Multiplication
+
+Remark that the denominator part will grow due to exact computation.
+Not simplification is performed.
+
+-}
 mul : RationalNat -> RationalNat -> RationalNat
 mul r1 r2 =
     { num = Natural.mul r1.num r2.num

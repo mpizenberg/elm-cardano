@@ -26,6 +26,7 @@
         "Cardano.Uplc",
         "Cardano.Utxo",
         "Cardano.Value",
+        "RationalNat",
         "Word7"
     ],
     "elm-version": "0.19.1 <= v < 0.20.0",
