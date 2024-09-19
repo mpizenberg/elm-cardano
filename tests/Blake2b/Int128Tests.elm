@@ -3,7 +3,7 @@ module Blake2b.Int128Tests exposing (suite)
 import Blake2b.Int128 as Int128 exposing (Int128(..))
 import Expect
 import Test exposing (Test, describe, test)
-import UInt64 exposing (UInt64(..))
+import UInt64 exposing (UInt64)
 
 
 suite : Test

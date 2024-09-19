@@ -1,4 +1,4 @@
-module Blake2b exposing (blake2b, blake2b224, blake2b256, blake2b512)
+module Blake2b exposing (blake2b224, blake2b256, blake2b512)
 
 import Bitwise
 import Blake2b.Int128 as Int128 exposing (Int128(..))

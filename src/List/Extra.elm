@@ -1,4 +1,4 @@
-module List.Extra exposing (chunksOf, get, get64, indexedMap64, last, sublist, take64, updateAt)
+module List.Extra exposing (chunksOf, get64, indexedMap64, last, sublist, take64, updateAt)
 
 import UInt64 as U64 exposing (UInt64)
 
