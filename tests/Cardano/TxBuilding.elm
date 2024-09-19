@@ -5,12 +5,14 @@ import Bytes.Map as Map
 import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
+import Cardano.Data as Data
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script as Script
+import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
-import Cardano.Utxo as Utxo exposing (Output, OutputReference)
+import Cardano.Uplc as Uplc
+import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Expect exposing (Expectation)
 import Integer
@@ -314,7 +316,107 @@ okTxBuilding =
                 }
             )
 
-        -- TODO: test with plutus script spending
+        -- Test with plutus script spending
+        , let
+            utxoBeingSpent =
+                makeRef "previouslySentToLock" 0
+
+            findSpendingUtxo inputs =
+                case inputs of
+                    [] ->
+                        0
+
+                    ( id, ref ) :: next ->
+                        if ref == utxoBeingSpent then
+                            id
+
+                        else
+                            findSpendingUtxo next
+
+            ( myKeyCred, myStakeCred ) =
+                ( Address.extractPubKeyHash testAddr.me
+                    |> Maybe.withDefault (Bytes.fromText "should not fail")
+                , Address.extractStakeCredential testAddr.me
+                )
+
+            -- Lock script made with Aiken
+            lock =
+                { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+                , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
+                }
+
+            -- Combining the script hash with our stake credential
+            -- to keep the locked ada staked.
+            lockScriptAddress =
+                Address.Shelley
+                    { networkId = Mainnet
+                    , paymentCredential = ScriptHash lock.scriptHash
+                    , stakeCredential = myStakeCred
+                    }
+
+            -- Build a redeemer that contains the index of the spent script input.
+            redeemer inputsOutputs =
+                List.indexedMap Tuple.pair inputsOutputs.spentInputs
+                    |> findSpendingUtxo
+                    |> (Data.Int << Integer.fromSafeInt)
+
+            -- Helper function to create an output at the lock script address.
+            -- It contains our key credential in the datum.
+            makeLockedOutput adaAmount =
+                { address = lockScriptAddress
+                , amount = adaAmount
+                , datumOption = Just (DatumValue (Data.Bytes <| Bytes.toAny myKeyCred))
+                , referenceScript = Nothing
+                }
+          in
+          okTxTest "spend 2 ada from a plutus script holding 4 ada"
+            { localStateUtxos =
+                [ makeAdaOutput 0 testAddr.me 5
+                , ( utxoBeingSpent, makeLockedOutput <| Value.onlyLovelace <| ada 4 )
+                ]
+            , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                -- Collect 2 ada from the lock script
+                [ Spend <|
+                    FromPlutusScript
+                        { spentInput = utxoBeingSpent
+                        , datumWitness = Nothing
+                        , plutusScriptWitness =
+                            { script = WitnessValue lock.script
+                            , redeemerData = redeemer
+                            , requiredSigners = [ myKeyCred ]
+                            }
+                        }
+                , SendTo testAddr.me (Value.onlyLovelace <| ada 2)
+
+                -- Return the other 2 ada to the lock script (there was 4 ada initially)
+                , SendToOutput (makeLockedOutput <| Value.onlyLovelace <| ada 2)
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = Just (ada 2)
+                            , inputs = [ makeRef "0" 0, utxoBeingSpent ]
+                            , referenceInputs = []
+                            , mint =
+                                MultiAsset.mintAdd
+                                    (MultiAsset.onlyToken dog.policyId dog.assetName Integer.one)
+                                    (MultiAsset.onlyToken cat.policyId cat.assetName Integer.negativeOne)
+                            , outputs =
+                                [ Utxo.fromLovelace testAddr.me (ada 5)
+                                , makeLockedOutput <| Value.onlyLovelace <| ada 2
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                        }
+                }
+            )
         ]
 
 
