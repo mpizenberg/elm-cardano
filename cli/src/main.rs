@@ -2,6 +2,7 @@ use anyhow::Context;
 use argh::FromArgs;
 use std::fmt::Debug;
 use std::fs;
+use std::io::{self, Read, Write};
 use std::process::Command as ProcessCommand;
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -15,6 +16,7 @@ struct Command {
 #[argh(subcommand)]
 enum SubCommand {
     Make(MakeSubCommand),
+    Postprocess(PostprocessSubCommand),
     Run(RunSubCommand),
 }
 
@@ -47,6 +49,21 @@ struct MakeSubCommand {
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
+/// Postprocess subcommand for elm-watch.
+#[argh(subcommand, name = "postprocess")]
+struct PostprocessSubCommand {
+    #[argh(positional)]
+    /// the target specified in elm-watch.json. Typically "main".
+    target: String,
+    #[argh(positional)]
+    /// compilation mode. Either "debug", "standard" or "optimize".
+    compilation_mode: String,
+    #[argh(positional)]
+    /// run mode. Either "make" or "hot".
+    run_mode: String,
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
 /// Run subcommand.
 #[argh(subcommand, name = "run")]
 struct RunSubCommand {
@@ -59,6 +76,7 @@ fn main() -> anyhow::Result<()> {
     let Command { command }: Command = argh::from_env();
     match command {
         SubCommand::Make(make_args) => make_subcommand(make_args)?,
+        SubCommand::Postprocess(make_args) => postprocess_subcommand(make_args)?,
         SubCommand::Run(run_args) => run_subcommand(run_args)?,
     }
     Ok(())
@@ -105,6 +123,21 @@ fn make_subcommand(make_args: MakeSubCommand) -> anyhow::Result<()> {
 
     // Overwrite the compiled output file
     fs::write(&make_args.output, &patched_module)?;
+
+    Ok(())
+}
+
+/// Postprocess the file provided through stdin and output the result in stdout.
+fn postprocess_subcommand(args: PostprocessSubCommand) -> anyhow::Result<()> {
+    // Read the file given through stdin
+    let mut compiled_file = String::new();
+    io::stdin().read_to_string(&mut compiled_file)?;
+
+    // Apply kernel patching to be able to call the uplc_wasm code synchronously.
+    let patched_file = kernel_patching_uplc_wasm_iife(&compiled_file);
+
+    // Write the patched file to stdout
+    io::stdout().write_all(patched_file.as_bytes())?;
 
     Ok(())
 }
