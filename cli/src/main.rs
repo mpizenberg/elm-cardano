@@ -100,12 +100,8 @@ fn make_subcommand(make_args: MakeSubCommand) -> anyhow::Result<()> {
     // Read the elm compiled file
     let compiled_file = fs::read_to_string(&make_args.output)?;
 
-    // Convert the compiled output into an ES module
-    let es_module = into_es_module(&compiled_file);
-
-    // Apply kernel patching of the ES module
-    // to be able to call the uplc_wasm code synchronously.
-    let patched_module = kernel_patching_uplc_wasm(&es_module);
+    // Apply kernel patching to be able to call the uplc_wasm code synchronously.
+    let patched_module = kernel_patching_uplc_wasm_iife(&compiled_file);
 
     // Overwrite the compiled output file
     fs::write(&make_args.output, &patched_module)?;
@@ -117,9 +113,9 @@ fn run_subcommand(run_args: RunSubCommand) -> anyhow::Result<()> {
     todo!()
 }
 
-/// Kernel patching the ES module with uplc_wasm
-fn kernel_patching_uplc_wasm(elm_js: &str) -> String {
-    let header = r#"
+/// Kernel patching the elm compiler output with uplc_wasm
+fn kernel_patching_uplc_wasm_iife(elm_js: &str) -> String {
+    let eval_def = r#"
 let evalScriptsCostsKernel = (elm_args) => {
   try {
     if (!("uplc_wasm" in window)) {
@@ -151,9 +147,13 @@ let evalScriptsCostsKernel = (elm_args) => {
     "#;
     let old_body = "return $elm$core$Result$Err('evalScriptsCostsKernel');";
     let new_body = "return evalScriptsCostsKernel(_v0);";
-    let footer = r#"
-    "#;
-    [header, &elm_js.replacen(old_body, new_body, 1), footer].join("\n")
+    let use_strict_offset = elm_js.find("'use strict'").unwrap();
+    [
+        &elm_js[..use_strict_offset],
+        &eval_def,
+        &elm_js[use_strict_offset..].replacen(old_body, new_body, 1),
+    ]
+    .join("\n")
 }
 
 /// Convert a JS file resulting from an Elm compilation into an ES module.

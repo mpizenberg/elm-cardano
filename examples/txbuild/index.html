@@ -15,7 +15,18 @@
             await uplc_wasm_init();
             window.uplc_wasm = uplc_wasm;
             // Use a dynamic import to make sure window.uplc_wasm is populated first.
-            const { Elm } = await import("/main.js");
+            // Dynamically load a JavaScript file
+            function loadScript(url) {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = url;
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.body.appendChild(script);
+                });
+            }
+            // Load the Elm-compiled JavaScript
+            await loadScript('/main.js');
             var app = Elm.Main.init({
                 node: document.getElementById("myapp"),
                 flags: null,
