@@ -8,6 +8,8 @@ resolver = "2"
 cargo-dist-version = "0.22.1"
 # CI backends to support
 ci = "github"
+# Also build and upload artifacts on PRs
+pr-run-mode = "upload"
 # The installers to generate for each app
 installers = ["shell", "npm"]
 # Target platforms to build apps for (Rust target-triple syntax)
