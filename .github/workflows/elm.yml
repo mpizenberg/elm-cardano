@@ -53,7 +53,9 @@ jobs:
         with:
           cache-key: elm-home-tests${{ hashFiles('elm-tooling.json', 'elm.json') }}
           cache-restore-key: elm-home-tests
-      - run: elm-test-rs --compiler elm-cardano
+      - uses: actions/setup-node@v4
+      - run: npm install elm-test
+      - run: npx elm-test --compiler elm-cardano
 
   examples:
     runs-on: ubuntu-latest
