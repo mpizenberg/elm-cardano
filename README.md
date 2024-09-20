@@ -17,7 +17,7 @@ Install the elm-cardano CLI and the Elm package.
 npm install -g elm elm-cardano
 # Initialize a template project in the elm-cardano-starter/ folder
 mkdir elm-cardano-starter && cd elm-cardano-starter
-elm-cardano init
+npx elm-cardano init
 ```
 
 This will generate the following template structure:
@@ -31,7 +31,7 @@ src/Main.elm # the elm app
 Now you simply need to compile the elm app and start a static server.
 ```sh
 # Compile the elm app. This will create some new files.
-elm-cardano make src/Main.elm --output main.js
+npx elm-cardano make src/Main.elm --output main.js
 # Start a static web server then open your browser
 python -m http.server
 ```
