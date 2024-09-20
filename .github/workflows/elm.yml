@@ -32,6 +32,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
+          name: elm-cardano-bin
           path: target/release/elm-cardano
           compression-level: 0 # no compression
 
@@ -41,6 +42,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3.5.1
       - uses: actions/download-artifact@v4
+        with:
+          name: elm-cardano-bin
+          path: target/release/elm-cardano
+      - run: ls target/release
+      - run: ls target/release/elm-cardano
       - name: Add elm-compiler to path
         run: |
           chmod +x target/release/elm-cardano
