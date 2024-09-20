@@ -341,7 +341,9 @@ okTxBuilding =
 
             -- Lock script made with Aiken
             lock =
-                { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+                { scriptBytes = Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881"
+
+                -- { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
                 , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
                 }
 
@@ -368,12 +370,14 @@ okTxBuilding =
                 , datumOption = Just (DatumValue (Data.Bytes <| Bytes.toAny myKeyCred))
                 , referenceScript = Nothing
                 }
-          in
-          okTxTest "spend 2 ada from a plutus script holding 4 ada"
-            { localStateUtxos =
+
+            localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , ( utxoBeingSpent, makeLockedOutput <| Value.onlyLovelace <| ada 4 )
                 ]
+          in
+          okTxTest "spend 2 ada from a plutus script holding 4 ada"
+            { localStateUtxos = localStateUtxos
             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -384,7 +388,7 @@ okTxBuilding =
                         { spentInput = utxoBeingSpent
                         , datumWitness = Nothing
                         , plutusScriptWitness =
-                            { script = WitnessValue lock.script
+                            { script = WitnessValue (PlutusScript PlutusV3 lock.scriptBytes)
                             , redeemerData = redeemer
                             , requiredSigners = [ myKeyCred ]
                             }
@@ -395,25 +399,33 @@ okTxBuilding =
                 , SendToOutput (makeLockedOutput <| Value.onlyLovelace <| ada 2)
                 ]
             }
-            (\_ ->
+            (\tx ->
                 { newTx
                     | body =
                         { newBody
                             | fee = Just (ada 2)
                             , inputs = [ makeRef "0" 0, utxoBeingSpent ]
-                            , referenceInputs = []
-                            , mint =
-                                MultiAsset.mintAdd
-                                    (MultiAsset.onlyToken dog.policyId dog.assetName Integer.one)
-                                    (MultiAsset.onlyToken cat.policyId cat.assetName Integer.negativeOne)
+                            , requiredSigners = [ myKeyCred ]
                             , outputs =
-                                [ Utxo.fromLovelace testAddr.me (ada 5)
-                                , makeLockedOutput <| Value.onlyLovelace <| ada 2
+                                [ makeLockedOutput <| Value.onlyLovelace <| ada 2
+                                , Utxo.fromLovelace testAddr.me (ada 5)
                                 ]
+
+                            -- script stuff
+                            , scriptDataHash = Just (dummyBytes 32 "ScriptDataHash")
+
+                            -- collateral would cost 3 ada for 2 ada fees, so return 5-3=2 ada
+                            , collateral = [ makeRef "0" 0 ]
+                            , totalCollateral = Just 5000000
+                            , collateralReturn = Just (Utxo.fromLovelace testAddr.me (ada 2))
                         }
                     , witnessSet =
                         { newWitnessSet
                             | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            , plutusV3Script = Just [ lock.scriptBytes ]
+                            , redeemer =
+                                Uplc.evalScriptsCosts Uplc.defaultVmConfig (Utxo.refDictFromList localStateUtxos) tx
+                                    |> Result.toMaybe
                         }
                 }
             )
