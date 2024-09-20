@@ -16,24 +16,27 @@ struct Command {
 #[derive(FromArgs, PartialEq, Debug)]
 #[argh(subcommand)]
 enum SubCommand {
+    Init(InitSubCommand),
     Make(MakeSubCommand),
     Postprocess(PostprocessSubCommand),
     Run(RunSubCommand),
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Make subcommand.
+/// Initialize a project with a starter template
+#[argh(subcommand, name = "init")]
+struct InitSubCommand {}
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// Call the elm compiler on a given elm file
 #[argh(subcommand, name = "make")]
 struct MakeSubCommand {
     #[argh(positional)]
     /// the main Elm file to compile.
     source: String,
 
-    #[argh(option)]
+    #[argh(option, default = "String::from(\"main.js\")")]
     /// specify the name of the resulting JS file.
-    /// For example
-    /// --output=assets/elm.js to generate the JS at assets/elm.js or
-    /// --output=/dev/null to generate no output at all!
     output: String,
 
     #[argh(switch)]
@@ -50,36 +53,58 @@ struct MakeSubCommand {
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Postprocess subcommand for elm-watch.
+/// Postprocess subcommand for elm-watch
 #[argh(subcommand, name = "postprocess")]
 struct PostprocessSubCommand {
     #[argh(positional)]
-    /// the target specified in elm-watch.json. Typically "main".
+    /// the target specified in elm-watch.json (typically "main")
     target: String,
+
     #[argh(positional)]
-    /// compilation mode. Either "debug", "standard" or "optimize".
+    /// compilation mode (either "debug", "standard" or "optimize")
     compilation_mode: String,
+
     #[argh(positional)]
-    /// run mode. Either "make" or "hot".
+    /// run mode (either "make" or "hot")
     run_mode: String,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Run subcommand.
+/// TODO: Run subcommand.
 #[argh(subcommand, name = "run")]
 struct RunSubCommand {
-    #[argh(switch)]
-    /// whether to fooey
-    fooey: bool,
+    #[argh(positional)]
+    /// the main Elm worker to run.
+    source: String,
 }
 
 fn main() -> anyhow::Result<()> {
     let Command { command }: Command = argh::from_env();
     match command {
+        SubCommand::Init(_) => init_subcommand()?,
         SubCommand::Make(make_args) => make_subcommand(make_args)?,
         SubCommand::Postprocess(make_args) => postprocess_subcommand(make_args)?,
         SubCommand::Run(run_args) => run_subcommand(run_args)?,
     }
+    Ok(())
+}
+
+fn init_subcommand() -> anyhow::Result<()> {
+    // Load template files
+    let gitignore = include_str!("../../templates/starter/.gitignore");
+    let readme = include_str!("../../templates/starter/README.md");
+    let elmjson = include_str!("../../templates/starter/elm.json");
+    let indexhtml = include_str!("../../templates/starter/index.html");
+    let elmmain = include_str!("../../templates/starter/src/Main.elm");
+
+    // Write the template files
+    fs::create_dir_all("src")?;
+    fs::write(".gitignore", gitignore)?;
+    fs::write("README.md", readme)?;
+    fs::write("elm.json", elmjson)?;
+    fs::write("index.html", indexhtml)?;
+    fs::write(Path::new("src").join("Main.elm"), elmmain)?;
+
     Ok(())
 }
 
