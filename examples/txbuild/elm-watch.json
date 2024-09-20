@@ -1,4 +1,5 @@
 {
+    "postprocess": ["elm-cardano", "postprocess"],
     "serve": ".",
     "targets": {
         "main": {

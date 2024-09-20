@@ -6,66 +6,69 @@ perfect match to [Aiken][aiken] for onchain code.
 
 [aiken]: https://aiken-lang.org/
 
-## Usage
+## Quickstart
 
-> Remark: this is aspiration as the elm-cardano package is not published yet.
+> Remark: this section aspirational as the elm package is not published yet.
 
-Install the Elm package with your usual tool. We recommand using
-[elm-json][elm-json].
-
-[elm-json]: https://github.com/zwilias/elm-json
+Install the elm-cardano CLI and the Elm package.
 
 ```sh
-# Install 
-elm install mpizenberg/elm-cardano
-# Or better, use elm-json
-elm-json install mpizenberg/elm-cardano
+# Install the elm compiler and the elm-cardano CLI
+npm install -g elm elm-cardano
+# Initialize a template project in the elm-cardano-starter/ folder
+mkdir elm-cardano-starter && cd elm-cardano-starter
+npx elm-cardano init
 ```
 
-Once the elm-cardano package is installed in your elm project, you need to add
-the corresponding JS file `elm-cardano.js` to your `index.html`. Finally, you
-need to call `initElmCardanoJs(app)` after initializing the main of the elm app.
-
-> TODO: this file currently lives in `examples/wallet-cip30/elm-cardano.js` we
-> should bring it up in the repo once things have stabilized a bit.
-
-```html
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Main</title>
-    <script src="main.js"></script>
-    <script src="elm-cardano.js"></script>
-</head>
-<body>
-    <div id="myapp"></div>
-    <script>
-        var app = Elm.Main.init({
-            node: document.getElementById('myapp'),
-            flags: null,
-        });
-        initElmCardanoJs(app)
-    </script>
-</body>
-</html>
+This will generate the following template structure:
+```sh
+.gitignore   # some files to ignore
+elm.json     # the elm app config
+index.html   # the app web page
+src/Main.elm # the elm app
 ```
 
-After that, just follow the elm-cardano package docs to know how to use it.
+Now you simply need to compile the elm app and start a static server.
+```sh
+# Compile the elm app. This will create some new files.
+npx elm-cardano make src/Main.elm --output main.js
+# Start a static web server then open your browser
+python -m http.server
+```
+
+That’s it you are ready to build a Cardano offchain frontend with Elm!
+More examples are available in the `examples/` dir of the repo.
+More information about this project is also available
+in the different documents in the `docs/` dir of the repo.
 
 ## Contributions
 
-Contributions are welcomed! For now things are moving fast so I suggest
+Contributions are very welcomed! For now things are moving fast so I suggest
 discussing first over [TxPipe discord][txpipe-discord], in the
-[Elm Cardano thread][elm-cardano-thread].
+[#elm][elm-cardano-channel] channel.
 
 [txpipe-discord]: https://discord.gg/ZTHcHUy5HY
-[elm-cardano-thread]: https://discord.com/channels/946071061567529010/1162410032697188442
+[elm-cardano-channel]: https://discord.com/channels/946071061567529010/1168602442657697793
 
-The tools needed for this repo are all installed via npm.
+The elm-cardano cli is built using the rust language.
+To build successfully, it attempts to statically load the WASM files for Aiken UPLC virtual machine.
+So we first need to download these files locally, then we can compile (in release).
+```sh
+# Download the uplc-wasm archive
+curl -LO 'https://github.com/mpizenberg/uplc-wasm/releases/download/v0.2.0/my-artifact.zip'
+unzip my-artifact.zip -d cli/pkg-uplc-wasm
 
+# Build the elm-cardano cli
+cargo build --release
+```
+
+Now you can put that `target/release/elm-cardano` binary somewhere in your path.
+Or better, put a link to it somewhere in your path.
+After doing that, we can install the elm tools.
+The simplest way is via npm.
 ```sh
 # Install all the tools:
-# elm, elm-format, elm-test-rs, elm-review, elm-watch
+# elm, elm-format, elm-test, elm-review, elm-watch
 npm install
 ```
 
@@ -74,10 +77,10 @@ You can then run the tools you need by prefixing the command with `npx`.
 ```sh
 # compile the elm package
 npx elm make
-# run the tests
-npx elm-test-rs
+# run the tests, using the elm-cardano binary for compilation
+npx elm-test --compiler elm-cardano
 # review the code
 npx elm-review
-# run the CIP30 example
-cd examples/wallet-cip30 && npx elm-watch hot
+# run the Tx builder example
+cd examples/txbuild && npx elm-watch hot
 ```
