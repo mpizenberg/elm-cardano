@@ -212,7 +212,7 @@ let evalScriptsCostsKernel = (elm_args) => {
   }
 };
     "#;
-    let old_body = "return $elm$core$Result$Err('evalScriptsCostsKernel');";
+    let old_body = "return $elm$core$Result$Err('To build a Tx containing scripts, you need to use the elm-cardano binary instead of directly the elm binary. Details are in the elm-cardano GitHub repo.');";
     let new_body = "return evalScriptsCostsKernel(_v0);";
     let use_strict_offset = elm_js.find("'use strict'").unwrap();
     [

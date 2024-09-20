@@ -112,7 +112,7 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
 -}
 evalScriptsCostsKernel : JE.Value -> Result String (List String)
 evalScriptsCostsKernel _ =
-    Err "evalScriptsCostsKernel"
+    Err "To build a Tx containing scripts, you need to use the elm-cardano binary instead of directly the elm binary. Details are in the elm-cardano GitHub repo."
 
 
 {-| UPLC VM configuration.
