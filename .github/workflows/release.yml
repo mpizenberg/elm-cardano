@@ -117,6 +117,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: "Download the uplc-wasm archive"
+        run: |
+          "curl -LO \"https://github.com/mpizenberg/uplc-wasm/releases/download/v0.2.0/my-artifact.zip\""
+      - name: "Unzip artifact"
+        run: |
+          unzip my-artifact.zip -d pkg-uplc-wasm
+          rm my-artifact.zip  # Optional: remove the zip file after extraction
+      - name: "List extracted contents"
+        run: "ls pkg-uplc-wasm"
       - uses: swatinem/rust-cache@v2
         with:
           key: ${{ join(matrix.targets, '-') }}
