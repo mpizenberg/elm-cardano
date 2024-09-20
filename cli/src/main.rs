@@ -132,6 +132,8 @@ fn make_subcommand(make_args: MakeSubCommand) -> anyhow::Result<()> {
     let uplc_wasm_node_bg = include_bytes!("../pkg-uplc-wasm/pkg-node/uplc_wasm_bg.wasm");
     let uplc_wasm_web_js = include_str!("../pkg-uplc-wasm/pkg-web/uplc_wasm.js");
     let uplc_wasm_web_bg = include_bytes!("../pkg-uplc-wasm/pkg-web/uplc_wasm_bg.wasm");
+    // These files are templates for reuse
+    let elm_cardano_js = include_str!("../../templates/elm-cardano.js");
 
     // Create the output directory structure
     let output_dir = Path::new(&make_args.output).parent().unwrap();
@@ -141,6 +143,7 @@ fn make_subcommand(make_args: MakeSubCommand) -> anyhow::Result<()> {
     fs::create_dir_all(&pkg_web_dir)?;
 
     // Write the static files to the output directory
+    fs::write(output_dir.join("elm-cardano.js"), elm_cardano_js)?;
     fs::write(pkg_node_dir.join("uplc_wasm.js"), uplc_wasm_node_js)?;
     fs::write(pkg_node_dir.join("uplc_wasm_bg.wasm"), uplc_wasm_node_bg)?;
     fs::write(pkg_web_dir.join("uplc_wasm.js"), uplc_wasm_web_js)?;
