@@ -9,7 +9,7 @@ cargo-dist-version = "0.22.1"
 # CI backends to support
 ci = "github"
 # Also build and upload artifacts on PRs
-pr-run-mode = "upload"
+# pr-run-mode = "upload"
 # Add a custom setup to download the uplc-wasm artifacts
 github-build-setup = "build-setup.yml"
 # The installers to generate for each app
