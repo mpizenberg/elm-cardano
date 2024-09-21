@@ -15,6 +15,11 @@ Install the elm-cardano CLI and the Elm package.
 ```sh
 # Install the elm compiler and the elm-cardano CLI
 npm install -g elm @mattpiz/elm-cardano
+
+# (Temporary) clone the elm-cardano repo to expose its elm modules
+# This step won’t be necessary when the elm package will be published
+git clone --depth 1 --branch v0.1.1 https://github.com/mpizenberg/elm-cardano.git
+
 # Initialize a template project in the elm-cardano-starter/ folder
 mkdir elm-cardano-starter && cd elm-cardano-starter
 npx elm-cardano init

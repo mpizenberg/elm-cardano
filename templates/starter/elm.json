@@ -1,6 +1,6 @@
 {
   "type": "application",
-  "source-directories": ["src/", "../../src"],
+  "source-directories": ["src/", "elm-cardano/src"],
   "elm-version": "0.19.1",
   "dependencies": {
     "direct": {
