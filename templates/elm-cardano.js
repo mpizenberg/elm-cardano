@@ -4,13 +4,16 @@
 // Its purpose is to provide some necessary JS for certain usecases like
 // Communication with a CIP30 wallet or with an Ogmios instance.
 
-function initElmCardanoJs({
+// Import the UPLC WASM VM, initialize it
+import uplc_wasm_init, * as uplc_wasm from "./pkg-uplc-wasm/pkg-web/uplc_wasm.js";
+
+// Initialization of the elm app with some default ports
+function initElmCardano({
   portFromElmToWallet,
   portFromWalletToElm,
   portFromElmToOgmios,
   portFromOgmiosToElm,
 }) {
-
   // Wallet CIP30 ############################################################
 
   if (portFromElmToWallet) {
@@ -123,7 +126,7 @@ function initElmCardanoJs({
   }
 
   // OGMIOS ##################################################################
-  
+
   if (portFromElmToOgmios) {
     portFromElmToOgmios.subscribe(async (value) => {
       // console.log("Received value destined to ogmios:", value)
@@ -255,3 +258,25 @@ function initElmCardanoJs({
     return compactJsonString.replace(bigIntObject, (_match, bigint) => bigint);
   }
 }
+
+// EXPORTS #################################################################
+
+// Helper function to dynamically load a JS file.
+// Needed to make sure `window.uplc_wasm` is populated first.
+async function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = url;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
+}
+
+// Export loadMain and init
+export const loadMain = async (url) => {
+  await uplc_wasm_init();
+  window.uplc_wasm = uplc_wasm;
+  return loadScript(url);
+};
+export const init = initElmCardano;
