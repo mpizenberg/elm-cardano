@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Main</title>
+    <!-- Load the src/Main.elm compiled file -->
     <script src="main.js"></script>
+    <!-- Load the JS companion file -->
     <script src="elm-cardano.js"></script>
 </head>
 
@@ -14,7 +16,13 @@
             node: document.getElementById('myapp'),
             flags: null,
         });
-        initElmCardanoJs(app)
+        // Initialize default ports for the app
+        initElmCardanoJs({
+            portFromElmToWallet: app.ports.toWallet,
+            portFromWalletToElm: app.ports.fromWallet,
+            portFromElmToOgmios: null, // app.ports.toOgmios,
+            portFromOgmiosToElm: null, // app.ports.fromOgmios,
+        });
     </script>
 </body>
 

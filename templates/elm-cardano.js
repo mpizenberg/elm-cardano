@@ -4,15 +4,22 @@
 // Its purpose is to provide some necessary JS for certain usecases like
 // Communication with a CIP30 wallet or with an Ogmios instance.
 
-function initElmCardanoJs(app) {
+function initElmCardanoJs({
+  portFromElmToWallet,
+  portFromWalletToElm,
+  portFromElmToOgmios,
+  portFromOgmiosToElm,
+}) {
+
   // Wallet CIP30 ############################################################
-  if (app.ports.hasOwnProperty("toWallet")) {
-    app.ports.toWallet.subscribe(async (value) => {
+
+  if (portFromElmToWallet) {
+    portFromElmToWallet.subscribe(async (value) => {
       console.log("Received value destined to wallet:", value);
       try {
         if (value.requestType == "cip30-discover") {
           const wallets = await concurrentHandleCip30Discover();
-          app.ports.fromWallet.send({
+          portFromWalletToElm.send({
             responseType: "cip30-discover",
             wallets,
           });
@@ -21,7 +28,7 @@ function initElmCardanoJs(app) {
             value.id,
             value.extensions,
           );
-          app.ports.fromWallet.send({
+          portFromWalletToElm.send({
             responseType: "cip30-enable",
             descriptor,
             api,
@@ -29,10 +36,10 @@ function initElmCardanoJs(app) {
           });
         } else if (value.requestType == "cip30-api") {
           const apiResponse = await handleWalletApiRequest(value);
-          app.ports.fromWallet.send(apiResponse);
+          portFromWalletToElm.send(apiResponse);
         }
       } catch (error) {
-        app.ports.fromWallet.send({
+        portFromWalletToElm.send({
           responseType: "cip30-error",
           error: error,
         });
@@ -116,17 +123,18 @@ function initElmCardanoJs(app) {
   }
 
   // OGMIOS ##################################################################
-
-  if (app.ports.hasOwnProperty("toOgmios")) {
-    app.ports.toOgmios.subscribe(async (value) => {
+  
+  if (portFromElmToOgmios) {
+    portFromElmToOgmios.subscribe(async (value) => {
       // console.log("Received value destined to ogmios:", value)
       try {
         if (value.requestType == "ogmios-connect") {
           const websocket = await connectToOgmios(
+            portFromOgmiosToElm,
             value.websocketAddress,
             value.connectionId,
           );
-          app.ports.fromOgmios.send({
+          portFromOgmiosToElm.send({
             responseType: "ogmios-connect",
             ws: websocket,
             connectionId: value.connectionId,
@@ -137,7 +145,7 @@ function initElmCardanoJs(app) {
           handleOgmiosApiRequest(value);
         }
       } catch (error) {
-        app.ports.fromOgmios.send({
+        portFromOgmiosToElm.send({
           responseType: "ogmios-error",
           error: error,
         });
@@ -145,7 +153,7 @@ function initElmCardanoJs(app) {
     });
   }
 
-  async function connectToOgmios(address, connectionId) {
+  async function connectToOgmios(portFromOgmiosToElm, address, connectionId) {
     const client = new WebSocket(address);
     // Listen for messages
     client.addEventListener("message", (event) => {
@@ -153,7 +161,7 @@ function initElmCardanoJs(app) {
       // Handle potential big integers
       const preprocessedData = bigIntToStringPreProcess(event.data);
       const parsedMessage = JSON.parse(preprocessedData);
-      app.ports.fromOgmios.send({
+      portFromOgmiosToElm.send({
         responseType: "ogmios-message",
         connectionId,
         message: parsedMessage,
@@ -162,7 +170,7 @@ function initElmCardanoJs(app) {
     // Listen for possible errors
     client.addEventListener("error", (event) => {
       console.log("WebSocket error: ", event);
-      app.ports.fromOgmios.send({
+      portFromOgmiosToElm.send({
         responseType: "ogmios-error",
         connectionId,
         error: event,
@@ -171,7 +179,7 @@ function initElmCardanoJs(app) {
     // Listen for closed connection
     client.addEventListener("close", (event) => {
       console.log("The connection has been closed successfully.");
-      app.ports.fromOgmios.send({
+      portFromOgmiosToElm.send({
         responseType: "ogmios-disconnect",
         connectionId,
       });
@@ -201,6 +209,8 @@ function initElmCardanoJs(app) {
     console.log("jsonRequest:", jsonRequest);
     ws.send(replaceBigIntObject(jsonRequest));
   }
+
+  // BIGINTS #################################################################
 
   // Helper function to pre-process JSON strings.
   // This converts unsafe integers that would have a lossy conversion to JS number,

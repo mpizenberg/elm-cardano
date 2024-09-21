@@ -2,6 +2,8 @@
     <head>
         <meta charset="UTF-8" />
         <title>elm-cardano</title>
+        <!-- Load the JS companion file -->
+        <script src="elm-cardano.js"></script>
     </head>
 
     <body>
@@ -24,16 +26,19 @@
                     document.body.appendChild(script);
                 });
             }
-            // Load the elm compiled file
+            // Load the Main.elm compiled file
             await loadScript("/main.js");
             var app = Elm.Main.init({
                 node: document.getElementById("myapp"),
                 flags: null,
             });
-            // Load the JS companion file and initialize ports for the app
-            // TODO: be able to name the ports as created in the elm main.
-            await loadScript("/elm-cardano.js");
-            // initElmCardanoJs(app);
+            // Initialize default ports for the app
+            initElmCardanoJs({
+                portFromElmToWallet: app.ports.toWallet,
+                portFromWalletToElm: app.ports.fromWallet,
+                portFromElmToOgmios: null, // app.ports.toOgmios,
+                portFromOgmiosToElm: null, // app.ports.fromOgmios,
+            });
         </script>
     </body>
 </html>

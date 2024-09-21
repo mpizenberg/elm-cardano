@@ -4,7 +4,7 @@
     "targets": {
         "main": {
             "inputs": [
-                "Main.elm"
+                "src/Main.elm"
             ],
             "output": "main.js"
         }
