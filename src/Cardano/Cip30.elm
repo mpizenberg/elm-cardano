@@ -4,7 +4,7 @@ module Cardano.Cip30 exposing
     , discoverWallets, enableWallet
     , getExtensions, getNetworkId, getUtxos, getCollateral, getBalance
     , getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
-    , signData
+    , signTx, signTxCbor, signData
     , Response(..), ApiResponse(..), Utxo, DataSignature, responseDecoder
     )
 
@@ -20,7 +20,7 @@ module Cardano.Cip30 exposing
 
 @docs getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
 
-@docs signData
+@docs signTx, signTxCbor, signData
 
 @docs Response, ApiResponse, Utxo, DataSignature, responseDecoder
 
@@ -28,6 +28,7 @@ module Cardano.Cip30 exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address, NetworkId)
+import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Cbor exposing (CborItem)
@@ -203,6 +204,20 @@ getRewardAddresses wallet =
     apiRequest wallet "getRewardAddresses" []
 
 
+{-| Sign a transaction.
+-}
+signTx : Wallet -> { partialSign : Bool } -> Transaction -> Request
+signTx wallet partialSign tx =
+    signTxCbor wallet partialSign (Transaction.serialize tx)
+
+
+{-| Sign a transaction, already CBOR-encoded (to avoid deserialization-serialization mismatch).
+-}
+signTxCbor : Wallet -> { partialSign : Bool } -> Bytes Transaction -> Request
+signTxCbor wallet { partialSign } txBytes =
+    apiRequest wallet "signTx" [ JEncode.string (Bytes.toString txBytes), JEncode.bool partialSign ]
+
+
 {-| Sign an arbitrary payload with your stake key.
 -}
 signData : Wallet -> { addr : String, payload : Bytes a } -> Request
@@ -211,7 +226,6 @@ signData wallet { addr, payload } =
 
 
 
--- api.signTx(tx: cbor\, partialSign: bool = false)
 -- api.submitTx(tx: cbor\)
 
 
@@ -284,6 +298,8 @@ type ApiResponse
     | UnusedAddresses (List Address)
     | ChangeAddress Address
     | RewardAddresses (List Address)
+      -- TODO: hum it’s weird to have a whole witnessSet as an answer ...
+    | SignedTx Transaction.WitnessSet
     | SignedData DataSignature
 
 
@@ -421,6 +437,10 @@ apiDecoder method walletId =
         "getRewardAddresses" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (RewardAddresses r))
                 (JDecode.field "response" <| JDecode.list addressDecoder)
+
+        "signTx" ->
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedTx r))
+                (JDecode.field "response" <| hexCborDecoder Transaction.decodeWitnessSet)
 
         "signData" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData r))

@@ -3,8 +3,10 @@ port module Main exposing (..)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
+import Cardano exposing (SpendSource(..), TxIntent(..))
 import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
+import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
@@ -43,6 +45,7 @@ type Msg
     | GetUnusedAddressesButtonClicked Cip30.Wallet
     | GetChangeAddressButtonClicked Cip30.Wallet
     | GetRewardAddressesButtonClicked Cip30.Wallet
+    | SignTxButtonClicked Cip30.Wallet
     | SignDataButtonClicked Cip30.Wallet
 
 
@@ -53,6 +56,8 @@ type Msg
 type alias Model =
     { availableWallets : List Cip30.WalletDescriptor
     , connectedWallets : Dict String Cip30.Wallet
+    , collateral : List Cip30.Utxo
+    , changeAddress : Maybe { walletId : String, address : Address }
     , rewardAddress : Maybe { walletId : String, address : Address }
     , lastApiResponse : String
     , lastError : String
@@ -61,7 +66,14 @@ type alias Model =
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "", lastError = "" }
+    ( { availableWallets = []
+      , connectedWallets = Dict.empty
+      , collateral = []
+      , changeAddress = Nothing
+      , rewardAddress = Nothing
+      , lastApiResponse = ""
+      , lastError = ""
+      }
     , toWallet <| Cip30.encodeRequest Cip30.discoverWallets
     )
 
@@ -119,19 +131,22 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral collateral)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral maybeCollateral)) ->
                     let
-                        utxosStr =
-                            case collateral of
+                        ( collateral, utxosStr ) =
+                            case maybeCollateral of
                                 Nothing ->
-                                    "undefined"
+                                    ( [], "undefined" )
 
                                 Just utxos ->
-                                    List.map Debug.toString utxos
+                                    ( utxos
+                                    , List.map Debug.toString utxos
                                         |> String.join "\n"
+                                    )
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr
+                        , collateral = collateral
                         , lastError = ""
                       }
                     , Cmd.none
@@ -164,6 +179,7 @@ update msg model =
                 Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress changeAddress)) ->
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ Debug.toString changeAddress
+                        , changeAddress = Just { walletId = walletId, address = changeAddress }
                         , lastError = ""
                       }
                     , Cmd.none
@@ -173,6 +189,14 @@ update msg model =
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" (List.map Debug.toString rewardAddresses)
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
+                        , lastError = ""
+                      }
+                    , Cmd.none
+                    )
+
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SignedTx witnessSet)) ->
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx signatures:\n" ++ Debug.toString witnessSet
                         , lastError = ""
                       }
                     , Cmd.none
@@ -246,6 +270,33 @@ update msg model =
         GetRewardAddressesButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getRewardAddresses wallet)) )
 
+        SignTxButtonClicked wallet ->
+            case ( model.collateral, model.changeAddress ) of
+                ( [], _ ) ->
+                    ( { model | lastError = "You need to click the 'getCollateral' button first to be aware of some existing utxos" }, Cmd.none )
+
+                ( _, Nothing ) ->
+                    ( { model | lastError = "You need to click the 'getChangeAddress' button first to know the wallet address" }, Cmd.none )
+
+                ( utxos, Just { address } ) ->
+                    let
+                        localStateUtxos =
+                            List.map (\{ outputReference, output } -> ( outputReference, output )) utxos
+                                |> Utxo.refDictFromList
+
+                        oneAda =
+                            ECValue.onlyLovelace (N.fromSafeString "1000000")
+
+                        txIntents =
+                            [ Spend (FromWallet address oneAda), SendTo address oneAda ]
+                    in
+                    case Cardano.finalize localStateUtxos [] txIntents of
+                        Ok tx ->
+                            ( model, toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } tx)) )
+
+                        Err txBuildingError ->
+                            ( { model | lastError = Debug.toString txBuildingError }, Cmd.none )
+
         SignDataButtonClicked wallet ->
             case model.rewardAddress of
                 Nothing ->
@@ -267,7 +318,7 @@ update msg model =
 
 
 addEnabledWallet : Cip30.Wallet -> Model -> Model
-addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
+addEnabledWallet wallet ({ availableWallets, connectedWallets } as model) =
     -- Modify the available wallets with the potentially new "enabled" status
     let
         { id, isEnabled } =
@@ -285,11 +336,11 @@ addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
                             w
                     )
     in
-    { availableWallets = updatedAvailableWallets
-    , connectedWallets = Dict.insert id wallet connectedWallets
-    , rewardAddress = rewardAddress
-    , lastApiResponse = ""
-    , lastError = ""
+    { model
+        | availableWallets = updatedAvailableWallets
+        , connectedWallets = Dict.insert id wallet connectedWallets
+        , lastApiResponse = ""
+        , lastError = ""
     }
 
 
@@ -374,5 +425,6 @@ walletActions wallet =
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
     , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
     , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
+    , Html.button [ onClick <| SignTxButtonClicked wallet ] [ text "signTx" ]
     , Html.button [ onClick <| SignDataButtonClicked wallet ] [ text "signData" ]
     ]

@@ -8,7 +8,8 @@ module Cardano.Transaction exposing
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
-    , deserialize, serialize
+    , deserialize, serialize, encodeToCbor
+    , decodeWitnessSet
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -31,7 +32,9 @@ module Cardano.Transaction exposing
 
 @docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
-@docs deserialize, serialize
+@docs deserialize, serialize, encodeToCbor
+
+@docs decodeWitnessSet
 
 -}
 
@@ -552,7 +555,7 @@ allInputs tx =
 -}
 serialize : Transaction -> Bytes Transaction
 serialize =
-    encodeTransaction >> E.encode >> Bytes.fromBytes
+    encodeToCbor >> E.encode >> Bytes.fromBytes
 
 
 {-| Deserialize a transaction's cbor bytes into a [Transaction]
@@ -564,9 +567,10 @@ deserialize bytes =
         |> D.decode (D.oneOf [ decodeTransaction, D.failWith "Transaction decoder failed" ])
 
 
-{-| -}
-encodeTransaction : Transaction -> E.Encoder
-encodeTransaction =
+{-| Encode a Tx to CBOR
+-}
+encodeToCbor : Transaction -> E.Encoder
+encodeToCbor =
     E.tuple <|
         E.elems
             >> E.elem encodeTransactionBody .body
@@ -933,14 +937,14 @@ decodeTransaction =
             D.tuple (\body witness auxiliary -> { body = body, witnessSet = witness, isValid = True, auxiliaryData = auxiliary }) <|
                 D.elems
                     >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
-                    >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
+                    >> D.elem (D.oneOf [ decodeWitnessSet, D.failWith "Failed to decode witness" ])
                     >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
 
         postAlonzo =
             D.tuple Transaction <|
                 D.elems
                     >> D.elem (D.oneOf [ decodeBody, D.failWith "Failed to decode body" ])
-                    >> D.elem (D.oneOf [ decodeWitness, D.failWith "Failed to decode witness" ])
+                    >> D.elem (D.oneOf [ decodeWitnessSet, D.failWith "Failed to decode witness" ])
                     >> D.elem D.bool
                     >> D.elem (D.oneOf [ D.maybe AuxiliaryData.fromCbor, D.failWith "Failed to decode auxiliary" ])
     in
@@ -1453,8 +1457,10 @@ decodeUpdate =
 -- Decode witness
 
 
-decodeWitness : D.Decoder WitnessSet
-decodeWitness =
+{-| Decode a [WitnessSet] from CBOR.
+-}
+decodeWitnessSet : D.Decoder WitnessSet
+decodeWitnessSet =
     -- TODO: Make it fail for an unknown field. Maybe use D.fold instead.
     D.record D.int WitnessSet <|
         D.fields
