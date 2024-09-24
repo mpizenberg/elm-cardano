@@ -472,6 +472,8 @@ networkIdDecoder =
         |> JDecode.andThen (Maybe.map JDecode.succeed >> Maybe.withDefault (JDecode.fail "unknown network id"))
 
 
+{-| JSON decoder for an [Address] encoded as hexadecimal string.
+-}
 addressDecoder : Decoder Address
 addressDecoder =
     JDecode.string
