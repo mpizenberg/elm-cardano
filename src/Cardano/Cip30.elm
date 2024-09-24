@@ -4,7 +4,7 @@ module Cardano.Cip30 exposing
     , discoverWallets, enableWallet
     , getExtensions, getNetworkId, getUtxos, getCollateral, getBalance
     , getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
-    , signTx, signTxCbor, signData
+    , signTx, signTxCbor, signData, submitTx, submitTxCbor
     , Response(..), ApiResponse(..), Utxo, DataSignature, responseDecoder
     )
 
@@ -20,7 +20,7 @@ module Cardano.Cip30 exposing
 
 @docs getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
 
-@docs signTx, signTxCbor, signData
+@docs signTx, signTxCbor, signData, submitTx, submitTxCbor
 
 @docs Response, ApiResponse, Utxo, DataSignature, responseDecoder
 
@@ -29,7 +29,7 @@ module Cardano.Cip30 exposing
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address, NetworkId)
 import Cardano.Transaction as Transaction exposing (Transaction, VKeyWitness)
-import Cardano.Utxo as Utxo
+import Cardano.Utxo as Utxo exposing (TransactionId)
 import Cardano.Value as CValue
 import Cbor exposing (CborItem)
 import Cbor.Decode
@@ -227,6 +227,20 @@ signData wallet { addr, payload } =
     apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
 
 
+{-| Encode a transaction and submit it via the wallet.
+-}
+submitTx : Wallet -> Transaction -> Request
+submitTx wallet tx =
+    submitTxCbor wallet (Transaction.serialize tx)
+
+
+{-| Submit a transaction, already CBOR-encoded (to avoid deserialization-serialization mismatch).
+-}
+submitTxCbor : Wallet -> Bytes Transaction -> Request
+submitTxCbor wallet txBytes =
+    apiRequest wallet "submitTx" [ JEncode.string (Bytes.toString txBytes) ]
+
+
 
 -- api.submitTx(tx: cbor\)
 
@@ -302,6 +316,7 @@ type ApiResponse
     | RewardAddresses (List Address)
     | SignedTx (List VKeyWitness)
     | SignedData DataSignature
+    | SubmittedTx (Bytes TransactionId)
 
 
 {-| UTxO type holding the reference and actual output.
@@ -450,6 +465,10 @@ apiDecoder method walletId =
         "signData" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData r))
                 (JDecode.field "response" <| dataSignatureDecoder)
+
+        "submitTx" ->
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (SubmittedTx (Bytes.fromStringUnchecked r)))
+                (JDecode.field "response" JDecode.string)
 
         _ ->
             JDecode.succeed <| UnhandledResponseType ("Unknown API call: " ++ method)

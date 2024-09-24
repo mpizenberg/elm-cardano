@@ -6,6 +6,7 @@ import Bytes.Encode
 import Cardano exposing (SpendSource(..), TxIntent(..))
 import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
+import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Dict exposing (Dict)
@@ -45,8 +46,9 @@ type Msg
     | GetUnusedAddressesButtonClicked Cip30.Wallet
     | GetChangeAddressButtonClicked Cip30.Wallet
     | GetRewardAddressesButtonClicked Cip30.Wallet
-    | SignTxButtonClicked Cip30.Wallet
     | SignDataButtonClicked Cip30.Wallet
+    | SignTxButtonClicked Cip30.Wallet
+    | SubmitTxButtonClicked Cip30.Wallet
 
 
 
@@ -59,9 +61,16 @@ type alias Model =
     , collateral : List Cip30.Utxo
     , changeAddress : Maybe { walletId : String, address : Address }
     , rewardAddress : Maybe { walletId : String, address : Address }
+    , signedTx : TxSign
     , lastApiResponse : String
     , lastError : String
     }
+
+
+type TxSign
+    = NoSignRequest
+    | WaitingSign Transaction
+    | Signed Transaction
 
 
 init : () -> ( Model, Cmd Msg )
@@ -71,6 +80,7 @@ init _ =
       , collateral = []
       , changeAddress = Nothing
       , rewardAddress = Nothing
+      , signedTx = NoSignRequest
       , lastApiResponse = ""
       , lastError = ""
       }
@@ -194,9 +204,34 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.SignedTx witnessSet)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SignedTx vkeywitnesses)) ->
+                    case model.signedTx of
+                        WaitingSign tx ->
+                            let
+                                witnessSet =
+                                    tx.witnessSet
+
+                                newWitnessSet =
+                                    if List.isEmpty vkeywitnesses then
+                                        tx.witnessSet
+
+                                    else
+                                        { witnessSet | vkeywitness = Just vkeywitnesses }
+                            in
+                            ( { model
+                                | signedTx = Signed { tx | witnessSet = newWitnessSet }
+                                , lastApiResponse = "wallet: " ++ walletId ++ ", Tx signatures:\n" ++ Debug.toString vkeywitnesses
+                                , lastError = ""
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx signatures:\n" ++ Debug.toString witnessSet
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx submitted: " ++ Bytes.toString txId
                         , lastError = ""
                       }
                     , Cmd.none
@@ -292,10 +327,20 @@ update msg model =
                     in
                     case Cardano.finalize localStateUtxos [] txIntents of
                         Ok tx ->
-                            ( model, toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } tx)) )
+                            ( { model | signedTx = WaitingSign tx }
+                            , toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } tx))
+                            )
 
                         Err txBuildingError ->
                             ( { model | lastError = Debug.toString txBuildingError }, Cmd.none )
+
+        SubmitTxButtonClicked wallet ->
+            case model.signedTx of
+                Signed tx ->
+                    ( model, toWallet (Cip30.encodeRequest (Cip30.submitTx wallet tx)) )
+
+                _ ->
+                    ( { model | lastError = "You need to click the 'signTx' button first to sign a Tx before submitting it" }, Cmd.none )
 
         SignDataButtonClicked wallet ->
             case model.rewardAddress of
@@ -425,6 +470,7 @@ walletActions wallet =
     , Html.button [ onClick <| GetUnusedAddressesButtonClicked wallet ] [ text "getUnusedAddresses" ]
     , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
     , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
-    , Html.button [ onClick <| SignTxButtonClicked wallet ] [ text "signTx" ]
     , Html.button [ onClick <| SignDataButtonClicked wallet ] [ text "signData" ]
+    , Html.button [ onClick <| SignTxButtonClicked wallet ] [ text "signTx" ]
+    , Html.button [ onClick <| SubmitTxButtonClicked wallet ] [ text "submitTx" ]
     ]
