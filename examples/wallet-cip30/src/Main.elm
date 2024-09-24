@@ -267,36 +267,21 @@ update msg model =
             ( model, toWallet (Cip30.encodeRequest (Cip30.getNetworkId wallet)) )
 
         GetUtxosPaginateButtonClicked wallet ->
-            -- Gero does not paginate
-            -- Flint does not paginate
-            -- NuFi does not paginate
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
         GetUtxosAmountButtonClicked wallet ->
-            -- Lace picks at random (fun!)
-            -- Gero does not handle the amount parameter
-            -- NuFi does not handle the amount parameter
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
-            -- Typhon crashes with the amounts
-            -- Nami crashes as the method does not exist
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = N.fromSafeInt 3000000 } )
 
         GetBalanceButtonClicked wallet ->
-            -- Eternl has sometimes? a weird response
             ( model, toWallet (Cip30.encodeRequest (Cip30.getBalance wallet)) )
 
         GetUsedAddressesButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getUsedAddresses wallet { paginate = Nothing })) )
 
         GetUnusedAddressesButtonClicked wallet ->
-            -- Lace does not return any unused address
-            -- Flint returns the same for unused address as used address
-            -- Typhon returns the same for unused address and used address
-            -- Eternl returns the same
-            -- Eternl and Typhon do not return the same addresses while being on the same wallet?
-            -- Nami returns no unused address
             ( model, toWallet (Cip30.encodeRequest (Cip30.getUnusedAddresses wallet)) )
 
         GetChangeAddressButtonClicked wallet ->
