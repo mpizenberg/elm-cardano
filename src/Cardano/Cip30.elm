@@ -30,7 +30,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address, NetworkId)
 import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo
-import Cardano.Value as ECValue
+import Cardano.Value as CValue
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Cbor.Encode
@@ -124,11 +124,11 @@ getNetworkId wallet =
 
 {-| Get a list of UTxOs in the wallet.
 -}
-getUtxos : Wallet -> { amount : Maybe ECValue.Value, paginate : Maybe Paginate } -> Request
+getUtxos : Wallet -> { amount : Maybe CValue.Value, paginate : Maybe Paginate } -> Request
 getUtxos wallet { amount, paginate } =
     apiRequest wallet
         "getUtxos"
-        [ encodeMaybe (\a -> ECValue.encode a |> encodeCborHex) amount
+        [ encodeMaybe (\a -> CValue.encode a |> encodeCborHex) amount
         , encodeMaybe encodePaginate paginate
         ]
 
@@ -295,7 +295,7 @@ type ApiResponse
     | NetworkId NetworkId
     | WalletUtxos (Maybe (List Utxo))
     | Collateral (Maybe (List Utxo))
-    | WalletBalance ECValue.Value
+    | WalletBalance CValue.Value
     | UsedAddresses (List Address)
     | UnusedAddresses (List Address)
     | ChangeAddress Address
@@ -422,7 +422,7 @@ apiDecoder method walletId =
 
         "getBalance" ->
             JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance b))
-                (JDecode.field "response" <| hexCborDecoder ECValue.fromCbor)
+                (JDecode.field "response" <| hexCborDecoder CValue.fromCbor)
 
         "getUsedAddresses" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (UsedAddresses r))
