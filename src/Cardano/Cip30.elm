@@ -28,7 +28,7 @@ module Cardano.Cip30 exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Address as Address exposing (Address, NetworkId)
-import Cardano.Transaction as Transaction exposing (Transaction)
+import Cardano.Transaction as Transaction exposing (Transaction, VKeyWitness)
 import Cardano.Utxo as Utxo
 import Cardano.Value as CValue
 import Cbor exposing (CborItem)
@@ -300,8 +300,7 @@ type ApiResponse
     | UnusedAddresses (List Address)
     | ChangeAddress Address
     | RewardAddresses (List Address)
-      -- TODO: hum it’s weird to have a whole witnessSet as an answer ...
-    | SignedTx Transaction.WitnessSet
+    | SignedTx (List VKeyWitness)
     | SignedData DataSignature
 
 
@@ -442,7 +441,11 @@ apiDecoder method walletId =
 
         "signTx" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedTx r))
-                (JDecode.field "response" <| hexCborDecoder Transaction.decodeWitnessSet)
+                (Transaction.decodeWitnessSet
+                    |> Cbor.Decode.map (\w -> Maybe.withDefault [] w.vkeywitness)
+                    |> hexCborDecoder
+                    |> JDecode.field "response"
+                )
 
         "signData" ->
             JDecode.map (\r -> ApiResponse { walletId = walletId } (SignedData r))
