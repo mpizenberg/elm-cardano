@@ -34,9 +34,11 @@ import Cardano.Value as ECValue
 import Cbor exposing (CborItem)
 import Cbor.Decode
 import Cbor.Encode
+import Cbor.Encode.Extra
 import Hex.Convert
 import Json.Decode as JDecode exposing (Decoder, Value)
 import Json.Encode as JEncode
+import Natural exposing (Natural)
 
 
 {-| The type returned when asking for available wallets.
@@ -139,11 +141,11 @@ More info about why that is in the [CIP 30 spec][cip-collateral].
 [cip-collateral]: https://cips.cardano.org/cips/cip30/#apigetcollateralparamsamountcborcoinpromisetransactionunspentoutputnull
 
 -}
-getCollateral : Wallet -> { amount : ECValue.Value } -> Request
+getCollateral : Wallet -> { amount : Natural } -> Request
 getCollateral wallet { amount } =
     let
         params =
-            JEncode.object [ ( "amount", ECValue.encode amount |> encodeCborHex ) ]
+            JEncode.object [ ( "amount", Cbor.Encode.Extra.natural amount |> encodeCborHex ) ]
     in
     apiRequest wallet "getCollateral" [ params ]
 

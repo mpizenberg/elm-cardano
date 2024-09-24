@@ -246,7 +246,7 @@ update msg model =
         GetCollateralButtonClicked wallet ->
             -- Typhon crashes with the amounts
             -- Nami crashes as the method does not exist
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace <| N.fromSafeInt 3000000 } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = N.fromSafeInt 3000000 } )
 
         GetBalanceButtonClicked wallet ->
             -- Eternl has sometimes? a weird response

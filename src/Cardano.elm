@@ -1312,6 +1312,11 @@ processOtherInfo otherInfo =
 Only UTxOs at the provided whitelist of addresses are viable.
 Only UTxOs containing only Ada, without other CNT or datums are viable.
 
+Actually since cip40 and Vasil upgrade, any utxo can be used,
+as long as the difference with the collateral output is only ada.
+
+TODO: So we need another coin selection algo, specialized for collateral.
+
 -}
 computeCollateralSelection :
     Utxo.RefDict Output
