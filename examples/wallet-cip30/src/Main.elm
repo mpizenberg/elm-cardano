@@ -3,7 +3,11 @@ port module Main exposing (..)
 import Browser
 import Bytes.Comparable as Bytes
 import Bytes.Encode
+import Cardano exposing (SpendSource(..), TxIntent(..))
+import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
+import Cardano.Transaction as Transaction exposing (Transaction)
+import Cardano.Utxo as Utxo
 import Cardano.Value as ECValue
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
@@ -43,6 +47,8 @@ type Msg
     | GetChangeAddressButtonClicked Cip30.Wallet
     | GetRewardAddressesButtonClicked Cip30.Wallet
     | SignDataButtonClicked Cip30.Wallet
+    | SignTxButtonClicked Cip30.Wallet
+    | SubmitTxButtonClicked Cip30.Wallet
 
 
 
@@ -52,15 +58,32 @@ type Msg
 type alias Model =
     { availableWallets : List Cip30.WalletDescriptor
     , connectedWallets : Dict String Cip30.Wallet
-    , rewardAddress : Maybe { walletId : String, address : String }
+    , collateral : List Cip30.Utxo
+    , changeAddress : Maybe { walletId : String, address : Address }
+    , rewardAddress : Maybe { walletId : String, address : Address }
+    , signedTx : TxSign
     , lastApiResponse : String
     , lastError : String
     }
 
 
+type TxSign
+    = NoSignRequest
+    | WaitingSign Transaction
+    | Signed Transaction
+
+
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { availableWallets = [], connectedWallets = Dict.empty, rewardAddress = Nothing, lastApiResponse = "", lastError = "" }
+    ( { availableWallets = []
+      , connectedWallets = Dict.empty
+      , collateral = []
+      , changeAddress = Nothing
+      , rewardAddress = Nothing
+      , signedTx = NoSignRequest
+      , lastApiResponse = ""
+      , lastError = ""
+      }
     , toWallet <| Cip30.encodeRequest Cip30.discoverWallets
     )
 
@@ -94,7 +117,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.NetworkId networkId)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ String.fromInt networkId
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", network id: " ++ Debug.toString networkId
                         , lastError = ""
                       }
                     , Cmd.none
@@ -118,19 +141,22 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral collateral)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral maybeCollateral)) ->
                     let
-                        utxosStr =
-                            case collateral of
+                        ( collateral, utxosStr ) =
+                            case maybeCollateral of
                                 Nothing ->
-                                    "undefined"
+                                    ( [], "undefined" )
 
                                 Just utxos ->
-                                    List.map Debug.toString utxos
+                                    ( utxos
+                                    , List.map Debug.toString utxos
                                         |> String.join "\n"
+                                    )
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr
+                        , collateral = collateral
                         , lastError = ""
                       }
                     , Cmd.none
@@ -146,7 +172,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.UsedAddresses usedAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" usedAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", used addresses:\n" ++ String.join "\n" (List.map Debug.toString usedAddresses)
                         , lastError = ""
                       }
                     , Cmd.none
@@ -154,7 +180,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.UnusedAddresses unusedAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" unusedAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", unused addresses:\n" ++ String.join "\n" (List.map Debug.toString unusedAddresses)
                         , lastError = ""
                       }
                     , Cmd.none
@@ -162,7 +188,8 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress changeAddress)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ changeAddress
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", change address:\n" ++ Debug.toString changeAddress
+                        , changeAddress = Just { walletId = walletId, address = changeAddress }
                         , lastError = ""
                       }
                     , Cmd.none
@@ -170,8 +197,41 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.RewardAddresses rewardAddresses)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" rewardAddresses
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", reward addresses:\n" ++ String.join "\n" (List.map Debug.toString rewardAddresses)
                         , rewardAddress = List.head rewardAddresses |> Maybe.map (\addr -> { walletId = walletId, address = addr })
+                        , lastError = ""
+                      }
+                    , Cmd.none
+                    )
+
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SignedTx vkeywitnesses)) ->
+                    case model.signedTx of
+                        WaitingSign tx ->
+                            let
+                                witnessSet =
+                                    tx.witnessSet
+
+                                newWitnessSet =
+                                    if List.isEmpty vkeywitnesses then
+                                        tx.witnessSet
+
+                                    else
+                                        { witnessSet | vkeywitness = Just vkeywitnesses }
+                            in
+                            ( { model
+                                | signedTx = Signed { tx | witnessSet = newWitnessSet }
+                                , lastApiResponse = "wallet: " ++ walletId ++ ", Tx signatures:\n" ++ Debug.toString vkeywitnesses
+                                , lastError = ""
+                              }
+                            , Cmd.none
+                            )
+
+                        _ ->
+                            ( model, Cmd.none )
+
+                Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)) ->
+                    ( { model
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx submitted: " ++ Bytes.toString txId
                         , lastError = ""
                       }
                     , Cmd.none
@@ -207,36 +267,21 @@ update msg model =
             ( model, toWallet (Cip30.encodeRequest (Cip30.getNetworkId wallet)) )
 
         GetUtxosPaginateButtonClicked wallet ->
-            -- Gero does not paginate
-            -- Flint does not paginate
-            -- NuFi does not paginate
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
         GetUtxosAmountButtonClicked wallet ->
-            -- Lace picks at random (fun!)
-            -- Gero does not handle the amount parameter
-            -- NuFi does not handle the amount parameter
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
-            -- Typhon crashes with the amounts
-            -- Nami crashes as the method does not exist
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = ECValue.onlyLovelace <| N.fromSafeInt 3000000 } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = N.fromSafeInt 3000000 } )
 
         GetBalanceButtonClicked wallet ->
-            -- Eternl has sometimes? a weird response
             ( model, toWallet (Cip30.encodeRequest (Cip30.getBalance wallet)) )
 
         GetUsedAddressesButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getUsedAddresses wallet { paginate = Nothing })) )
 
         GetUnusedAddressesButtonClicked wallet ->
-            -- Lace does not return any unused address
-            -- Flint returns the same for unused address as used address
-            -- Typhon returns the same for unused address and used address
-            -- Eternl returns the same
-            -- Eternl and Typhon do not return the same addresses while being on the same wallet?
-            -- Nami returns no unused address
             ( model, toWallet (Cip30.encodeRequest (Cip30.getUnusedAddresses wallet)) )
 
         GetChangeAddressButtonClicked wallet ->
@@ -244,6 +289,43 @@ update msg model =
 
         GetRewardAddressesButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getRewardAddresses wallet)) )
+
+        SignTxButtonClicked wallet ->
+            case ( model.collateral, model.changeAddress ) of
+                ( [], _ ) ->
+                    ( { model | lastError = "You need to click the 'getCollateral' button first to be aware of some existing utxos" }, Cmd.none )
+
+                ( _, Nothing ) ->
+                    ( { model | lastError = "You need to click the 'getChangeAddress' button first to know the wallet address" }, Cmd.none )
+
+                ( utxos, Just { address } ) ->
+                    let
+                        localStateUtxos =
+                            List.map (\{ outputReference, output } -> ( outputReference, output )) utxos
+                                |> Utxo.refDictFromList
+
+                        oneAda =
+                            ECValue.onlyLovelace (N.fromSafeString "1000000")
+
+                        txIntents =
+                            [ Spend (FromWallet address oneAda), SendTo address oneAda ]
+                    in
+                    case Cardano.finalize localStateUtxos [] txIntents of
+                        Ok tx ->
+                            ( { model | signedTx = WaitingSign tx }
+                            , toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } tx))
+                            )
+
+                        Err txBuildingError ->
+                            ( { model | lastError = Debug.toString txBuildingError }, Cmd.none )
+
+        SubmitTxButtonClicked wallet ->
+            case model.signedTx of
+                Signed tx ->
+                    ( model, toWallet (Cip30.encodeRequest (Cip30.submitTx wallet tx)) )
+
+                _ ->
+                    ( { model | lastError = "You need to click the 'signTx' button first to sign a Tx before submitting it" }, Cmd.none )
 
         SignDataButtonClicked wallet ->
             case model.rewardAddress of
@@ -259,14 +341,14 @@ update msg model =
                         , toWallet <|
                             Cip30.encodeRequest <|
                                 Cip30.signData wallet
-                                    { addr = address
+                                    { addr = Address.toBytes address |> Bytes.toString
                                     , payload = Bytes.fromBytes <| Bytes.Encode.encode (Bytes.Encode.unsignedInt8 42)
                                     }
                         )
 
 
 addEnabledWallet : Cip30.Wallet -> Model -> Model
-addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
+addEnabledWallet wallet ({ availableWallets, connectedWallets } as model) =
     -- Modify the available wallets with the potentially new "enabled" status
     let
         { id, isEnabled } =
@@ -284,11 +366,11 @@ addEnabledWallet wallet { availableWallets, connectedWallets, rewardAddress } =
                             w
                     )
     in
-    { availableWallets = updatedAvailableWallets
-    , connectedWallets = Dict.insert id wallet connectedWallets
-    , rewardAddress = rewardAddress
-    , lastApiResponse = ""
-    , lastError = ""
+    { model
+        | availableWallets = updatedAvailableWallets
+        , connectedWallets = Dict.insert id wallet connectedWallets
+        , lastApiResponse = ""
+        , lastError = ""
     }
 
 
@@ -374,4 +456,6 @@ walletActions wallet =
     , Html.button [ onClick <| GetChangeAddressButtonClicked wallet ] [ text "getChangeAddress" ]
     , Html.button [ onClick <| GetRewardAddressesButtonClicked wallet ] [ text "getRewardAddresses" ]
     , Html.button [ onClick <| SignDataButtonClicked wallet ] [ text "signData" ]
+    , Html.button [ onClick <| SignTxButtonClicked wallet ] [ text "signTx" ]
+    , Html.button [ onClick <| SubmitTxButtonClicked wallet ] [ text "submitTx" ]
     ]

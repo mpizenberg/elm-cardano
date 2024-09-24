@@ -75,7 +75,7 @@ width (Bytes str) =
 -}
 fromString : String -> Maybe (Bytes a)
 fromString str =
-    str |> Hex.toBytes |> Maybe.map (always <| Bytes str)
+    str |> Hex.toBytes |> Maybe.map (always <| Bytes (String.toLower str))
 
 
 {-| Same as [fromString] except it does not check that the hex-encoded string is well formed.
