@@ -56,6 +56,12 @@ jobs:
       - uses: actions/setup-node@v4
       - run: npm install elm-test
       - run: npx elm-test --compiler elm-cardano
+      - name: Try elm-cardano init
+        run: |
+          mkdir init && cd init
+          mkdir elm-cardano && cp -r ../src elm-cardano/src
+          elm-cardano init
+          elm-cardano make src/Main.elm --output main.js
 
   examples:
     runs-on: ubuntu-latest
