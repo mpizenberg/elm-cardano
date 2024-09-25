@@ -7,6 +7,7 @@
     "elm-version": "0.19.1",
     "dependencies": {
         "direct": {
+            "MartinSStewart/elm-uint64": "2.0.0",
             "dwayne/elm-integer": "1.0.0",
             "dwayne/elm-natural": "1.1.1",
             "elm/browser": "1.0.2",
