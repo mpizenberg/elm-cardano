@@ -371,7 +371,7 @@ import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address(..), CredentialHash, StakeAddress)
-import Cardano.AuxiliaryData exposing (AuxiliaryData)
+import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
 import Cardano.Metadatum exposing (Metadatum)
@@ -821,8 +821,32 @@ finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee tx
                 -- Redo a final round of above
                 |> Result.andThen (\tx -> buildTxRound (extractInputsOutputs tx) (adjustFees tx))
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
+                -- Potentially replace the dummy auxiliary data hash and script data hash
+                |> Result.map replaceDummyAuxiliaryDataHash
+                |> Result.map replaceDummyScriptDataHash
                 -- Finally, check if final fees are correct
                 |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
+
+
+{-| Helper function to compute the auxiliary data hash.
+-}
+replaceDummyAuxiliaryDataHash : Transaction -> Transaction
+replaceDummyAuxiliaryDataHash ({ body, auxiliaryData } as tx) =
+    { tx | body = { body | auxiliaryDataHash = Maybe.map AuxiliaryData.hash auxiliaryData } }
+
+
+{-| Helper function to compute the auxiliary data hash.
+
+Script data is serialized in a very specific way to compute the hash.
+See Conway CDDL format: <https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197>
+See Blaze impl: <https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935>
+See cardano-js-sdk serialization of redeemers: <https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29>
+
+-}
+replaceDummyScriptDataHash : Transaction -> Transaction
+replaceDummyScriptDataHash ({ body, auxiliaryData } as tx) =
+    -- TODO: actual hashing
+    { tx | body = { body | scriptDataHash = body.scriptDataHash } }
 
 
 {-| Helper function to compute the total size of reference scripts.
@@ -1715,18 +1739,13 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         --
         txAuxData : Maybe AuxiliaryData
         txAuxData =
-            case otherInfo.metadata of
-                [] ->
-                    Nothing
+            if List.isEmpty otherInfo.metadata then
+                Nothing
 
-                _ ->
-                    Just
-                        { labels = List.map (\{ tag, metadata } -> ( tag, metadata )) otherInfo.metadata
-                        , nativeScripts = []
-                        , plutusV1Scripts = []
-                        , plutusV2Scripts = []
-                        , plutusV3Scripts = []
-                        }
+            else
+                List.map (\{ tag, metadata } -> ( tag, metadata )) otherInfo.metadata
+                    |> AuxiliaryData.fromJustLabels
+                    |> Just
 
         -- TransactionBody #################################
         --
@@ -1742,19 +1761,6 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                 |> List.map (\ref -> ( ref, () ))
                 |> Utxo.refDictFromList
                 |> Dict.Any.keys
-
-        -- Script data is serialized in a very specific way to compute the hash.
-        -- See Conway CDDL format: https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197
-        -- See Blaze impl: https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935
-        -- See cardano-js-sdk serialization of redeemers: https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29
-        scriptDataHash : Maybe (Bytes ScriptDataHash)
-        scriptDataHash =
-            if txWitnessSet.redeemer == Nothing && txWitnessSet.plutusData == Nothing then
-                Nothing
-
-            else
-                -- TODO: actual hashing
-                Just (dummyBytes 32 "ScriptDataHash")
 
         collateralReturnAmount =
             (Maybe.withDefault Value.zero collateralSelection.change).lovelace
@@ -1785,16 +1791,19 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing
             , auxiliaryDataHash =
-                case otherInfo.metadata of
-                    [] ->
-                        Nothing
+                if List.isEmpty otherInfo.metadata then
+                    Nothing
 
-                    _ ->
-                        -- TODO: compute actual auxiliary data hash
-                        Just (dummyBytes 32 "AuxDataHash")
+                else
+                    Just (dummyBytes 32 "AuxDataHash")
             , validityIntervalStart = Maybe.map .start otherInfo.timeValidityRange
             , mint = processedIntents.totalMinted
-            , scriptDataHash = scriptDataHash
+            , scriptDataHash =
+                if txWitnessSet.redeemer == Nothing && txWitnessSet.plutusData == Nothing then
+                    Nothing
+
+                else
+                    Just (dummyBytes 32 "ScriptDataHash")
             , collateral = List.map Tuple.first collateralSelection.selectedUtxos
             , requiredSigners = processedIntents.requiredSigners
             , networkId = Nothing -- not mandatory
