@@ -1,6 +1,6 @@
 module Cardano.Hashes exposing (suite)
 
-import Blake2b exposing (blake2b224, blake2b256, blake2b512)
+import Blake2b exposing (blake2b256)
 import Bytes.Comparable as Bytes
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Metadatum as Metadatum

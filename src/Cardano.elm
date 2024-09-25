@@ -378,7 +378,7 @@ import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (ScriptDataHash, Transaction, TransactionBody, VKeyWitness, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
@@ -844,9 +844,9 @@ See cardano-js-sdk serialization of redeemers: <https://github.com/input-output-
 
 -}
 replaceDummyScriptDataHash : Transaction -> Transaction
-replaceDummyScriptDataHash ({ body, auxiliaryData } as tx) =
+replaceDummyScriptDataHash ({ body } as tx) =
     -- TODO: actual hashing
-    { tx | body = { body | scriptDataHash = body.scriptDataHash } }
+    { tx | body = body }
 
 
 {-| Helper function to compute the total size of reference scripts.
