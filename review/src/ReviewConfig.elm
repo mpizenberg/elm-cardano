@@ -81,7 +81,7 @@ config =
             , "Cbor.Encode.beginString"
             , "Cbor.Encode.beginBytes"
             ]
-          , [ "Cbor.Encode.Extra" ]
+          , [ "Cardano.Data" ]
           )
         ]
     ]

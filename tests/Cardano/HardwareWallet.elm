@@ -3,14 +3,8 @@ module Cardano.HardwareWallet exposing (suite)
 import Bytes.Comparable as Bytes
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
-import Cardano.AuxiliaryData exposing (AuxiliaryData)
-import Cardano.Data as Data
-import Cardano.Gov exposing (Action(..), Drep(..), Vote(..), Voter(..), noParamUpdate)
-import Cardano.Metadatum as Metadatum
-import Cardano.Transaction as Transaction exposing (Certificate(..), TransactionBody, WitnessSet, newBody, newWitnessSet)
-import Cardano.Utxo as Utxo exposing (DatumOption(..))
+import Cardano.Transaction as Transaction exposing (Certificate(..), newBody, newWitnessSet)
 import Cardano.Value as Value
-import Cbor.Decode as D
 import Dict exposing (Dict)
 import Expect
 import Integer
@@ -98,7 +92,7 @@ suite =
                                             Address.base Testnet
                                                 (VKeyHash (Bytes.fromStringUnchecked "0743d16cfe3c4fcc0c11c2403bbc10dbc7ecdd4477e053481a368e7a"))
                                                 (VKeyHash (Bytes.fromStringUnchecked "06e2ae44dff6770dc0f4ada3cf4cf2605008e27aecdb332ad349fda7"))
-                                      , amount = { assets = bytesMap (Dict.fromList []), lovelace = bigNat [ 61511934, 9 ] }
+                                      , amount = { assets = bytesMap Dict.empty, lovelace = bigNat [ 61511934, 9 ] }
                                       , datumOption = Nothing
                                       , referenceScript = Nothing
                                       }
