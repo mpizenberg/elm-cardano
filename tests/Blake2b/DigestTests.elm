@@ -6,6 +6,11 @@ import Expect
 import Test exposing (Test, describe, test)
 
 
+
+-- Digest test suite was possible thanks to:
+-- https://emn178.github.io/online-tools/blake2b/
+
+
 suite : Test
 suite =
     describe "Blake2b512" <|
@@ -51,8 +56,7 @@ digestOfWith str blk =
 
 strToBytes : String -> List Int
 strToBytes str =
-    CB.fromString
-        str
+    CB.fromString str
         |> Maybe.map CB.toU8
         |> Maybe.withDefault []
 
