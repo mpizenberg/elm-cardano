@@ -1,11 +1,20 @@
-module Cardano.AuxiliaryData exposing (AuxiliaryData, fromCbor, toCbor)
+module Cardano.AuxiliaryData exposing
+    ( AuxiliaryData, fromJustLabels
+    , hash, Hash
+    , fromCbor, toCbor
+    )
 
 {-|
 
-@docs AuxiliaryData, fromCbor, toCbor
+@docs AuxiliaryData, fromJustLabels
+
+@docs hash, Hash
+
+@docs fromCbor, toCbor
 
 -}
 
+import Blake2b exposing (blake2b256)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Metadatum as Metadatum exposing (Metadatum)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
@@ -27,6 +36,36 @@ type alias AuxiliaryData =
     , plutusV2Scripts : List (Bytes ScriptCbor)
     , plutusV3Scripts : List (Bytes ScriptCbor)
     }
+
+
+{-| Create [AuxiliaryData] with just labels, no scripts.
+-}
+fromJustLabels : List ( Natural, Metadatum ) -> AuxiliaryData
+fromJustLabels labels =
+    { labels = labels
+    , nativeScripts = []
+    , plutusV1Scripts = []
+    , plutusV2Scripts = []
+    , plutusV3Scripts = []
+    }
+
+
+{-| Compute auxiliary data hash.
+-}
+hash : AuxiliaryData -> Bytes Hash
+hash data =
+    E.encode (toCbor data)
+        |> Bytes.fromBytes
+        |> Bytes.toU8
+        |> blake2b256 Nothing
+        |> Bytes.bytes
+
+
+{-| Phantom type for auxiliary data hashes.
+This is a 32-bytes Blake2b-256 hash.
+-}
+type Hash
+    = Hash Never
 
 
 {-| Encode transaction auxiliary data to CBOR.

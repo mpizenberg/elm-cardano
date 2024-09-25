@@ -1,6 +1,6 @@
 module Cardano.Transaction exposing
     ( Transaction, new
-    , TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
+    , TransactionBody, newBody, ScriptDataHash
     , WitnessSet, newWitnessSet
     , Update
     , ScriptContext, ScriptPurpose(..)
@@ -16,7 +16,7 @@ module Cardano.Transaction exposing
 
 @docs Transaction, new
 
-@docs TransactionBody, newBody, AuxiliaryDataHash, ScriptDataHash
+@docs TransactionBody, newBody, ScriptDataHash
 
 @docs WitnessSet, newWitnessSet
 
@@ -88,7 +88,7 @@ type alias TransactionBody =
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Natural ) -- 5
     , update : Maybe Update -- 6
-    , auxiliaryDataHash : Maybe (Bytes AuxiliaryDataHash) -- 7
+    , auxiliaryDataHash : Maybe (Bytes AuxiliaryData.Hash) -- 7
     , validityIntervalStart : Maybe Int -- 8
     , mint : MultiAsset Integer -- 9
     , scriptDataHash : Maybe (Bytes ScriptDataHash) -- 11
@@ -105,13 +105,6 @@ type alias TransactionBody =
     , currentTreasuryValue : Maybe Natural -- 21 Current treasury value
     , treasuryDonation : Maybe Natural -- 22 Donation
     }
-
-
-{-| Phantom type for auxiliary data hashes.
-This is a 32-bytes Blake2b-256 hash.
--}
-type AuxiliaryDataHash
-    = AuxiliaryDataHash Never
 
 
 {-| Phantom type for script data hashes.
@@ -1589,7 +1582,7 @@ setUpdate update body =
     { body | update = Just update }
 
 
-setAuxiliaryDataHash : Bytes AuxiliaryDataHash -> TransactionBody -> TransactionBody
+setAuxiliaryDataHash : Bytes AuxiliaryData.Hash -> TransactionBody -> TransactionBody
 setAuxiliaryDataHash hash body =
     { body | auxiliaryDataHash = Just hash }
 
