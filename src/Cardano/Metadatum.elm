@@ -41,10 +41,10 @@ toCbor metadatum =
             E.string str
 
         List metadatums ->
-            E.ledgerList toCbor metadatums
+            E.list toCbor metadatums
 
         Map metadatums ->
-            E.ledgerAssociativeList toCbor toCbor metadatums
+            E.associativeList toCbor toCbor metadatums
 
 
 {-| Decode Metadatum from CBOR

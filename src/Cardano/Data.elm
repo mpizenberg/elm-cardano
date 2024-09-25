@@ -71,7 +71,7 @@ toCbor data =
                     { ixNat = ixNat, fields = fields }
 
         Map xs ->
-            EE.ledgerAssociativeList toCbor toCbor xs
+            E.associativeList toCbor toCbor xs
 
         List xs ->
             encodeList xs

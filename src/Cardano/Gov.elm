@@ -644,9 +644,9 @@ encodeCostModels : CostModels -> E.Encoder
 encodeCostModels =
     E.record E.int <|
         E.fields
-            >> E.optionalField 0 (E.ledgerList E.int) .plutusV1
-            >> E.optionalField 1 (E.ledgerList E.int) .plutusV2
-            >> E.optionalField 2 (E.ledgerList E.int) .plutusV3
+            >> E.optionalField 0 (E.list E.int) .plutusV1
+            >> E.optionalField 1 (E.list E.int) .plutusV2
+            >> E.optionalField 2 (E.list E.int) .plutusV3
 
 
 {-| Encoder for ExUnitPrices type.
@@ -700,7 +700,7 @@ encodeAnchor =
 -}
 encodePoolVotingThresholds : PoolVotingThresholds -> E.Encoder
 encodePoolVotingThresholds thresholds =
-    E.ledgerList encodeRationalNumber
+    E.list encodeRationalNumber
         [ thresholds.motionNoConfidence
         , thresholds.committeeNormal
         , thresholds.committeeNoConfidence
@@ -713,7 +713,7 @@ encodePoolVotingThresholds thresholds =
 -}
 encodeDrepVotingThresholds : DrepVotingThresholds -> E.Encoder
 encodeDrepVotingThresholds thresholds =
-    E.ledgerList encodeRationalNumber
+    E.list encodeRationalNumber
         [ thresholds.motionNoConfidence
         , thresholds.committeeNormal
         , thresholds.committeeNoConfidence
@@ -733,7 +733,7 @@ encodeAction : Action -> E.Encoder
 encodeAction action =
     case action of
         ParameterChange { govActionId, protocolParamUpdate, guardrailsPolicy } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 0
                 , E.maybe encodeActionId govActionId
                 , encodeProtocolParamUpdate protocolParamUpdate
@@ -741,36 +741,36 @@ encodeAction action =
                 ]
 
         HardForkInitiation { govActionId, protocolVersion } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 1
                 , E.maybe encodeActionId govActionId
                 , encodeProtocolVersion protocolVersion
                 ]
 
         TreasuryWithdrawals { withdrawals, guardrailsPolicy } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 2
-                , E.ledgerAssociativeList Address.stakeAddressToCbor E.natural withdrawals
+                , E.associativeList Address.stakeAddressToCbor E.natural withdrawals
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
         NoConfidence { govActionId } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 3
                 , E.maybe encodeActionId govActionId
                 ]
 
         UpdateCommittee { govActionId, removedMembers, addedMembers, quorumThreshold } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 4
                 , E.maybe encodeActionId govActionId
-                , E.ledgerList Address.credentialToCbor removedMembers
-                , E.ledgerAssociativeList Address.credentialToCbor E.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
+                , E.list Address.credentialToCbor removedMembers
+                , E.associativeList Address.credentialToCbor E.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
                 , encodeRationalNumber quorumThreshold
                 ]
 
         NewConstitution { govActionId, constitution } ->
-            E.ledgerList identity
+            E.list identity
                 [ E.int 5
                 , E.maybe encodeActionId govActionId
                 , encodeConstitution constitution
@@ -806,7 +806,7 @@ encodeConstitution =
 -}
 encodeProtocolVersion : ProtocolVersion -> E.Encoder
 encodeProtocolVersion ( major, minor ) =
-    E.ledgerList E.int [ major, minor ]
+    E.list E.int [ major, minor ]
 
 
 {-| Encoder for ProtocolParamUpdate type.
@@ -827,7 +827,7 @@ encodeProtocolParamUpdate =
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
             >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
-            >> E.optionalField 14 (\( v, m ) -> E.ledgerList E.int [ v, m ]) .protocolVersion
+            >> E.optionalField 14 (\( v, m ) -> E.list E.int [ v, m ]) .protocolVersion
             >> E.optionalField 16 E.natural .minPoolCost
             >> E.optionalField 17 E.natural .adaPerUtxoByte
             >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
@@ -857,21 +857,21 @@ encodeVoter voter =
         VoterCommitteeHotCred cred ->
             case cred of
                 Address.VKeyHash hash ->
-                    E.ledgerList identity [ E.int 0, Bytes.toCbor hash ]
+                    E.list identity [ E.int 0, Bytes.toCbor hash ]
 
                 Address.ScriptHash hash ->
-                    E.ledgerList identity [ E.int 1, Bytes.toCbor hash ]
+                    E.list identity [ E.int 1, Bytes.toCbor hash ]
 
         VoterDrepCred cred ->
             case cred of
                 Address.VKeyHash hash ->
-                    E.ledgerList identity [ E.int 2, Bytes.toCbor hash ]
+                    E.list identity [ E.int 2, Bytes.toCbor hash ]
 
                 Address.ScriptHash hash ->
-                    E.ledgerList identity [ E.int 3, Bytes.toCbor hash ]
+                    E.list identity [ E.int 3, Bytes.toCbor hash ]
 
         VoterPoolId poolId ->
-            E.ledgerList identity [ E.int 4, Bytes.toCbor poolId ]
+            E.list identity [ E.int 4, Bytes.toCbor poolId ]
 
 
 {-| Encoder for VotingProcedure type.

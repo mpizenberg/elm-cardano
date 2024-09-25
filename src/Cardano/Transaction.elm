@@ -582,7 +582,7 @@ encodeTransactionBody =
             >> E.optionalField 2 E.natural .fee
             >> E.optionalField 3 E.natural .ttl
             >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.natural) .withdrawals
+            >> E.nonEmptyField 5 List.isEmpty (E.associativeList Address.stakeAddressToCbor E.natural) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
@@ -595,16 +595,16 @@ encodeTransactionBody =
             >> E.optionalField 17 E.int .totalCollateral
             >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
             >> E.nonEmptyField 19 List.isEmpty encodeVotingProcedures .votingProcedures
-            >> E.nonEmptyField 20 List.isEmpty (E.ledgerList encodeProposalProcedure) .proposalProcedures
+            >> E.nonEmptyField 20 List.isEmpty (E.list encodeProposalProcedure) .proposalProcedures
             >> E.optionalField 21 E.natural .currentTreasuryValue
             >> E.optionalField 22 E.natural .treasuryDonation
 
 
 encodeVotingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -> E.Encoder
 encodeVotingProcedures =
-    E.ledgerAssociativeList
+    E.associativeList
         Gov.encodeVoter
-        (E.ledgerAssociativeList Gov.encodeActionId Gov.encodeVotingProcedure)
+        (E.associativeList Gov.encodeActionId Gov.encodeVotingProcedure)
 
 
 encodeProposalProcedure : ProposalProcedure -> E.Encoder
@@ -624,19 +624,19 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
+            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (E.ledgerList Bytes.toCbor) .plutusV1Script
+            >> E.optionalField 3 (E.list Bytes.toCbor) .plutusV1Script
             >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
             >> E.optionalField 5 encodeRedeemersAsMap .redeemer
-            >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
-            >> E.optionalField 7 (E.ledgerList Bytes.toCbor) .plutusV3Script
+            >> E.optionalField 6 (E.list Bytes.toCbor) .plutusV2Script
+            >> E.optionalField 7 (E.list Bytes.toCbor) .plutusV3Script
 
 
 {-| -}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
-    E.ledgerList encodeVKeyWitness v
+    E.list encodeVKeyWitness v
 
 
 {-| -}
@@ -651,7 +651,7 @@ encodeVKeyWitness =
 {-| -}
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
 encodeBootstrapWitnesses b =
-    E.ledgerList encodeBootstrapWitness b
+    E.list encodeBootstrapWitness b
 
 
 {-| -}
@@ -667,7 +667,7 @@ encodeBootstrapWitness =
 encodeRedeemersAsMap : List Redeemer -> E.Encoder
 encodeRedeemersAsMap redeemers =
     List.map (\r -> ( ( r.tag, r.index ), ( r.data, r.exUnits ) )) redeemers
-        |> E.ledgerAssociativeList
+        |> E.associativeList
             (E.tuple <|
                 E.elems
                     >> E.elem Redeemer.encodeTag Tuple.first
@@ -683,25 +683,25 @@ encodeRedeemersAsMap redeemers =
 {-| -}
 encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.ledgerList encodeOutputReference inputs
+    E.list encodeOutputReference inputs
 
 
 {-| -}
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
-    E.ledgerList encodeOutput outputs
+    E.list encodeOutput outputs
 
 
 {-| -}
 encodeCertificates : List Certificate -> E.Encoder
 encodeCertificates =
-    E.ledgerList encodeCertificate
+    E.list encodeCertificate
 
 
 {-| -}
 encodeCertificate : Certificate -> E.Encoder
 encodeCertificate certificate =
-    E.ledgerList identity <|
+    E.list identity <|
         case certificate of
             StakeRegistration { delegator } ->
                 [ E.int 0
@@ -727,8 +727,8 @@ encodeCertificate certificate =
                 , E.natural poolParams.cost
                 , Gov.encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
-                , E.ledgerList Bytes.toCbor poolParams.poolOwners
-                , E.ledgerList encodeRelay poolParams.relays
+                , E.list Bytes.toCbor poolParams.poolOwners
+                , E.list encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
@@ -843,7 +843,7 @@ encodeCertificate certificate =
 
 encodeRelay : Relay -> E.Encoder
 encodeRelay relay =
-    E.ledgerList identity <|
+    E.list identity <|
         case relay of
             SingleHostAddr { port_, ipv4, ipv6 } ->
                 [ E.int 0
@@ -895,7 +895,7 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerAssociativeList Address.credentialToCbor E.natural distribution
+            E.associativeList Address.credentialToCbor E.natural distribution
 
         OtherAccountingPot n ->
             E.natural n
@@ -904,7 +904,7 @@ encodeRewardTarget target =
 {-| -}
 encodeRequiredSigners : List (Bytes CredentialHash) -> E.Encoder
 encodeRequiredSigners =
-    E.ledgerList Bytes.toCbor
+    E.list Bytes.toCbor
 
 
 {-| -}

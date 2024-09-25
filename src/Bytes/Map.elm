@@ -53,7 +53,6 @@ Insert, remove, and query operations all take O(log n) time.
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Cbor.Decode as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as EE
 import Dict exposing (Dict)
 
 
@@ -293,7 +292,7 @@ toCbor valueEncoder (BytesMap data) =
         keyEncoder =
             Bytes.fromStringUnchecked >> Bytes.toCbor
     in
-    EE.ledgerDict keyEncoder valueEncoder data
+    E.dict keyEncoder valueEncoder data
 
 
 {-| CBOR decoder.

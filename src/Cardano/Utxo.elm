@@ -60,7 +60,6 @@ import Cardano.Value as Value exposing (Value)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Dict.Any exposing (AnyDict)
 import Natural as N exposing (Natural)
@@ -282,7 +281,7 @@ type DatumOption
 -}
 encodeDatumOption : DatumOption -> E.Encoder
 encodeDatumOption datumOption =
-    EE.ledgerList identity <|
+    E.list identity <|
         case datumOption of
             DatumHash hash ->
                 [ E.int 0
