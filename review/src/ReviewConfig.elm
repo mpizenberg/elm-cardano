@@ -73,17 +73,15 @@ config =
     , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
 
-    -- No direct CBOR encoding of sequences outside Cbor.Encode.Extra.
-    -- To make sure things are encoded as definite sequences <= 23 elements
-    -- and indefinite sequences with >= 24 elements.
+    -- Hardware Wallets need definite-length encoding
     , NoFunctionOutsideOfModules.rule
-        [ ( [ "Cbor.Encode.list"
-            , "Cbor.Encode.associativeList"
-            , "Cbor.Encode.dict"
+        [ ( [ "Cbor.Encode.indefiniteList"
+            , "Cbor.Encode.beginList"
+            , "Cbor.Encode.beginDict"
+            , "Cbor.Encode.beginString"
+            , "Cbor.Encode.beginBytes"
             ]
-          , [ "Cbor.Encode.Extra"
-            , "Cardano.Script"
-            ]
+          , [ "Cbor.Encode.Extra" ]
           )
         ]
     ]
