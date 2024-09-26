@@ -41,7 +41,6 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Decode as BD
 import Cbor.Decode as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as EE
 import Dict.Any exposing (AnyDict)
 import Word7
 
@@ -391,7 +390,7 @@ toBytesHelper networkId headerType payload =
 -}
 credentialToCbor : Credential -> E.Encoder
 credentialToCbor stakeCredential =
-    EE.ledgerList identity <|
+    E.list identity <|
         case stakeCredential of
             VKeyHash addrKeyHash ->
                 [ E.int 0

@@ -21,7 +21,7 @@ import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
+import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Natural exposing (Natural)
 
@@ -76,11 +76,11 @@ toCbor data =
         |> E.tagged (Tag.Unknown 259)
             (E.record E.int
                 (E.fields
-                    >> E.optionalField 0 (E.ledgerAssociativeList E.natural Metadatum.toCbor) (nonEmptyList << .labels)
-                    >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) (nonEmptyList << .nativeScripts)
-                    >> E.optionalField 2 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV1Scripts)
-                    >> E.optionalField 3 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV2Scripts)
-                    >> E.optionalField 4 (E.ledgerList Bytes.toCbor) (nonEmptyList << .plutusV3Scripts)
+                    >> E.optionalField 0 (EE.associativeList EE.natural Metadatum.toCbor) (nonEmptyList << .labels)
+                    >> E.optionalField 1 (E.list Script.encodeNativeScript) (nonEmptyList << .nativeScripts)
+                    >> E.optionalField 2 (E.list Bytes.toCbor) (nonEmptyList << .plutusV1Scripts)
+                    >> E.optionalField 3 (E.list Bytes.toCbor) (nonEmptyList << .plutusV2Scripts)
+                    >> E.optionalField 4 (E.list Bytes.toCbor) (nonEmptyList << .plutusV3Scripts)
                 )
             )
 

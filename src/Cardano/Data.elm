@@ -1,8 +1,8 @@
-module Cardano.Data exposing (Data(..), fromCbor, toCbor)
+module Cardano.Data exposing (Data(..), fromCbor, toCbor, encodeList)
 
 {-| Handling Cardano Data objects.
 
-@docs Data, fromCbor, toCbor
+@docs Data, fromCbor, toCbor, encodeList
 
 -}
 
@@ -17,10 +17,7 @@ import Integer exposing (Integer)
 import Natural exposing (Natural)
 
 
-{-| A Data is an opaque compound type that can represent any possible user-defined type in Aiken.
-
-TODO: make Data actually opaque.
-
+{-| A Data is a compound type that can represent any possible user-defined type in Aiken.
 -}
 type Data
     = Constr Natural (List Data)
@@ -30,24 +27,31 @@ type Data
     | Bytes (Bytes Any)
 
 
+{-| NOTE: 'Data' lists are weirdly encoded:
+
+1.  They are encoded as definite empty lists (0x80)
+2.  But, are encoded as indefinite list otherwise.
+
+-}
+encodeList : (data -> E.Encoder) -> List data -> E.Encoder
+encodeList encoder xs =
+    case xs of
+        [] ->
+            E.length 0
+
+        _ ->
+            E.indefiniteList encoder xs
+
+
+encodeDataList : List Data -> E.Encoder
+encodeDataList xs =
+    encodeList toCbor xs
+
+
 {-| CBOR encoder for [Data].
 -}
 toCbor : Data -> E.Encoder
 toCbor data =
-    let
-        -- NOTE: 'Data' lists are weirdly encoded:
-        --
-        -- 1. They are encoded as definite empty lists (0x80)
-        -- 2. But, are encoded as indefinite list otherwise.
-        encodeList : List Data -> E.Encoder
-        encodeList xs =
-            case xs of
-                [] ->
-                    E.length 0
-
-                _ ->
-                    E.indefiniteList toCbor xs
-    in
     case data of
         Constr ixNat fields ->
             if ixNat |> Natural.isLessThan (Natural.fromSafeInt 128) then
@@ -56,25 +60,26 @@ toCbor data =
                         Natural.toInt ixNat
                 in
                 if ix < 7 then
-                    E.tagged (Tag.Unknown <| 121 + ix) encodeList fields
+                    E.tagged (Tag.Unknown <| 121 + ix) encodeDataList fields
 
                 else
-                    E.tagged (Tag.Unknown <| 1280 + ix - 7) encodeList fields
+                    E.tagged (Tag.Unknown <| 1280 + ix - 7) encodeDataList fields
 
             else
                 E.tagged (Tag.Unknown 102)
                     (E.tuple <|
                         E.elems
                             >> E.elem EE.natural .ixNat
-                            >> E.elem encodeList .fields
+                            >> E.elem encodeDataList .fields
                     )
                     { ixNat = ixNat, fields = fields }
 
         Map xs ->
-            EE.ledgerAssociativeList toCbor toCbor xs
+            -- TODO: check if this needs to use EE.associativeList instead
+            E.associativeList toCbor toCbor xs
 
         List xs ->
-            encodeList xs
+            encodeDataList xs
 
         Int i ->
             EE.integer i

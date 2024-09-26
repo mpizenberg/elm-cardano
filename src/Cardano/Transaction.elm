@@ -51,7 +51,7 @@ import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, enc
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
+import Cbor.Encode.Extra as EE
 import Integer exposing (Integer)
 import Natural exposing (Natural)
 import RationalNat exposing (RationalNat)
@@ -579,39 +579,39 @@ encodeTransactionBody =
         E.fields
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
-            >> E.optionalField 2 E.natural .fee
-            >> E.optionalField 3 E.natural .ttl
-            >> E.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
-            >> E.nonEmptyField 5 List.isEmpty (E.ledgerAssociativeList Address.stakeAddressToCbor E.natural) .withdrawals
+            >> E.optionalField 2 EE.natural .fee
+            >> E.optionalField 3 EE.natural .ttl
+            >> EE.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
+            >> EE.nonEmptyField 5 List.isEmpty (EE.associativeList Address.stakeAddressToCbor EE.natural) .withdrawals
             >> E.optionalField 6 encodeUpdate .update
             >> E.optionalField 7 Bytes.toCbor .auxiliaryDataHash
             >> E.optionalField 8 E.int .validityIntervalStart
-            >> E.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.mintToCbor .mint
+            >> EE.nonEmptyField 9 MultiAsset.isEmpty MultiAsset.mintToCbor .mint
             >> E.optionalField 11 Bytes.toCbor .scriptDataHash
-            >> E.nonEmptyField 13 List.isEmpty encodeInputs .collateral
-            >> E.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
+            >> EE.nonEmptyField 13 List.isEmpty encodeInputs .collateral
+            >> EE.nonEmptyField 14 List.isEmpty encodeRequiredSigners .requiredSigners
             >> E.optionalField 15 Address.encodeNetworkId .networkId
             >> E.optionalField 16 encodeOutput .collateralReturn
             >> E.optionalField 17 E.int .totalCollateral
-            >> E.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
-            >> E.nonEmptyField 19 List.isEmpty encodeVotingProcedures .votingProcedures
-            >> E.nonEmptyField 20 List.isEmpty (E.ledgerList encodeProposalProcedure) .proposalProcedures
-            >> E.optionalField 21 E.natural .currentTreasuryValue
-            >> E.optionalField 22 E.natural .treasuryDonation
+            >> EE.nonEmptyField 18 List.isEmpty encodeInputs .referenceInputs
+            >> EE.nonEmptyField 19 List.isEmpty encodeVotingProcedures .votingProcedures
+            >> EE.nonEmptyField 20 List.isEmpty (E.list encodeProposalProcedure) .proposalProcedures
+            >> E.optionalField 21 EE.natural .currentTreasuryValue
+            >> E.optionalField 22 EE.natural .treasuryDonation
 
 
 encodeVotingProcedures : List ( Voter, List ( ActionId, VotingProcedure ) ) -> E.Encoder
 encodeVotingProcedures =
-    E.ledgerAssociativeList
+    EE.associativeList
         Gov.encodeVoter
-        (E.ledgerAssociativeList Gov.encodeActionId Gov.encodeVotingProcedure)
+        (EE.associativeList Gov.encodeActionId Gov.encodeVotingProcedure)
 
 
 encodeProposalProcedure : ProposalProcedure -> E.Encoder
 encodeProposalProcedure =
     E.tuple
         (E.elems
-            >> E.elem E.natural .deposit
+            >> E.elem EE.natural .deposit
             >> E.elem Address.stakeAddressToCbor .rewardAccount
             >> E.elem Gov.encodeAction .govAction
             >> E.elem Gov.encodeAnchor .anchor
@@ -624,19 +624,19 @@ encodeWitnessSet =
     E.record E.int <|
         E.fields
             >> E.optionalField 0 encodeVKeyWitnesses .vkeywitness
-            >> E.optionalField 1 (E.ledgerList Script.encodeNativeScript) .nativeScripts
+            >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
-            >> E.optionalField 3 (E.ledgerList Bytes.toCbor) .plutusV1Script
-            >> E.optionalField 4 (E.indefiniteList Data.toCbor) .plutusData
+            >> E.optionalField 3 (E.list Bytes.toCbor) .plutusV1Script
+            >> E.optionalField 4 (Data.encodeList Data.toCbor) .plutusData
             >> E.optionalField 5 encodeRedeemersAsMap .redeemer
-            >> E.optionalField 6 (E.ledgerList Bytes.toCbor) .plutusV2Script
-            >> E.optionalField 7 (E.ledgerList Bytes.toCbor) .plutusV3Script
+            >> E.optionalField 6 (E.list Bytes.toCbor) .plutusV2Script
+            >> E.optionalField 7 (E.list Bytes.toCbor) .plutusV3Script
 
 
 {-| -}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
-    E.ledgerList encodeVKeyWitness v
+    E.list encodeVKeyWitness v
 
 
 {-| -}
@@ -651,7 +651,7 @@ encodeVKeyWitness =
 {-| -}
 encodeBootstrapWitnesses : List BootstrapWitness -> E.Encoder
 encodeBootstrapWitnesses b =
-    E.ledgerList encodeBootstrapWitness b
+    E.list encodeBootstrapWitness b
 
 
 {-| -}
@@ -667,7 +667,7 @@ encodeBootstrapWitness =
 encodeRedeemersAsMap : List Redeemer -> E.Encoder
 encodeRedeemersAsMap redeemers =
     List.map (\r -> ( ( r.tag, r.index ), ( r.data, r.exUnits ) )) redeemers
-        |> E.ledgerAssociativeList
+        |> EE.associativeList
             (E.tuple <|
                 E.elems
                     >> E.elem Redeemer.encodeTag Tuple.first
@@ -683,25 +683,25 @@ encodeRedeemersAsMap redeemers =
 {-| -}
 encodeInputs : List OutputReference -> E.Encoder
 encodeInputs inputs =
-    E.ledgerList encodeOutputReference inputs
+    E.list encodeOutputReference inputs
 
 
 {-| -}
 encodeOutputs : List Output -> E.Encoder
 encodeOutputs outputs =
-    E.ledgerList encodeOutput outputs
+    E.list encodeOutput outputs
 
 
 {-| -}
 encodeCertificates : List Certificate -> E.Encoder
 encodeCertificates =
-    E.ledgerList encodeCertificate
+    E.list encodeCertificate
 
 
 {-| -}
 encodeCertificate : Certificate -> E.Encoder
 encodeCertificate certificate =
-    E.ledgerList identity <|
+    E.list identity <|
         case certificate of
             StakeRegistration { delegator } ->
                 [ E.int 0
@@ -723,19 +723,19 @@ encodeCertificate certificate =
                 [ E.int 3
                 , Bytes.toCbor poolParams.operator
                 , Bytes.toCbor poolParams.vrfKeyHash
-                , E.natural poolParams.pledge
-                , E.natural poolParams.cost
+                , EE.natural poolParams.pledge
+                , EE.natural poolParams.cost
                 , Gov.encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
-                , E.ledgerList Bytes.toCbor poolParams.poolOwners
-                , E.ledgerList encodeRelay poolParams.relays
+                , E.list Bytes.toCbor poolParams.poolOwners
+                , E.list encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
             PoolRetirement { poolId, epoch } ->
                 [ E.int 4
                 , Bytes.toCbor poolId
-                , E.natural epoch
+                , EE.natural epoch
                 ]
 
             GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
@@ -754,14 +754,14 @@ encodeCertificate certificate =
             RegCert { delegator, deposit } ->
                 [ E.int 7
                 , Address.credentialToCbor delegator
-                , E.natural deposit
+                , EE.natural deposit
                 ]
 
             -- 8 Unregisters stake credentials
             UnregCert { delegator, refund } ->
                 [ E.int 8
                 , Address.credentialToCbor delegator
-                , E.natural refund
+                , EE.natural refund
                 ]
 
             -- 9 Delegates votes
@@ -784,7 +784,7 @@ encodeCertificate certificate =
                 [ E.int 11
                 , Address.credentialToCbor delegator
                 , Bytes.toCbor poolId
-                , E.natural deposit
+                , EE.natural deposit
                 ]
 
             -- 12 Registers stake credentials and delegates to a DRep
@@ -792,7 +792,7 @@ encodeCertificate certificate =
                 [ E.int 12
                 , Address.credentialToCbor delegator
                 , Gov.encodeDrep drep
-                , E.natural deposit
+                , EE.natural deposit
                 ]
 
             -- 13 Registers stake credentials, delegates to a pool, and to a DRep
@@ -801,7 +801,7 @@ encodeCertificate certificate =
                 , Address.credentialToCbor delegator
                 , Bytes.toCbor poolId
                 , Gov.encodeDrep drep
-                , E.natural deposit
+                , EE.natural deposit
                 ]
 
             -- 14 Authorizes the constitutional committee hot credential
@@ -822,7 +822,7 @@ encodeCertificate certificate =
             RegDrepCert { drepCredential, deposit, anchor } ->
                 [ E.int 16
                 , Address.credentialToCbor drepCredential
-                , E.natural deposit
+                , EE.natural deposit
                 , E.maybe Gov.encodeAnchor anchor
                 ]
 
@@ -830,7 +830,7 @@ encodeCertificate certificate =
             UnregDrepCert { drepCredential, refund } ->
                 [ E.int 17
                 , Address.credentialToCbor drepCredential
-                , E.natural refund
+                , EE.natural refund
                 ]
 
             -- 18 Updates DRep's metadata anchor
@@ -843,7 +843,7 @@ encodeCertificate certificate =
 
 encodeRelay : Relay -> E.Encoder
 encodeRelay relay =
-    E.ledgerList identity <|
+    E.list identity <|
         case relay of
             SingleHostAddr { port_, ipv4, ipv6 } ->
                 [ E.int 0
@@ -895,16 +895,16 @@ encodeRewardTarget : RewardTarget -> E.Encoder
 encodeRewardTarget target =
     case target of
         StakeCredentials distribution ->
-            E.ledgerAssociativeList Address.credentialToCbor E.natural distribution
+            EE.associativeList Address.credentialToCbor EE.natural distribution
 
         OtherAccountingPot n ->
-            E.natural n
+            EE.natural n
 
 
 {-| -}
 encodeRequiredSigners : List (Bytes CredentialHash) -> E.Encoder
 encodeRequiredSigners =
-    E.ledgerList Bytes.toCbor
+    E.list Bytes.toCbor
 
 
 {-| -}
@@ -913,7 +913,7 @@ encodeUpdate =
     E.tuple <|
         E.elems
             >> E.elem encodeProposedProtocolParameterUpdates .proposedProtocolParameterUpdates
-            >> E.elem E.natural .epoch
+            >> E.elem EE.natural .epoch
 
 
 {-| -}

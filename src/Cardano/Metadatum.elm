@@ -11,7 +11,7 @@ import Cbor exposing (CborItem(..))
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
+import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Integer exposing (Integer)
 
@@ -32,7 +32,7 @@ toCbor : Metadatum -> E.Encoder
 toCbor metadatum =
     case metadatum of
         Int n ->
-            E.integer n
+            EE.integer n
 
         Bytes bytes ->
             Bytes.toCbor bytes
@@ -41,10 +41,10 @@ toCbor metadatum =
             E.string str
 
         List metadatums ->
-            E.ledgerList toCbor metadatums
+            E.list toCbor metadatums
 
         Map metadatums ->
-            E.ledgerAssociativeList toCbor toCbor metadatums
+            EE.associativeList toCbor toCbor metadatums
 
 
 {-| Decode Metadatum from CBOR

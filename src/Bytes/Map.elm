@@ -288,12 +288,8 @@ merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
 {-| Cbor encoder.
 -}
 toCbor : (v -> E.Encoder) -> BytesMap k v -> E.Encoder
-toCbor valueEncoder (BytesMap data) =
-    let
-        keyEncoder =
-            Bytes.fromStringUnchecked >> Bytes.toCbor
-    in
-    EE.ledgerDict keyEncoder valueEncoder data
+toCbor valueEncoder data =
+    EE.associativeList Bytes.toCbor valueEncoder (toList data)
 
 
 {-| CBOR decoder.
