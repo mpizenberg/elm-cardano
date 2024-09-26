@@ -113,7 +113,7 @@ suite =
                 in
                 Transaction.serialize tx
                     |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
-        , test "Tx 3" <|
+        , test "Tx with tricky asset order" <|
             \_ ->
                 let
                     expectedEncoding =
