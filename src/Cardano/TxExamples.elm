@@ -196,7 +196,7 @@ example3 _ =
             { spentInput = utxoBeingSpent
             , datumWitness = Nothing
             , plutusScriptWitness =
-                { script = WitnessValue lock.script
+                { script = ( lock.script.version, WitnessValue lock.script.script )
                 , redeemerData = redeemer
                 , requiredSigners = [ myKeyCred ]
                 }

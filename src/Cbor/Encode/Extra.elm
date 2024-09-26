@@ -1,14 +1,14 @@
 module Cbor.Encode.Extra exposing
     ( natural, integer
     , nonEmptyField
-    , associativeList
+    , associativeList, indefiniteList
     )
 
 {-| Extra CBOR encoding utility functions.
 
 @docs natural, integer
 @docs nonEmptyField
-@docs associativeList
+@docs associativeList, indefiniteList
 
 -}
 
@@ -152,3 +152,10 @@ toCanonicalKey encodeKey k =
                 |> Bytes.toString
     in
     ( String.length encodedKey, encodedKey )
+
+
+{-| If you really need indefinite lists.
+-}
+indefiniteList : (a -> E.Encoder) -> List a -> E.Encoder
+indefiniteList =
+    E.indefiniteList
