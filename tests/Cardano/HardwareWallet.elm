@@ -1,11 +1,17 @@
 module Cardano.HardwareWallet exposing (suite)
 
-import Bytes.Comparable as Bytes
+import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Credential(..), NetworkId(..))
+import Cardano exposing (ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
+import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
+import Cardano.Data as Data
+import Cardano.Redeemer exposing (RedeemerTag(..))
+import Cardano.Script exposing (PlutusScript, PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), newBody, newWitnessSet)
-import Cardano.Value as Value
+import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
+import Cardano.Value as Value exposing (Value)
 import Dict exposing (Dict)
+import Dict.Any
 import Expect
 import Integer
 import Natural as N exposing (Natural)
@@ -152,6 +158,107 @@ suite =
                 in
                 Transaction.serialize tx
                     |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
+        , test "Tx with plutus script" <|
+            \_ ->
+                let
+                    ada =
+                        -- Asset amounts are typed with unbounded Natural numbers
+                        { one = Value.onlyLovelace (N.fromSafeString "1000000")
+                        , two = Value.onlyLovelace (N.fromSafeString "2000000")
+                        , four = Value.onlyLovelace (N.fromSafeString "4000000")
+                        , ten = Value.onlyLovelace (N.fromSafeString "10000000")
+                        }
+
+                    globalStateUtxos =
+                        Utxo.refDictFromList
+                            [ makeAdaOutput 0 me 2 --   2 ada at my address
+                            , makeAdaOutput 1 me 10 -- 10 ada at my address
+                            , makeAdaOutput 2 me 5 --   5 ada at my address
+                            ]
+
+                    me =
+                        makeWalletAddress "me"
+
+                    utxoBeingSpent =
+                        makeRef "previouslySentToLock" 0
+
+                    findSpendingUtxo inputs =
+                        case inputs of
+                            [] ->
+                                0
+
+                            ( id, ref ) :: next ->
+                                if ref == utxoBeingSpent then
+                                    id
+
+                                else
+                                    findSpendingUtxo next
+
+                    ( myKeyCred, myStakeCred ) =
+                        ( Address.extractPubKeyHash me
+                            |> Maybe.withDefault (Bytes.fromText "should not fail")
+                        , Address.extractStakeCredential me
+                        )
+
+                    -- Lock script made with Aiken
+                    lock =
+                        { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+                        , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
+                        }
+
+                    -- Combining the script hash with our stake credential
+                    -- to keep the locked ada staked.
+                    lockScriptAddress =
+                        Address.Shelley
+                            { networkId = Mainnet
+                            , paymentCredential = ScriptHash lock.scriptHash
+                            , stakeCredential = myStakeCred
+                            }
+
+                    -- Build a redeemer that contains the index of the spent script input.
+                    redeemer inputsOutputs =
+                        List.indexedMap Tuple.pair inputsOutputs.spentInputs
+                            |> findSpendingUtxo
+                            |> (Data.Int << Integer.fromSafeInt)
+
+                    -- Helper function to create an output at the lock script address.
+                    -- It contains our key credential in the datum.
+                    makeLockedOutput adaAmount =
+                        { address = lockScriptAddress
+                        , amount = adaAmount
+                        , datumOption = Just (DatumValue (Data.Bytes <| Bytes.toAny myKeyCred))
+                        , referenceScript = Nothing
+                        }
+
+                    -- Add to local state utxos some previously sent 4 ada.
+                    localStateUtxos =
+                        globalStateUtxos
+                            |> Dict.Any.insert utxoBeingSpent (makeLockedOutput ada.four)
+
+                    tx =
+                        -- Collect 2 ada from the lock script
+                        [ Cardano.Spend <|
+                            FromPlutusScript
+                                { spentInput = utxoBeingSpent
+                                , datumWitness = Nothing
+                                , plutusScriptWitness =
+                                    { script = WitnessValue lock.script
+                                    , redeemerData = redeemer
+                                    , requiredSigners = [ myKeyCred ]
+                                    }
+                                }
+                        , SendTo me ada.two
+
+                        -- Return the other 2 ada to the lock script (there was 4 ada initially)
+                        , SendToOutput (makeLockedOutput ada.two)
+                        ]
+                            |> finalize localStateUtxos []
+
+                    expectedEncoding =
+                        "84a8008282582031303030303030303030303030303030303030303030303030303030303030300182582070726576696f75736c7953656e74546f4c6f636b303030303030303030303030000182a3005839113ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a3306d653030303030303030303030303030303030303030303030303030011a001e8480028201d818581e581c6d653030303030303030303030303030303030303030303030303030a2005839016d6530303030303030303030303030303030303030303030303030306d653030303030303030303030303030303030303030303030303030011a00b435dd021a0002e5230b582053637269707444617461486173683030303030303030303030303030303030300d818258203130303030303030303030303030303030303030303030303030303030303030010e81581c6d65303030303030303030303030303030303030303030303030303010a2005839016d6530303030303030303030303030303030303030303030303030306d653030303030303030303030303030303030303030303030303030011a00943ecb111a00989680a30081825820564b45596d65303030303030303030303030303030303030303030303030303058405349474e41545552456d65303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303005a18200018201821951171a0061b0d9078158b758b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881f5f6"
+                in
+                Result.map Transaction.serialize tx
+                    |> Expect.equal (Ok (Bytes.fromStringUnchecked expectedEncoding))
         ]
 
 
@@ -179,3 +286,56 @@ bytesMap keyValues =
     Dict.toList keyValues
         |> List.map (\( k, v ) -> ( Bytes.fromStringUnchecked k, v ))
         |> Bytes.Map.fromList
+
+
+
+-- Helper functions to build stuff
+
+
+dummyCredentialHash : String -> Bytes CredentialHash
+dummyCredentialHash str =
+    dummyBytes 28 str
+
+
+makeWalletAddress : String -> Address
+makeWalletAddress name =
+    Address.Shelley
+        { networkId = Mainnet
+        , paymentCredential = VKeyHash (dummyCredentialHash name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
+        }
+
+
+makeAddress : String -> Address
+makeAddress name =
+    Address.enterprise Mainnet (dummyCredentialHash name)
+
+
+makeRef : String -> Int -> OutputReference
+makeRef id index =
+    { transactionId = dummyBytes 32 id
+    , outputIndex = index
+    }
+
+
+makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
+makeAsset index address policyId name amount =
+    ( makeRef (String.fromInt index) index
+    , { address = address
+      , amount = makeToken policyId name amount
+      , datumOption = Nothing
+      , referenceScript = Nothing
+      }
+    )
+
+
+makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
+makeAdaOutput index address amount =
+    ( makeRef (String.fromInt index) index
+    , Utxo.fromLovelace address (N.fromSafeInt <| 1000000 * amount)
+    )
+
+
+makeToken : String -> String -> Int -> Value
+makeToken policyId name amount =
+    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (N.fromSafeInt amount)
