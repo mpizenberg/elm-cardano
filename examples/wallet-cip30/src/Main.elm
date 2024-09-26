@@ -8,7 +8,7 @@ import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
 import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo
-import Cardano.Value as ECValue
+import Cardano.Value as CValue
 import Dict exposing (Dict)
 import Html exposing (Html, div, text)
 import Html.Attributes exposing (height, src)
@@ -270,7 +270,7 @@ update msg model =
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
         GetUtxosAmountButtonClicked wallet ->
-            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (ECValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Just (CValue.onlyLovelace <| N.fromSafeInt 14000000), paginate = Nothing } )
 
         GetCollateralButtonClicked wallet ->
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getCollateral wallet { amount = N.fromSafeInt 3000000 } )
@@ -305,15 +305,22 @@ update msg model =
                                 |> Utxo.refDictFromList
 
                         oneAda =
-                            ECValue.onlyLovelace (N.fromSafeString "1000000")
+                            CValue.onlyLovelace (N.fromSafeString "1000000")
 
                         txIntents =
                             [ Spend (FromWallet address oneAda), SendTo address oneAda ]
                     in
                     case Cardano.finalize localStateUtxos [] txIntents of
                         Ok tx ->
-                            ( { model | signedTx = WaitingSign tx }
-                            , toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } tx))
+                            let
+                                witnessSet =
+                                    tx.witnessSet
+
+                                cleanedTx =
+                                    { tx | witnessSet = { witnessSet | vkeywitness = Nothing } }
+                            in
+                            ( { model | signedTx = WaitingSign cleanedTx }
+                            , toWallet (Cip30.encodeRequest (Cip30.signTx wallet { partialSign = False } cleanedTx))
                             )
 
                         Err txBuildingError ->
