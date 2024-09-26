@@ -38,6 +38,7 @@ type Msg
     | ConnectButtonClicked { id : String, extensions : List Int }
     | GetExtensionsButtonClicked Cip30.Wallet
     | GetNetworkIdButtonClicked Cip30.Wallet
+    | GetUtxosButtonClicked Cip30.Wallet
     | GetUtxosPaginateButtonClicked Cip30.Wallet
     | GetUtxosAmountButtonClicked Cip30.Wallet
     | GetCollateralButtonClicked Cip30.Wallet
@@ -58,7 +59,7 @@ type Msg
 type alias Model =
     { availableWallets : List Cip30.WalletDescriptor
     , connectedWallets : Dict String Cip30.Wallet
-    , collateral : List Cip30.Utxo
+    , utxos : List Cip30.Utxo
     , changeAddress : Maybe { walletId : String, address : Address }
     , rewardAddress : Maybe { walletId : String, address : Address }
     , signedTx : TxSign
@@ -77,7 +78,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { availableWallets = []
       , connectedWallets = Dict.empty
-      , collateral = []
+      , utxos = []
       , changeAddress = Nothing
       , rewardAddress = Nothing
       , signedTx = NoSignRequest
@@ -123,19 +124,22 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxos)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos maybeUtxos)) ->
                     let
-                        utxosStr =
-                            case utxos of
+                        ( utxos, utxosStr ) =
+                            case maybeUtxos of
                                 Nothing ->
-                                    "undefined"
+                                    ( [], "undefined" )
 
                                 Just utxosList ->
-                                    List.map Debug.toString utxosList
+                                    ( utxosList
+                                    , List.map Debug.toString utxosList
                                         |> String.join "\n"
+                                    )
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr
+                        , utxos = utxos
                         , lastError = ""
                       }
                     , Cmd.none
@@ -143,20 +147,17 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral maybeCollateral)) ->
                     let
-                        ( collateral, utxosStr ) =
+                        utxosStr =
                             case maybeCollateral of
                                 Nothing ->
-                                    ( [], "undefined" )
+                                    "undefined"
 
                                 Just utxos ->
-                                    ( utxos
-                                    , List.map Debug.toString utxos
+                                    List.map Debug.toString utxos
                                         |> String.join "\n"
-                                    )
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr
-                        , collateral = collateral
                         , lastError = ""
                       }
                     , Cmd.none
@@ -266,6 +267,9 @@ update msg model =
         GetNetworkIdButtonClicked wallet ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.getNetworkId wallet)) )
 
+        GetUtxosButtonClicked wallet ->
+            ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Nothing } )
+
         GetUtxosPaginateButtonClicked wallet ->
             ( model, toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Just { page = 0, limit = 2 } } )
 
@@ -291,9 +295,9 @@ update msg model =
             ( model, toWallet (Cip30.encodeRequest (Cip30.getRewardAddresses wallet)) )
 
         SignTxButtonClicked wallet ->
-            case ( model.collateral, model.changeAddress ) of
+            case ( model.utxos, model.changeAddress ) of
                 ( [], _ ) ->
-                    ( { model | lastError = "You need to click the 'getCollateral' button first to be aware of some existing utxos" }, Cmd.none )
+                    ( { model | lastError = "You need to click the 'getUtxos' button first to be aware of some existing utxos" }, Cmd.none )
 
                 ( _, Nothing ) ->
                     ( { model | lastError = "You need to click the 'getChangeAddress' button first to know the wallet address" }, Cmd.none )
@@ -454,6 +458,7 @@ walletActions : Cip30.Wallet -> List (Html Msg)
 walletActions wallet =
     [ Html.button [ onClick <| GetExtensionsButtonClicked wallet ] [ text "getExtensions" ]
     , Html.button [ onClick <| GetNetworkIdButtonClicked wallet ] [ text "getNetworkId" ]
+    , Html.button [ onClick <| GetUtxosButtonClicked wallet ] [ text "getUtxos" ]
     , Html.button [ onClick <| GetUtxosPaginateButtonClicked wallet ] [ text "getUtxos(paginate:2)" ]
     , Html.button [ onClick <| GetUtxosAmountButtonClicked wallet ] [ text "getUtxos(amount:14ada)" ]
     , Html.button [ onClick <| GetCollateralButtonClicked wallet ] [ text "getCollateral(amount:3ada)" ]
