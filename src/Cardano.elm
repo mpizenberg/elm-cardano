@@ -370,7 +370,7 @@ We can embed it directly in the transaction witness.
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), CredentialHash, StakeAddress)
+import Cardano.Address as Address exposing (Address(..), CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
@@ -540,6 +540,12 @@ Analyze all intents and perform the following actions:
   - Evaluate script execution costs with default mainnet parameters
   - Try to find fee payment source automatically and compute automatic Tx fee
 
+The network parameters will be automatically chosen to be:
+
+  - default Mainnet parameters if the guessed fee address is from Mainnet
+  - default Preview parameters if the guessed fee address is from a testnet.
+
+Preprod is not supported for this simplified [finalize] function.
 In case you want more customization, please use [finalizeAdvanced].
 
 -}
@@ -555,7 +561,31 @@ finalize localStateUtxos txOtherInfo txIntents =
                 let
                     defaultEvalScriptsCosts =
                         if containPlutusScripts txIntents then
-                            Uplc.evalScriptsCosts Uplc.defaultVmConfig
+                            let
+                                network =
+                                    case feeSource of
+                                        Byron _ ->
+                                            Debug.todo "Byron addresses are not unsupported"
+
+                                        Shelley { networkId } ->
+                                            networkId
+
+                                        Reward { networkId } ->
+                                            networkId
+
+                                slotConfig =
+                                    case network of
+                                        Mainnet ->
+                                            Uplc.slotConfigMainnet
+
+                                        Testnet ->
+                                            Uplc.slotConfigPreview
+                            in
+                            Uplc.evalScriptsCosts
+                                { budget = Uplc.conwayDefaultBudget
+                                , slotConfig = slotConfig
+                                , costModels = Uplc.conwayDefaultCostModels
+                                }
 
                         else
                             \_ _ -> Ok []
