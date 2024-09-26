@@ -85,6 +85,7 @@ config =
           )
         -- Hardware Wallets need Map keys sorted in a special order
         , ( [ "Cbor.Encode.associativeList"
+            , "Cbor.Encode.dict"
             ]
           , [ "Cbor.Encode.Extra", "Cardano.Data"  ]
           )
