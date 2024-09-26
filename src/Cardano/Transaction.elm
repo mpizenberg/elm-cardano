@@ -8,6 +8,7 @@ module Cardano.Transaction exposing
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
+    , hashScriptData
     , deserialize, serialize, encodeToCbor
     , decodeWitnessSet
     )
@@ -32,18 +33,21 @@ module Cardano.Transaction exposing
 
 @docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
+@docs hashScriptData
+
 @docs deserialize, serialize, encodeToCbor
 
 @docs decodeWitnessSet
 
 -}
 
+import Blake2b exposing (blake2b256)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (ActionId, Anchor, Drep, ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
+import Cardano.Gov as Gov exposing (ActionId, Anchor, CostModels, Drep, ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
@@ -540,6 +544,68 @@ allInputs tx =
         |> Utxo.refDictFromList
 
 
+{-| Compute the script data hash of the transaction.
+
+The caller must know what versions of Plutus scripts are present in the Tx
+and provide accordingly the associated cost models.
+
+Script data is serialized in a very specific way to compute the hash.
+See Conway CDDL format: <https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197>
+
+-}
+hashScriptData : CostModels -> Transaction -> Bytes ScriptDataHash
+hashScriptData costModels tx =
+    let
+        datumsHex =
+            tx.witnessSet.plutusData
+                |> Maybe.map
+                    (E.list Data.toCbor
+                        >> E.encode
+                        >> Bytes.fromBytes
+                        >> Bytes.toString
+                    )
+                |> Maybe.withDefault ""
+    in
+    case tx.witnessSet.redeemer of
+        Nothing ->
+            Bytes.fromStringUnchecked ("80" ++ datumsHex ++ "a0")
+                |> Bytes.toU8
+                |> blake2b256 Nothing
+                |> Bytes.bytes
+
+        Just redeemers ->
+            let
+                redeemersHex =
+                    E.encode (encodeRedeemersAsMap redeemers)
+                        |> Bytes.fromBytes
+                        |> Bytes.toString
+
+                languageViews =
+                    { v1 = Maybe.map (EE.indefiniteList E.int) costModels.plutusV1
+                    , v2 = Maybe.map (E.list E.int) costModels.plutusV2
+                    , v3 = Maybe.map (E.list E.int) costModels.plutusV3
+                    }
+
+                languageViewsEncoder =
+                    -- Plutus V1 language model is last because it is doubly encoded,
+                    -- and in canonical encoding, 4100 is after 01 and 02
+                    E.record identity <|
+                        E.fields
+                            >> E.optionalField (E.int 1) identity .v2
+                            >> E.optionalField (E.int 2) identity .v3
+                            >> E.optionalField (E.bytes <| Bytes.toBytes <| Bytes.fromStringUnchecked "00") identity .v1
+
+                languageViewsHex =
+                    E.encode (languageViewsEncoder languageViews)
+                        |> Bytes.fromBytes
+                        |> Bytes.toString
+            in
+            Bytes.fromStringUnchecked (redeemersHex ++ datumsHex ++ languageViewsHex)
+                |> Bytes.toU8
+                |> blake2b256 Nothing
+                |> Bytes.bytes
+
+
 
 -- https://github.com/input-output-hk/cardano-ledger/blob/a792fbff8156773e712ef875d82c2c6d4358a417/eras/babbage/test-suite/cddl-files/babbage.cddl#L13
 
@@ -627,7 +693,7 @@ encodeWitnessSet =
             >> E.optionalField 1 (E.list Script.encodeNativeScript) .nativeScripts
             >> E.optionalField 2 encodeBootstrapWitnesses .bootstrapWitness
             >> E.optionalField 3 (E.list Bytes.toCbor) .plutusV1Script
-            >> E.optionalField 4 (Data.encodeList Data.toCbor) .plutusData
+            >> E.optionalField 4 (E.list Data.toCbor) .plutusData
             >> E.optionalField 5 encodeRedeemersAsMap .redeemer
             >> E.optionalField 6 (E.list Bytes.toCbor) .plutusV2Script
             >> E.optionalField 7 (E.list Bytes.toCbor) .plutusV3Script

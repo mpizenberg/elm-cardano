@@ -339,7 +339,7 @@ We can embed it directly in the transaction witness.
                 { spentInput = lockedUtxoRef
                 , datumWitness = Nothing -- not needed, the datum was given by value
                 , plutusScriptWitness =
-                    { script = WitnessValue lockScript -- script passed by value
+                    { script = ( lockScript.version, WitnessValue lockScript.script )
                     , redeemerData = \_ -> dummyRedeemer -- unused
                     , requiredSigners = [ myKeyCred ]
                     }
@@ -377,12 +377,13 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
-import Cardano.Script as Script exposing (NativeScript, PlutusScript, PlutusVersion(..), ScriptCbor)
+import Cardano.Script as Script exposing (NativeScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
+import Dict
 import Dict.Any exposing (AnyDict)
 import Integer exposing (Integer)
 import Natural exposing (Natural)
@@ -464,7 +465,7 @@ type ScriptWitness
 {-| Represents a Plutus script witness.
 -}
 type alias PlutusScriptWitness =
-    { script : WitnessSource PlutusScript
+    { script : ( Script.PlutusVersion, WitnessSource (Bytes ScriptCbor) )
     , redeemerData : InputsOutputs -> Data
     , requiredSigners : List (Bytes CredentialHash)
     }
@@ -823,30 +824,45 @@ finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee tx
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Potentially replace the dummy auxiliary data hash and script data hash
                 |> Result.map replaceDummyAuxiliaryDataHash
-                |> Result.map replaceDummyScriptDataHash
+                |> Result.map (replaceDummyScriptDataHash processedIntents)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
 
 
-{-| Helper function to compute the auxiliary data hash.
+{-| Helper function to update the auxiliary data hash.
 -}
 replaceDummyAuxiliaryDataHash : Transaction -> Transaction
 replaceDummyAuxiliaryDataHash ({ body, auxiliaryData } as tx) =
     { tx | body = { body | auxiliaryDataHash = Maybe.map AuxiliaryData.hash auxiliaryData } }
 
 
-{-| Helper function to compute the auxiliary data hash.
-
-Script data is serialized in a very specific way to compute the hash.
-See Conway CDDL format: <https://github.com/IntersectMBO/cardano-ledger/blob/676ffc5c3e0dddb2b1ddeb76627541b195fefb5a/eras/conway/impl/cddl-files/conway.cddl#L197>
-See Blaze impl: <https://github.com/butaneprotocol/blaze-cardano/blob/1c9c603755e5d48b6bf91ea086d6231d6d8e76df/packages/blaze-tx/src/tx.ts#L935>
-See cardano-js-sdk serialization of redeemers: <https://github.com/input-output-hk/cardano-js-sdk/blob/0d138c98ccf7ad15a495f02e4a50d84f661a9d38/packages/core/src/Serialization/TransactionWitnessSet/Redeemer/Redeemers.ts#L29>
-
+{-| Helper function to update the script data hash.
 -}
-replaceDummyScriptDataHash : Transaction -> Transaction
-replaceDummyScriptDataHash ({ body } as tx) =
-    -- TODO: actual hashing
-    { tx | body = body }
+replaceDummyScriptDataHash : ProcessedIntents -> Transaction -> Transaction
+replaceDummyScriptDataHash intents ({ body } as tx) =
+    let
+        costModels =
+            { plutusV1 =
+                if List.any (\( v, _ ) -> v == PlutusV1) intents.plutusScriptSources then
+                    Uplc.conwayDefaultCostModels.plutusV1
+
+                else
+                    Nothing
+            , plutusV2 =
+                if List.any (\( v, _ ) -> v == PlutusV2) intents.plutusScriptSources then
+                    Uplc.conwayDefaultCostModels.plutusV2
+
+                else
+                    Nothing
+            , plutusV3 =
+                if List.any (\( v, _ ) -> v == PlutusV3) intents.plutusScriptSources then
+                    Uplc.conwayDefaultCostModels.plutusV3
+
+                else
+                    Nothing
+            }
+    in
+    { tx | body = { body | scriptDataHash = Maybe.map (\_ -> Transaction.hashScriptData costModels tx) body.scriptDataHash } }
 
 
 {-| Helper function to compute the total size of reference scripts.
@@ -882,7 +898,7 @@ type alias PreProcessedIntents =
     , preSelected : List { input : OutputReference, redeemer : Maybe (InputsOutputs -> Data) }
     , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
     , nativeScriptSources : List (WitnessSource NativeScript)
-    , plutusScriptSources : List (WitnessSource PlutusScript)
+    , plutusScriptSources : List ( PlutusVersion, WitnessSource (Bytes ScriptCbor) )
     , datumSources : List (WitnessSource Data)
     , requiredSigners : List (List (Bytes CredentialHash))
     , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
@@ -1043,7 +1059,7 @@ type alias ProcessedIntents =
     , preSelected : { sum : Value, inputs : Utxo.RefDict (Maybe (InputsOutputs -> Data)) }
     , preCreated : InputsOutputs -> { sum : Value, outputs : List Output }
     , nativeScriptSources : List (WitnessSource NativeScript)
-    , plutusScriptSources : List (WitnessSource PlutusScript)
+    , plutusScriptSources : List ( PlutusVersion, WitnessSource (Bytes ScriptCbor) )
     , datumSources : List (WitnessSource Data)
     , requiredSigners : List (Bytes CredentialHash)
     , totalMinted : MultiAsset Integer
@@ -1066,7 +1082,8 @@ processIntents localStateUtxos txIntents =
             List.concat
                 [ List.map .input preProcessedIntents.preSelected
                 , List.filterMap extractWitnessRef preProcessedIntents.nativeScriptSources
-                , List.filterMap extractWitnessRef preProcessedIntents.plutusScriptSources
+                , List.map (\( _, source ) -> source) preProcessedIntents.plutusScriptSources
+                    |> List.filterMap extractWitnessRef
                 , List.filterMap extractWitnessRef preProcessedIntents.datumSources
                 ]
                 |> List.map (\ref -> ( ref, () ))
@@ -1164,9 +1181,12 @@ processIntents localStateUtxos txIntents =
                     , freeOutputs = preProcessedIntents.freeOutputs
                     , preSelected = preSelected
                     , preCreated = preCreated
-                    , nativeScriptSources = dedupWitnessSources Script.encodeNativeScript preProcessedIntents.nativeScriptSources
-                    , plutusScriptSources = dedupWitnessSources Script.encodePlutusScript preProcessedIntents.plutusScriptSources
-                    , datumSources = dedupWitnessSources Data.toCbor preProcessedIntents.datumSources
+
+                    -- TODO: an improvement would consist in fetching the referenced from the local state utxos,
+                    -- and extract the script values, to even remove duplicates both in ref and values.
+                    , nativeScriptSources = dedupWithCbor (encodeWitnessSource Script.encodeNativeScript) preProcessedIntents.nativeScriptSources
+                    , plutusScriptSources = dedupWithCbor (Tuple.second >> encodeWitnessSource Bytes.toCbor) preProcessedIntents.plutusScriptSources
+                    , datumSources = dedupWithCbor (encodeWitnessSource Data.toCbor) preProcessedIntents.datumSources
                     , requiredSigners = requiredSigners
                     , totalMinted = totalMintedAndBurned
                     , mintRedeemers =
@@ -1181,39 +1201,21 @@ processIntents localStateUtxos txIntents =
 
 {-| Helper function
 -}
-dedupWitnessSources : (a -> E.Encoder) -> List (WitnessSource a) -> List (WitnessSource a)
-dedupWitnessSources toCbor sources =
-    let
-        -- Split values and references in two lists
-        ( values, refs ) =
-            List.foldl
-                (\source ( vs, rs ) ->
-                    case source of
-                        WitnessValue v ->
-                            ( v :: vs, rs )
+dedupWithCbor : (a -> E.Encoder) -> List a -> List a
+dedupWithCbor encode items =
+    List.map (\a -> ( E.encode (encode a) |> Bytes.fromBytes |> Bytes.toString, a )) items
+        |> Dict.fromList
+        |> Dict.values
 
-                        WitnessReference ref ->
-                            ( vs, ref :: rs )
-                )
-                ( [], [] )
-                sources
 
-        -- Create the comparable function from the encoder
-        toComparable v =
-            E.encode (toCbor v) |> Bytes.fromBytes |> Bytes.toString
+encodeWitnessSource : (a -> E.Encoder) -> WitnessSource a -> E.Encoder
+encodeWitnessSource encode witnessSource =
+    case witnessSource of
+        WitnessValue a ->
+            encode a
 
-        -- Dedup values
-        dedupedValues =
-            List.map (\v -> ( v, () )) values
-                |> Dict.Any.fromList toComparable
-                |> Dict.Any.keys
-
-        dedupedRefs =
-            List.map (\ref -> ( ref, () )) refs
-                |> Utxo.refDictFromList
-                |> Dict.Any.keys
-    in
-    List.map WitnessValue dedupedValues ++ List.map WitnessReference dedupedRefs
+        WitnessReference ref ->
+            Utxo.encodeOutputReference ref
 
 
 {-| Helper function
@@ -1611,13 +1613,13 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         -- WitnessSet ######################################
         --
         ( nativeScripts, nativeScriptRefs ) =
-            splitWitnessSources processedIntents.nativeScriptSources
+            split witnessSourceToResult processedIntents.nativeScriptSources
 
         ( plutusScripts, plutusScriptRefs ) =
-            splitWitnessSources processedIntents.plutusScriptSources
+            splitScripts processedIntents.plutusScriptSources
 
         ( datumWitnessValues, datumWitnessRefs ) =
-            splitWitnessSources processedIntents.datumSources
+            split witnessSourceToResult processedIntents.datumSources
 
         -- Compute datums for pre-selected inputs.
         preSelected : Utxo.RefDict (Maybe Data)
@@ -1835,21 +1837,34 @@ dummyBytes length prefix =
     Bytes.fromText (prefix ++ zeroSuffix)
 
 
-{-| Helper function to split native script into a list of script value and a list of output references.
--}
-splitWitnessSources : List (WitnessSource a) -> ( List a, List OutputReference )
-splitWitnessSources witnessSources =
-    List.foldl
-        (\w ( accValues, accRefs ) ->
-            case w of
-                WitnessValue value ->
-                    ( value :: accValues, accRefs )
+witnessSourceToResult : WitnessSource a -> Result a OutputReference
+witnessSourceToResult witnessSource =
+    case witnessSource of
+        WitnessValue value ->
+            Err value
 
-                WitnessReference ref ->
-                    ( accValues, ref :: accRefs )
+        WitnessReference ref ->
+            Ok ref
+
+
+splitScripts : List ( PlutusVersion, WitnessSource (Bytes ScriptCbor) ) -> ( List ( PlutusVersion, Bytes ScriptCbor ), List OutputReference )
+splitScripts scripts =
+    split (\( v, source ) -> Result.mapError (Tuple.pair v) <| witnessSourceToResult source) scripts
+
+
+split : (a -> Result err ok) -> List a -> ( List err, List ok )
+split f items =
+    List.foldr
+        (\a ( accErr, accOk ) ->
+            case f a of
+                Err err ->
+                    ( err :: accErr, accOk )
+
+                Ok ok ->
+                    ( accErr, ok :: accOk )
         )
         ( [], [] )
-        witnessSources
+        items
 
 
 {-| Helper
@@ -1865,10 +1880,10 @@ nothingIfEmptyList list =
 
 {-| Helper
 -}
-filterScriptVersion : Script.PlutusVersion -> List PlutusScript -> List (Bytes ScriptCbor)
+filterScriptVersion : Script.PlutusVersion -> List ( PlutusVersion, Bytes ScriptCbor ) -> List (Bytes ScriptCbor)
 filterScriptVersion v =
     List.filterMap
-        (\{ version, script } ->
+        (\( version, script ) ->
             if version == v then
                 Just script
 

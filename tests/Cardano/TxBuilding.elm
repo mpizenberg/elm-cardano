@@ -9,7 +9,7 @@ import Cardano.Data as Data
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
+import Cardano.Script as Script exposing (PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
@@ -388,7 +388,7 @@ okTxBuilding =
                         { spentInput = utxoBeingSpent
                         , datumWitness = Nothing
                         , plutusScriptWitness =
-                            { script = WitnessValue (PlutusScript PlutusV3 lock.scriptBytes)
+                            { script = ( PlutusV3, WitnessValue lock.scriptBytes )
                             , redeemerData = redeemer
                             , requiredSigners = [ myKeyCred ]
                             }
@@ -412,7 +412,7 @@ okTxBuilding =
                                 ]
 
                             -- script stuff
-                            , scriptDataHash = Just (dummyBytes 32 "ScriptDataHash")
+                            , scriptDataHash = tx.body.scriptDataHash
 
                             -- collateral would cost 3 ada for 2 ada fees, so return 5-3=2 ada
                             , collateral = [ makeRef "0" 0 ]

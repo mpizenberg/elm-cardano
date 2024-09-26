@@ -81,7 +81,7 @@ config =
             , "Cbor.Encode.beginString"
             , "Cbor.Encode.beginBytes"
             ]
-          , [ "Cardano.Data" ]
+          , [ "Cbor.Encode.Extra", "Cardano.Data"  ]
           )
         -- Hardware Wallets need Map keys sorted in a special order
         , ( [ "Cbor.Encode.associativeList"
