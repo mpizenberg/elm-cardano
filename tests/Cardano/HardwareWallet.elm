@@ -2,14 +2,13 @@ module Cardano.HardwareWallet exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map exposing (BytesMap)
-import Cardano exposing (ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
+import Cardano exposing (SpendSource(..), TxIntent(..), WitnessSource(..), dummyBytes, finalize)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.Data as Data
-import Cardano.Redeemer exposing (RedeemerTag(..))
 import Cardano.Script exposing (PlutusScript, PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), newBody, newWitnessSet)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
-import Cardano.Value as Value exposing (Value)
+import Cardano.Value as Value
 import Dict exposing (Dict)
 import Dict.Any
 import Expect
@@ -237,7 +236,7 @@ suite =
 
                     tx =
                         -- Collect 2 ada from the lock script
-                        [ Cardano.Spend <|
+                        [ Spend <|
                             FromPlutusScript
                                 { spentInput = utxoBeingSpent
                                 , datumWitness = Nothing
@@ -306,11 +305,6 @@ makeWalletAddress name =
         }
 
 
-makeAddress : String -> Address
-makeAddress name =
-    Address.enterprise Mainnet (dummyCredentialHash name)
-
-
 makeRef : String -> Int -> OutputReference
 makeRef id index =
     { transactionId = dummyBytes 32 id
@@ -318,24 +312,8 @@ makeRef id index =
     }
 
 
-makeAsset : Int -> Address -> String -> String -> Int -> ( OutputReference, Output )
-makeAsset index address policyId name amount =
-    ( makeRef (String.fromInt index) index
-    , { address = address
-      , amount = makeToken policyId name amount
-      , datumOption = Nothing
-      , referenceScript = Nothing
-      }
-    )
-
-
 makeAdaOutput : Int -> Address -> Int -> ( OutputReference, Output )
 makeAdaOutput index address amount =
     ( makeRef (String.fromInt index) index
     , Utxo.fromLovelace address (N.fromSafeInt <| 1000000 * amount)
     )
-
-
-makeToken : String -> String -> Int -> Value
-makeToken policyId name amount =
-    Value.onlyToken (dummyCredentialHash policyId) (Bytes.fromText name) (N.fromSafeInt amount)
