@@ -73,8 +73,8 @@ config =
     , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
 
-    -- Hardware Wallets need definite-length encoding
     , NoFunctionOutsideOfModules.rule
+        -- Hardware Wallets need definite-length encoding
         [ ( [ "Cbor.Encode.indefiniteList"
             , "Cbor.Encode.beginList"
             , "Cbor.Encode.beginDict"
@@ -82,6 +82,11 @@ config =
             , "Cbor.Encode.beginBytes"
             ]
           , [ "Cardano.Data" ]
+          )
+        -- Hardware Wallets need Map keys sorted in a special order
+        , ( [ "Cbor.Encode.associativeList"
+            ]
+          , [ "Cbor.Encode.Extra", "Cardano.Data"  ]
           )
         ]
     ]

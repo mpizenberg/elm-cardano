@@ -1,18 +1,21 @@
 module Cbor.Encode.Extra exposing
     ( natural, integer
     , nonEmptyField
+    , associativeList
     )
 
 {-| Extra CBOR encoding utility functions.
 
 @docs natural, integer
 @docs nonEmptyField
+@docs associativeList
 
 -}
 
 import Bytes.Comparable as Bytes
 import Cbor.Encode as E
 import Cbor.Tag as Tag
+import Dict.Any
 import Integer as I exposing (Integer)
 import Natural as N exposing (Natural)
 
@@ -114,3 +117,38 @@ nonEmptyField key isEmpty encode extract =
                     else
                         Just xs
                )
+
+
+{-| Encode associative list with canonical ordering of the keys.
+
+The keys in every map must be sorted lowest value to highest.
+Sorting is performed on the bytes of the representation of the key
+data items without paying attention to the 3/5 bit splitting for
+major types. (Note that this rule allows maps that have keys of
+different types, even though that is probably a bad practice that
+could lead to errors in some canonicalization implementations.)
+The sorting rules are:
+
+  - If two keys have different lengths, the shorter one sorts
+    earlier;
+
+  - If two keys have the same length, the one with the lower value
+    in (byte-wise) lexical order sorts earlier.
+
+-}
+associativeList : (k -> E.Encoder) -> (v -> E.Encoder) -> List ( k, v ) -> E.Encoder
+associativeList encodeKey encodeValue pairs =
+    Dict.Any.fromList (toCanonicalKey encodeKey) pairs
+        |> Dict.Any.toList
+        |> E.associativeList encodeKey encodeValue
+
+
+toCanonicalKey : (k -> E.Encoder) -> k -> ( Int, String )
+toCanonicalKey encodeKey k =
+    let
+        encodedKey =
+            E.encode (encodeKey k)
+                |> Bytes.fromBytes
+                |> Bytes.toString
+    in
+    ( String.length encodedKey, encodedKey )

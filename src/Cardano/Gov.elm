@@ -64,7 +64,7 @@ import Cardano.Utxo exposing (TransactionId)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
-import Cbor.Encode.Extra as E
+import Cbor.Encode.Extra as EE
 import Cbor.Tag as Tag
 import Natural exposing (Natural)
 
@@ -750,7 +750,7 @@ encodeAction action =
         TreasuryWithdrawals { withdrawals, guardrailsPolicy } ->
             E.list identity
                 [ E.int 2
-                , E.associativeList Address.stakeAddressToCbor E.natural withdrawals
+                , EE.associativeList Address.stakeAddressToCbor EE.natural withdrawals
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
@@ -765,7 +765,7 @@ encodeAction action =
                 [ E.int 4
                 , E.maybe encodeActionId govActionId
                 , E.list Address.credentialToCbor removedMembers
-                , E.associativeList Address.credentialToCbor E.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
+                , EE.associativeList Address.credentialToCbor EE.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
                 , encodeRationalNumber quorumThreshold
                 ]
 
@@ -815,21 +815,21 @@ encodeProtocolParamUpdate : ProtocolParamUpdate -> E.Encoder
 encodeProtocolParamUpdate =
     E.record E.int <|
         E.fields
-            >> E.optionalField 0 E.natural .minFeeA
-            >> E.optionalField 1 E.natural .minFeeB
+            >> E.optionalField 0 EE.natural .minFeeA
+            >> E.optionalField 1 EE.natural .minFeeB
             >> E.optionalField 2 E.int .maxBlockBodySize
             >> E.optionalField 3 E.int .maxTransactionSize
             >> E.optionalField 4 E.int .maxBlockHeaderSize
-            >> E.optionalField 5 E.natural .keyDeposit
-            >> E.optionalField 6 E.natural .poolDeposit
-            >> E.optionalField 7 E.natural .maximumEpoch
+            >> E.optionalField 5 EE.natural .keyDeposit
+            >> E.optionalField 6 EE.natural .poolDeposit
+            >> E.optionalField 7 EE.natural .maximumEpoch
             >> E.optionalField 8 E.int .desiredNumberOfStakePools
             >> E.optionalField 9 encodeRationalNumber .poolPledgeInfluence
             >> E.optionalField 10 encodeRationalNumber .expansionRate
             >> E.optionalField 11 encodeRationalNumber .treasuryGrowthRate
             >> E.optionalField 14 (\( v, m ) -> E.list E.int [ v, m ]) .protocolVersion
-            >> E.optionalField 16 E.natural .minPoolCost
-            >> E.optionalField 17 E.natural .adaPerUtxoByte
+            >> E.optionalField 16 EE.natural .minPoolCost
+            >> E.optionalField 17 EE.natural .adaPerUtxoByte
             >> E.optionalField 18 encodeCostModels .costModelsForScriptLanguages
             >> E.optionalField 19 encodeExUnitPrices .executionCosts
             >> E.optionalField 20 Redeemer.encodeExUnits .maxTxExUnits
@@ -841,11 +841,11 @@ encodeProtocolParamUpdate =
             >> E.optionalField 25 encodePoolVotingThresholds .poolVotingThresholds
             >> E.optionalField 26 encodeDrepVotingThresholds .drepVotingThresholds
             >> E.optionalField 27 E.int .minCommitteeSize
-            >> E.optionalField 28 E.natural .committeeTermLimit
-            >> E.optionalField 29 E.natural .governanceActionValidityPeriod
-            >> E.optionalField 30 E.natural .governanceActionDeposit
-            >> E.optionalField 31 E.natural .drepDeposit
-            >> E.optionalField 32 E.natural .drepInactivityPeriod
+            >> E.optionalField 28 EE.natural .committeeTermLimit
+            >> E.optionalField 29 EE.natural .governanceActionValidityPeriod
+            >> E.optionalField 30 EE.natural .governanceActionDeposit
+            >> E.optionalField 31 EE.natural .drepDeposit
+            >> E.optionalField 32 EE.natural .drepInactivityPeriod
             >> E.optionalField 33 E.int .minFeeRefScriptCostPerByte
 
 

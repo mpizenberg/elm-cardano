@@ -75,6 +75,7 @@ toCbor data =
                     { ixNat = ixNat, fields = fields }
 
         Map xs ->
+            -- TODO: check if this needs to use EE.associativeList instead
             E.associativeList toCbor toCbor xs
 
         List xs ->
