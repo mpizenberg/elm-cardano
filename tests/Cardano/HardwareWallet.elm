@@ -113,6 +113,45 @@ suite =
                 in
                 Transaction.serialize tx
                     |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
+        , test "Tx 3" <|
+            \_ ->
+                let
+                    expectedEncoding =
+                        "84a500818258205ecbc2e3779c88ef83193e0788bd0ca3ee8e839695736ca2bd1a0d5d17c74d66000181a20058390074976c54afaf444f7cd499bd8519aac6592b13b22b9d5817f0da5c5203d205532089ad2f7816892e2ef42849b7b52788e41b3fd43a6e01cf01821b000000e8d4c51c9ba1581c2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15a34018644568616c6c6f19012c4611223322110018c8021a0002cc9d031a029b6d6f09a1581c2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15a14568616c6c6f19012ca0f5f6"
+
+                    tx =
+                        { auxiliaryData = Nothing
+                        , body =
+                            { newBody
+                                | auxiliaryDataHash = Nothing
+                                , fee = Just (N.fromSafeInt 183453)
+                                , inputs =
+                                    [ { outputIndex = 0
+                                      , transactionId = Bytes.fromStringUnchecked "5ecbc2e3779c88ef83193e0788bd0ca3ee8e839695736ca2bd1a0d5d17c74d66"
+                                      }
+                                    ]
+                                , mint = bytesMap (Dict.fromList [ ( "2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15", bytesMap (Dict.fromList [ ( "68616c6c6f", Integer.fromSafeInt 300 ) ]) ) ])
+                                , outputs =
+                                    [ { address =
+                                            Address.base Testnet
+                                                (VKeyHash (Bytes.fromStringUnchecked "74976c54afaf444f7cd499bd8519aac6592b13b22b9d5817f0da5c52"))
+                                                (VKeyHash (Bytes.fromStringUnchecked "03d205532089ad2f7816892e2ef42849b7b52788e41b3fd43a6e01cf"))
+                                      , amount =
+                                            { assets = bytesMap (Dict.fromList [ ( "2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15", bytesMap (Dict.fromList [ ( "", N.fromSafeInt 100 ), ( "112233221100", N.fromSafeInt 200 ), ( "68616c6c6f", N.fromSafeInt 300 ) ]) ) ])
+                                            , lovelace = bigNat [ 12917915, 14901 ]
+                                            }
+                                      , datumOption = Nothing
+                                      , referenceScript = Nothing
+                                      }
+                                    ]
+                                , ttl = Just (N.fromSafeInt 43740527)
+                            }
+                        , isValid = True
+                        , witnessSet = newWitnessSet
+                        }
+                in
+                Transaction.serialize tx
+                    |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
         ]
 
 
