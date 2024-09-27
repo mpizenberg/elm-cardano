@@ -124,18 +124,13 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos maybeUtxos)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxosList)) ->
                     let
                         ( utxos, utxosStr ) =
-                            case maybeUtxos of
-                                Nothing ->
-                                    ( [], "undefined" )
-
-                                Just utxosList ->
-                                    ( utxosList
-                                    , List.map Debug.toString utxosList
-                                        |> String.join "\n"
-                                    )
+                            ( utxosList
+                            , List.map Debug.toString utxosList
+                                |> String.join "\n"
+                            )
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", utxos:\n" ++ utxosStr
@@ -145,16 +140,11 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral maybeCollateral)) ->
+                Ok (Cip30.ApiResponse { walletId } (Cip30.Collateral utxos)) ->
                     let
                         utxosStr =
-                            case maybeCollateral of
-                                Nothing ->
-                                    "undefined"
-
-                                Just utxos ->
-                                    List.map Debug.toString utxos
-                                        |> String.join "\n"
+                            List.map Debug.toString utxos
+                                |> String.join "\n"
                     in
                     ( { model
                         | lastApiResponse = "wallet: " ++ walletId ++ ", collateral:\n" ++ utxosStr
