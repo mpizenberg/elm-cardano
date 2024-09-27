@@ -307,8 +307,8 @@ type Response
 type ApiResponse
     = Extensions (List Int)
     | NetworkId NetworkId
-    | WalletUtxos (Maybe (List Utxo))
-    | Collateral (Maybe (List Utxo))
+    | WalletUtxos (List Utxo)
+    | Collateral (List Utxo)
     | WalletBalance CValue.Value
     | UsedAddresses (List Address)
     | UnusedAddresses (List Address)
@@ -322,9 +322,9 @@ type ApiResponse
 {-| UTxO type holding the reference and actual output.
 -}
 type alias Utxo =
-    { outputReference : Utxo.OutputReference -- Transaction.Input
-    , output : Utxo.Output -- Transaction.Output
-    }
+    ( Utxo.OutputReference -- Transaction.Input
+    , Utxo.Output -- Transaction.Output
+    )
 
 
 {-| Signature returned from the wallet after signing a payload with your stake key.
@@ -426,13 +426,13 @@ apiDecoder method walletId =
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (WalletUtxos utxos))
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (WalletUtxos <| Maybe.withDefault [] utxos))
 
         "getCollateral" ->
             JDecode.list utxoDecoder
                 |> JDecode.nullable
                 |> JDecode.field "response"
-                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (Collateral utxos))
+                |> JDecode.map (\utxos -> ApiResponse { walletId = walletId } (Collateral <| Maybe.withDefault [] utxos))
 
         "getBalance" ->
             JDecode.map (\b -> ApiResponse { walletId = walletId } (WalletBalance b))
@@ -482,7 +482,7 @@ extensionDecoder =
 utxoDecoder : Decoder Utxo
 utxoDecoder =
     hexCborDecoder <|
-        Cbor.Decode.tuple Utxo <|
+        Cbor.Decode.tuple Tuple.pair <|
             Cbor.Decode.elems
                 >> Cbor.Decode.elem Utxo.decodeOutputReference
                 >> Cbor.Decode.elem Utxo.decodeOutput

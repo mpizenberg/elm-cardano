@@ -99,8 +99,20 @@ fn init_subcommand() -> anyhow::Result<()> {
 
     // Write the template files
     fs::create_dir_all("src")?;
-    fs::write(".gitignore", gitignore)?;
-    fs::write("README.md", readme)?;
+    // Append to .gitignore
+    let mut gitignore_file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(".gitignore")?;
+    writeln!(gitignore_file, "\n{}", gitignore)?;
+    // Append to README.md
+    let mut readme_file = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("README.md")?;
+    writeln!(readme_file, "\n{}", readme)?;
+    // fs::write(".gitignore", gitignore)?;
+    // fs::write("README.md", readme)?;
     fs::write("elm.json", elmjson)?;
     fs::write("index.html", indexhtml)?;
     fs::write(Path::new("src").join("Main.elm"), elmmain)?;

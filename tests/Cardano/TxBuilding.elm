@@ -416,7 +416,7 @@ okTxBuilding =
 
                             -- collateral would cost 3 ada for 2 ada fees, so return 5-3=2 ada
                             , collateral = [ makeRef "0" 0 ]
-                            , totalCollateral = Just 5000000
+                            , totalCollateral = Just 3000000
                             , collateralReturn = Just (Utxo.fromLovelace testAddr.me (ada 2))
                         }
                     , witnessSet =
