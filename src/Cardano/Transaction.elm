@@ -8,7 +8,7 @@ module Cardano.Transaction exposing
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
     , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
-    , hashScriptData
+    , updateSignatures, hashScriptData
     , deserialize, serialize, encodeToCbor
     , decodeWitnessSet
     )
@@ -33,7 +33,7 @@ module Cardano.Transaction exposing
 
 @docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
 
-@docs hashScriptData
+@docs updateSignatures, hashScriptData
 
 @docs deserialize, serialize, encodeToCbor
 
@@ -542,6 +542,13 @@ allInputs tx =
         ]
         |> List.map (\ref -> ( ref, () ))
         |> Utxo.refDictFromList
+
+
+{-| Clear all signatures from the witness set of the Tx.
+-}
+updateSignatures : (Maybe (List VKeyWitness) -> Maybe (List VKeyWitness)) -> Transaction -> Transaction
+updateSignatures f ({ witnessSet } as tx) =
+    { tx | witnessSet = { witnessSet | vkeywitness = f witnessSet.vkeywitness } }
 
 
 {-| Compute the script data hash of the transaction.

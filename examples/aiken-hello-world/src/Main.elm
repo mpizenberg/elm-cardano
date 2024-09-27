@@ -2,14 +2,20 @@ port module Main exposing (..)
 
 import Browser
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Cardano.Address exposing (Address, CredentialHash)
+import Cardano exposing (SpendSource(..), TxIntent(..), dummyBytes)
+import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..))
 import Cardano.Cip30 as Cip30
+import Cardano.Data as Data
 import Cardano.Script exposing (ScriptCbor)
+import Cardano.Transaction as Tx exposing (Transaction)
+import Cardano.Utxo as Utxo exposing (DatumOption(..), TransactionId)
+import Cardano.Value
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as JD exposing (Decoder, Value)
+import Natural
 
 
 main =
@@ -35,6 +41,7 @@ type Msg
     | ConnectButtonClicked { id : String }
     | LoadBlueprintButtonClicked
     | GotBlueprint (Result Http.Error LockScript)
+    | LockAdaButtonClicked
 
 
 
@@ -49,8 +56,10 @@ type Model
         , utxos : List Cip30.Utxo
         , changeAddress : Maybe Address
         }
-    | WalletLoaded LoadedWallet
-    | BlueprintLoaded LoadedWallet LockScript
+    | WalletLoaded LoadedWallet { errors : String }
+    | BlueprintLoaded LoadedWallet LockScript { errors : String }
+    | Submitting LoadedWallet LockScript { tx : Transaction, errors : String }
+    | TxSubmitted LoadedWallet LockScript { txId : Bytes TransactionId, errors : String }
 
 
 type alias LoadedWallet =
@@ -99,7 +108,23 @@ update msg model =
                     )
 
                 ( Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress address)), WalletLoading { wallet, utxos } ) ->
-                    ( WalletLoaded { wallet = wallet, utxos = utxos, changeAddress = address }
+                    ( WalletLoaded { wallet = wallet, utxos = utxos, changeAddress = address } { errors = "" }
+                    , Cmd.none
+                    )
+
+                ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), Submitting w lockScript { tx } ) ->
+                    let
+                        -- Update the signatures of the Tx with the wallet response
+                        signedTx =
+                            Tx.updateSignatures (\_ -> Just vkeywitnesses) tx
+                    in
+                    ( Submitting w lockScript { tx = tx, errors = "" }
+                    , toWallet (Cip30.encodeRequest (Cip30.submitTx w.wallet signedTx))
+                    )
+
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting w l { tx } ) ->
+                    -- TODO: update the utxos set
+                    ( TxSubmitted w l { txId = txId, errors = "" }
                     , Cmd.none
                     )
 
@@ -109,7 +134,7 @@ update msg model =
         ( ConnectButtonClicked { id }, WalletDiscovered descriptors ) ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.enableWallet { id = id, extensions = [] })) )
 
-        ( LoadBlueprintButtonClicked, WalletLoaded _ ) ->
+        ( LoadBlueprintButtonClicked, WalletLoaded _ _ ) ->
             ( model
             , let
                 blueprintDecoder : Decoder LockScript
@@ -128,14 +153,72 @@ update msg model =
                 }
             )
 
-        ( GotBlueprint result, WalletLoaded w ) ->
+        ( GotBlueprint result, WalletLoaded w _ ) ->
             case result of
                 Ok lockScript ->
-                    ( BlueprintLoaded w lockScript, Cmd.none )
+                    ( BlueprintLoaded w lockScript { errors = "" }, Cmd.none )
 
-                Err _ ->
+                Err err ->
                     -- Handle error as needed
-                    ( model, Cmd.none )
+                    ( WalletLoaded w { errors = Debug.toString err }, Cmd.none )
+
+        ( LockAdaButtonClicked, BlueprintLoaded w lockScript _ ) ->
+            let
+                -- Extract both parts (payment/stake) from our wallet address
+                ( myKeyCred, myStakeCred ) =
+                    ( Address.extractPubKeyHash w.changeAddress
+                        |> Maybe.withDefault (dummyBytes 28 "ERROR")
+                    , Address.extractStakeCredential w.changeAddress
+                    )
+
+                -- Generate the script address while keeping it in our stake
+                scriptAddress =
+                    Address.Shelley
+                        { networkId = Testnet
+                        , paymentCredential = ScriptHash lockScript.hash
+                        , stakeCredential = myStakeCred
+                        }
+
+                -- 1 ada is 1 million lovelaces
+                twoAda =
+                    Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
+
+                -- Datum as specified by the blueprint of the lock script,
+                -- containing our credentials for later verification when spending
+                datum =
+                    Data.Constr Natural.zero [ Data.Bytes (Bytes.toAny myKeyCred) ]
+
+                -- Available UTxOs that the Tx builder need to be aware of
+                localStateUtxos =
+                    List.map (\{ outputReference, output } -> ( outputReference, output )) w.utxos
+                        |> Utxo.refDictFromList
+
+                -- Transaction locking 2 ada at the script address
+                lockTxAttempt =
+                    [ Spend (FromWallet w.changeAddress twoAda)
+                    , SendToOutput
+                        { address = scriptAddress
+                        , amount = twoAda
+                        , datumOption = Just (DatumValue datum)
+                        , referenceScript = Nothing
+                        }
+                    ]
+                        |> Cardano.finalize localStateUtxos []
+            in
+            case lockTxAttempt of
+                Ok lockTx ->
+                    let
+                        cleanTx =
+                            Tx.updateSignatures (\_ -> Nothing) lockTx
+                    in
+                    ( Submitting w lockScript { tx = cleanTx, errors = "" }
+                    , toWallet (Cip30.encodeRequest (Cip30.signTx w.wallet { partialSign = False } cleanTx))
+                    )
+
+                Err err ->
+                    ( BlueprintLoaded w lockScript { errors = Debug.toString err }
+                    , Cmd.none
+                    )
 
         _ ->
             ( model, Cmd.none )
@@ -161,19 +244,48 @@ view model =
         WalletLoading _ ->
             div [] [ text "Loading wallet assets ..." ]
 
-        WalletLoaded loadedWallet ->
+        WalletLoaded loadedWallet { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
-                    ++ [ button [ onClick LoadBlueprintButtonClicked ] [ text "Load Blueprint" ] ]
+                    ++ [ button [ onClick LoadBlueprintButtonClicked ] [ text "Load Blueprint" ]
+                       , displayErrors errors
+                       ]
                 )
 
-        BlueprintLoaded loadedWallet lockScript ->
+        BlueprintLoaded loadedWallet lockScript { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Script hash: " ++ Bytes.toString lockScript.hash ]
                        , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
+                       , button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
+                       , displayErrors errors
                        ]
                 )
+
+        Submitting loadedWallet lockScript { tx, errors } ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Signing and submitting the transaction ..." ]
+                       , displayErrors errors
+                       ]
+                )
+
+        TxSubmitted loadedWallet lockScript { txId, errors } ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Tx submitted! with ID: " ++ Bytes.toString txId ]
+                       , displayErrors errors
+                       ]
+                )
+
+
+displayErrors : String -> Html msg
+displayErrors err =
+    if err == "" then
+        text ""
+
+    else
+        div [] [ text <| "ERRORS: " ++ err ]
 
 
 viewLoadedWallet : LoadedWallet -> List (Html msg)
