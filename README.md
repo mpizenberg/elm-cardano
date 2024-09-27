@@ -4,7 +4,12 @@ Elm offchain package for Cardano. This project aims to be the friendliest and
 most productive way of handling an offchain Cardano frontend. It should be a
 perfect match to [Aiken][aiken] for onchain code.
 
+For the time being, the package isn’t published on official elm packages.
+So you will find the docs either locally by running elm-doc-preview,
+or online at [its static preview page][docs-preview].
+
 [aiken]: https://aiken-lang.org/
+[docs-preview]: https://elm-doc-preview.netlify.app/Cardano?repo=mpizenberg%2Felm-cardano&version=elm-doc-preview
 
 ## Quickstart
 
