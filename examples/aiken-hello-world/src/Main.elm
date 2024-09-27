@@ -58,8 +58,8 @@ type Model
         }
     | WalletLoaded LoadedWallet { errors : String }
     | BlueprintLoaded LoadedWallet LockScript { errors : String }
-    | Submitting LoadedWallet LockScript { tx : Transaction, errors : String }
-    | TxSubmitted LoadedWallet LockScript { txId : Bytes TransactionId, errors : String }
+    | Submitting AppContext { tx : Transaction, errors : String }
+    | TxSubmitted AppContext { txId : Bytes TransactionId, errors : String }
 
 
 type alias LoadedWallet =
@@ -72,6 +72,15 @@ type alias LoadedWallet =
 type alias LockScript =
     { hash : Bytes CredentialHash
     , compiledCode : Bytes ScriptCbor
+    }
+
+
+type alias AppContext =
+    { loadedWallet : LoadedWallet
+    , myKeyCred : Bytes CredentialHash
+    , myStakeCred : Maybe Address.StakeCredential
+    , lockScript : LockScript
+    , scriptAddress : Address
     }
 
 
@@ -112,19 +121,19 @@ update msg model =
                     , Cmd.none
                     )
 
-                ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), Submitting w lockScript { tx } ) ->
+                ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), Submitting ctx { tx } ) ->
                     let
                         -- Update the signatures of the Tx with the wallet response
                         signedTx =
                             Tx.updateSignatures (\_ -> Just vkeywitnesses) tx
                     in
-                    ( Submitting w lockScript { tx = tx, errors = "" }
-                    , toWallet (Cip30.encodeRequest (Cip30.submitTx w.wallet signedTx))
+                    ( Submitting ctx { tx = signedTx, errors = "" }
+                    , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
                     )
 
-                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting w l { tx } ) ->
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting ctx { tx } ) ->
                     -- TODO: update the utxos set
-                    ( TxSubmitted w l { txId = txId, errors = "" }
+                    ( TxSubmitted ctx { txId = txId, errors = "" }
                     , Cmd.none
                     )
 
@@ -210,8 +219,16 @@ update msg model =
                     let
                         cleanTx =
                             Tx.updateSignatures (\_ -> Nothing) lockTx
+
+                        ctx =
+                            { loadedWallet = w
+                            , myKeyCred = myKeyCred
+                            , myStakeCred = myStakeCred
+                            , lockScript = lockScript
+                            , scriptAddress = scriptAddress
+                            }
                     in
-                    ( Submitting w lockScript { tx = cleanTx, errors = "" }
+                    ( Submitting ctx { tx = cleanTx, errors = "" }
                     , toWallet (Cip30.encodeRequest (Cip30.signTx w.wallet { partialSign = False } cleanTx))
                     )
 
@@ -262,7 +279,7 @@ view model =
                        ]
                 )
 
-        Submitting loadedWallet lockScript { tx, errors } ->
+        Submitting { loadedWallet, lockScript } { tx, errors } ->
             div []
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Signing and submitting the transaction ..." ]
@@ -270,7 +287,7 @@ view model =
                        ]
                 )
 
-        TxSubmitted loadedWallet lockScript { txId, errors } ->
+        TxSubmitted { loadedWallet, lockScript } { txId, errors } ->
             div []
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Tx submitted! with ID: " ++ Bytes.toString txId ]
