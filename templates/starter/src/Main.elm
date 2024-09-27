@@ -3,6 +3,7 @@ port module Main exposing (..)
 import Browser
 import Cardano.Address exposing (Address)
 import Cardano.Cip30 as Cip30
+import Cardano.Utxo exposing (Output, OutputReference)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
@@ -41,12 +42,12 @@ type Model
     | WalletDiscovered (List Cip30.WalletDescriptor)
     | WalletLoading
         { wallet : Cip30.Wallet
-        , utxos : List Cip30.Utxo
+        , utxos : List ( OutputReference, Output )
         , changeAddress : Maybe Address
         }
     | WalletLoaded
         { wallet : Cip30.Wallet
-        , utxos : List Cip30.Utxo
+        , utxos : List ( OutputReference, Output )
         , changeAddress : Address
         }
 
@@ -78,8 +79,8 @@ update msg model =
                     )
 
                 -- We just received the utxos, let’s ask for the main change address of the wallet
-                ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos maybeUtxos)), WalletLoading { wallet } ) ->
-                    ( WalletLoading { wallet = wallet, utxos = Maybe.withDefault [] maybeUtxos, changeAddress = Nothing }
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxos)), WalletLoading { wallet } ) ->
+                    ( WalletLoading { wallet = wallet, utxos = utxos, changeAddress = Nothing }
                     , toWallet (Cip30.encodeRequest (Cip30.getChangeAddress wallet))
                     )
 
