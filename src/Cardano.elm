@@ -3,6 +3,7 @@ module Cardano exposing
     , TxOtherInfo(..)
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
+    , updateLocalState
     , dummyBytes
     )
 
@@ -363,6 +364,7 @@ We can embed it directly in the transaction witness.
 @docs TxOtherInfo
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
+@docs updateLocalState
 @docs dummyBytes
 
 -}
@@ -380,7 +382,7 @@ import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
-import Cardano.Utxo as Utxo exposing (Output, OutputReference)
+import Cardano.Utxo as Utxo exposing (Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
 import Dict
@@ -1810,6 +1812,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             else
                 collateralSelection.selectedUtxos
                     |> List.foldl (\( _, o ) -> Natural.add o.amount.lovelace) Natural.zero
+                    |> (\sumCollateralInputs -> Natural.sub sumCollateralInputs collateralReturnAmount)
                     |> Natural.toInt
                     |> Just
 
@@ -1852,6 +1855,32 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
     , witnessSet = txWitnessSet
     , isValid = True
     , auxiliaryData = txAuxData
+    }
+
+
+{-| Update the known local state with the spent and created UTxOs of a given transaction.
+-}
+updateLocalState :
+    Bytes TransactionId
+    -> Transaction
+    -> Utxo.RefDict Output
+    ->
+        { updatedState : Utxo.RefDict Output
+        , spent : List ( OutputReference, Output )
+        , created : List ( OutputReference, Output )
+        }
+updateLocalState txId tx oldState =
+    let
+        unspent =
+            List.foldl Dict.Any.remove oldState tx.body.inputs
+
+        createdUtxos =
+            List.indexedMap (\index output -> ( OutputReference txId index, output )) tx.body.outputs
+    in
+    { updatedState =
+        List.foldl (\( ref, output ) state -> Dict.Any.insert ref output state) unspent createdUtxos
+    , spent = List.filterMap (\ref -> Dict.Any.get ref oldState |> Maybe.map (Tuple.pair ref)) tx.body.inputs
+    , created = createdUtxos
     }
 
 
