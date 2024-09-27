@@ -1,12 +1,15 @@
 port module Main exposing (..)
 
 import Browser
-import Cardano.Address exposing (Address)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Address exposing (Address, CredentialHash)
 import Cardano.Cip30 as Cip30
+import Cardano.Script exposing (ScriptCbor)
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
-import Json.Decode as JDecode exposing (Value)
+import Http
+import Json.Decode as JD exposing (Decoder, Value)
 
 
 main =
@@ -30,6 +33,8 @@ port fromWallet : (Value -> msg) -> Sub msg
 type Msg
     = WalletMsg Value
     | ConnectButtonClicked { id : String }
+    | LoadBlueprintButtonClicked
+    | GotBlueprint (Result Http.Error LockScript)
 
 
 
@@ -44,11 +49,21 @@ type Model
         , utxos : List Cip30.Utxo
         , changeAddress : Maybe Address
         }
-    | WalletLoaded
-        { wallet : Cip30.Wallet
-        , utxos : List Cip30.Utxo
-        , changeAddress : Address
-        }
+    | WalletLoaded LoadedWallet
+    | BlueprintLoaded LoadedWallet LockScript
+
+
+type alias LoadedWallet =
+    { wallet : Cip30.Wallet
+    , utxos : List Cip30.Utxo
+    , changeAddress : Address
+    }
+
+
+type alias LockScript =
+    { hash : Bytes CredentialHash
+    , compiledCode : Bytes ScriptCbor
+    }
 
 
 init : () -> ( Model, Cmd Msg )
@@ -66,7 +81,7 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case ( msg, model ) of
         ( WalletMsg value, _ ) ->
-            case ( JDecode.decodeValue Cip30.responseDecoder value, model ) of
+            case ( JD.decodeValue Cip30.responseDecoder value, model ) of
                 -- We just discovered available wallets
                 ( Ok (Cip30.AvailableWallets wallets), Startup ) ->
                     ( WalletDiscovered wallets, Cmd.none )
@@ -94,6 +109,34 @@ update msg model =
         ( ConnectButtonClicked { id }, WalletDiscovered descriptors ) ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.enableWallet { id = id, extensions = [] })) )
 
+        ( LoadBlueprintButtonClicked, WalletLoaded _ ) ->
+            ( model
+            , let
+                blueprintDecoder : Decoder LockScript
+                blueprintDecoder =
+                    JD.at [ "validators" ]
+                        (JD.index 0
+                            (JD.map2 LockScript
+                                (JD.field "hash" JD.string |> JD.map Bytes.fromStringUnchecked)
+                                (JD.field "compiledCode" JD.string |> JD.map Bytes.fromStringUnchecked)
+                            )
+                        )
+              in
+              Http.get
+                { url = "plutus.json"
+                , expect = Http.expectJson GotBlueprint blueprintDecoder
+                }
+            )
+
+        ( GotBlueprint result, WalletLoaded w ) ->
+            case result of
+                Ok lockScript ->
+                    ( BlueprintLoaded w lockScript, Cmd.none )
+
+                Err _ ->
+                    -- Handle error as needed
+                    ( model, Cmd.none )
+
         _ ->
             ( model, Cmd.none )
 
@@ -118,11 +161,26 @@ view model =
         WalletLoading _ ->
             div [] [ text "Loading wallet assets ..." ]
 
-        WalletLoaded { wallet, utxos, changeAddress } ->
+        WalletLoaded loadedWallet ->
             div []
-                [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
-                , div [] [ text <| "UTxO count: " ++ String.fromInt (List.length utxos) ]
-                ]
+                (viewLoadedWallet loadedWallet
+                    ++ [ button [ onClick LoadBlueprintButtonClicked ] [ text "Load Blueprint" ] ]
+                )
+
+        BlueprintLoaded loadedWallet lockScript ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Script hash: " ++ Bytes.toString lockScript.hash ]
+                       , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
+                       ]
+                )
+
+
+viewLoadedWallet : LoadedWallet -> List (Html msg)
+viewLoadedWallet { wallet, utxos, changeAddress } =
+    [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
+    , div [] [ text <| "UTxO count: " ++ String.fromInt (List.length utxos) ]
+    ]
 
 
 viewAvailableWallets : List Cip30.WalletDescriptor -> Html Msg
