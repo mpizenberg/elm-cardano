@@ -295,8 +295,7 @@ update msg model =
                 ( utxos, Just { address } ) ->
                     let
                         localStateUtxos =
-                            List.map (\{ outputReference, output } -> ( outputReference, output )) utxos
-                                |> Utxo.refDictFromList
+                            Utxo.refDictFromList utxos
 
                         oneAda =
                             CValue.onlyLovelace (N.fromSafeString "1000000")

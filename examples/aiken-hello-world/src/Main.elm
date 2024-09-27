@@ -8,8 +8,9 @@ import Cardano.Cip30 as Cip30
 import Cardano.Data as Data
 import Cardano.Script exposing (PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Tx exposing (Transaction)
-import Cardano.Utxo as Utxo exposing (DatumOption(..), OutputReference, TransactionId)
+import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, TransactionId)
 import Cardano.Value
+import Dict.Any
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
@@ -58,7 +59,7 @@ type Model
 
 type alias LoadedWallet =
     { wallet : Cip30.Wallet
-    , utxos : List Cip30.Utxo
+    , utxos : Utxo.RefDict Output
     , changeAddress : Address
     }
 
@@ -73,6 +74,7 @@ type alias AppContext =
     { loadedWallet : LoadedWallet
     , myKeyCred : Bytes CredentialHash
     , myStakeCred : Maybe Address.StakeCredential
+    , localStateUtxos : Utxo.RefDict Output
     , lockScript : LockScript
     , scriptAddress : Address
     }
@@ -121,13 +123,13 @@ update msg model =
                     )
 
                 -- We just received the utxos, let’s ask for the main change address of the wallet
-                ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos maybeUtxos)), WalletLoading { wallet } ) ->
-                    ( WalletLoading { wallet = wallet, utxos = Maybe.withDefault [] maybeUtxos, changeAddress = Nothing }
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxos)), WalletLoading { wallet } ) ->
+                    ( WalletLoading { wallet = wallet, utxos = utxos, changeAddress = Nothing }
                     , toWallet (Cip30.encodeRequest (Cip30.getChangeAddress wallet))
                     )
 
                 ( Ok (Cip30.ApiResponse { walletId } (Cip30.ChangeAddress address)), WalletLoading { wallet, utxos } ) ->
-                    ( WalletLoaded { wallet = wallet, utxos = utxos, changeAddress = address } { errors = "" }
+                    ( WalletLoaded { wallet = wallet, utxos = Utxo.refDictFromList utxos, changeAddress = address } { errors = "" }
                     , Cmd.none
                     )
 
@@ -141,9 +143,36 @@ update msg model =
                     , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
                     )
 
-                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting ctx action { tx } ) ->
-                    -- TODO: update the utxos set
-                    ( TxSubmitted ctx action { txId = txId, errors = "" }
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting ({ loadedWallet } as ctx) action { tx } ) ->
+                    let
+                        -- Update the known UTxOs set after the given Tx is processed
+                        { updatedState, spent, created } =
+                            Cardano.updateLocalState txId tx ctx.localStateUtxos
+
+                        -- Also update specifically our wallet UTxOs knowledge
+                        -- This isn’t purely necessary, but just to keep a consistent wallet state
+                        unspentUtxos =
+                            List.foldl (\( ref, _ ) state -> Dict.Any.remove ref state) loadedWallet.utxos spent
+
+                        updatedWalletUtxos =
+                            List.foldl
+                                (\( ref, output ) state ->
+                                    if output.address == loadedWallet.changeAddress then
+                                        Dict.Any.insert ref output state
+
+                                    else
+                                        state
+                                )
+                                unspentUtxos
+                                created
+
+                        updatedContext =
+                            { ctx
+                                | localStateUtxos = updatedState
+                                , loadedWallet = { loadedWallet | utxos = updatedWalletUtxos }
+                            }
+                    in
+                    ( TxSubmitted updatedContext action { txId = txId, errors = "" }
                     , Cmd.none
                     )
 
@@ -197,55 +226,18 @@ update msg model =
                         , paymentCredential = ScriptHash lockScript.hash
                         , stakeCredential = myStakeCred
                         }
-
-                -- 1 ada is 1 million lovelaces
-                twoAda =
-                    Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
-
-                -- Datum as specified by the blueprint of the lock script,
-                -- containing our credentials for later verification when spending
-                datum =
-                    Data.Constr Natural.zero [ Data.Bytes (Bytes.toAny myKeyCred) ]
-
-                -- Available UTxOs that the Tx builder need to be aware of
-                localStateUtxos =
-                    List.map (\{ outputReference, output } -> ( outputReference, output )) w.utxos
-                        |> Utxo.refDictFromList
-
-                -- Transaction locking 2 ada at the script address
-                lockTxAttempt =
-                    [ Spend (FromWallet w.changeAddress twoAda)
-                    , SendToOutput
-                        { address = scriptAddress
-                        , amount = twoAda
-                        , datumOption = Just (DatumValue datum)
-                        , referenceScript = Nothing
-                        }
-                    ]
-                        |> Cardano.finalize localStateUtxos []
             in
-            case lockTxAttempt of
-                Ok lockTx ->
-                    let
-                        cleanTx =
-                            Tx.updateSignatures (\_ -> Nothing) lockTx
+            lock
+                { localStateUtxos = w.utxos
+                , myKeyCred = myKeyCred
+                , myStakeCred = myStakeCred
+                , scriptAddress = scriptAddress
+                , loadedWallet = w
+                , lockScript = lockScript
+                }
 
-                        ctx =
-                            { loadedWallet = w
-                            , myKeyCred = myKeyCred
-                            , myStakeCred = myStakeCred
-                            , lockScript = lockScript
-                            , scriptAddress = scriptAddress
-                            }
-                    in
-                    ( Submitting ctx Locking { tx = cleanTx, errors = "" }
-                    , toWallet (Cip30.encodeRequest (Cip30.signTx w.wallet { partialSign = False } cleanTx))
-                    )
-
-                Err err ->
-                    ( BlueprintLoaded w lockScript { errors = Debug.toString err }
-                    , Cmd.none
-                    )
+        ( LockAdaButtonClicked, TxSubmitted ctx _ _ ) ->
+            lock ctx
 
         ( UnlockAdaButtonClicked, TxSubmitted ctx action { txId } ) ->
             let
@@ -254,11 +246,6 @@ update msg model =
 
                 redeemer =
                     Data.Constr Natural.zero [ Data.Bytes (Bytes.fromText "Hello, World!") ]
-
-                localStateUtxos =
-                    -- TODO: update the local state Utxos
-                    List.map (\{ outputReference, output } -> ( outputReference, output )) ctx.loadedWallet.utxos
-                        |> Utxo.refDictFromList
 
                 unlockTxAttempt =
                     [ Spend
@@ -275,7 +262,7 @@ update msg model =
                         )
                     , SendTo ctx.loadedWallet.changeAddress twoAda
                     ]
-                        |> Cardano.finalize localStateUtxos []
+                        |> Cardano.finalize ctx.localStateUtxos []
             in
             case unlockTxAttempt of
                 Ok unlockTx ->
@@ -294,6 +281,46 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+lock : AppContext -> ( Model, Cmd Msg )
+lock ({ localStateUtxos, myKeyCred, myStakeCred, scriptAddress, loadedWallet, lockScript } as ctx) =
+    let
+        -- 1 ada is 1 million lovelaces
+        twoAda =
+            Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
+
+        -- Datum as specified by the blueprint of the lock script,
+        -- containing our credentials for later verification when spending
+        datum =
+            Data.Constr Natural.zero [ Data.Bytes (Bytes.toAny myKeyCred) ]
+
+        -- Transaction locking 2 ada at the script address
+        lockTxAttempt =
+            [ Spend (FromWallet loadedWallet.changeAddress twoAda)
+            , SendToOutput
+                { address = scriptAddress
+                , amount = twoAda
+                , datumOption = Just (DatumValue datum)
+                , referenceScript = Nothing
+                }
+            ]
+                |> Cardano.finalize localStateUtxos []
+    in
+    case lockTxAttempt of
+        Ok lockTx ->
+            let
+                cleanTx =
+                    Tx.updateSignatures (\_ -> Nothing) lockTx
+            in
+            ( Submitting ctx Locking { tx = cleanTx, errors = "" }
+            , toWallet (Cip30.encodeRequest (Cip30.signTx loadedWallet.wallet { partialSign = False } cleanTx))
+            )
+
+        Err err ->
+            ( BlueprintLoaded loadedWallet lockScript { errors = Debug.toString err }
+            , Cmd.none
+            )
 
 
 
@@ -375,7 +402,7 @@ displayErrors err =
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
     [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
-    , div [] [ text <| "UTxO count: " ++ String.fromInt (List.length utxos) ]
+    , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]
 
 

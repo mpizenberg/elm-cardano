@@ -322,9 +322,9 @@ type ApiResponse
 {-| UTxO type holding the reference and actual output.
 -}
 type alias Utxo =
-    { outputReference : Utxo.OutputReference -- Transaction.Input
-    , output : Utxo.Output -- Transaction.Output
-    }
+    ( Utxo.OutputReference -- Transaction.Input
+    , Utxo.Output -- Transaction.Output
+    )
 
 
 {-| Signature returned from the wallet after signing a payload with your stake key.
@@ -482,7 +482,7 @@ extensionDecoder =
 utxoDecoder : Decoder Utxo
 utxoDecoder =
     hexCborDecoder <|
-        Cbor.Decode.tuple Utxo <|
+        Cbor.Decode.tuple Tuple.pair <|
             Cbor.Decode.elems
                 >> Cbor.Decode.elem Utxo.decodeOutputReference
                 >> Cbor.Decode.elem Utxo.decodeOutput
