@@ -159,14 +159,14 @@ targetZeroAlreadySelectedOutputTest _ =
 
 output : String -> Int -> ( OutputReference, Output )
 output addrSuffix amount =
-    ( OutputReference (Bytes.fromStringUnchecked "addrSuffix") 0
+    ( OutputReference (Bytes.fromHexUnchecked "addrSuffix") 0
     , fromLovelace (address addrSuffix) (N.fromSafeInt amount)
     )
 
 
 address : String -> Address
 address suffix =
-    Bytes.fromStringUnchecked ("addr" ++ suffix)
+    Bytes.fromHexUnchecked ("addr" ++ suffix)
         |> Address.enterprise Testnet
 
 
@@ -382,7 +382,7 @@ targetZeroAlreadySelectedOutputMultiAssetTest _ =
 
 asset : String -> String -> String -> Int -> ( OutputReference, Output )
 asset addrSuffix policyId name amount =
-    ( OutputReference (Bytes.fromStringUnchecked <| "Tx" ++ addrSuffix) 0
+    ( OutputReference (Bytes.fromHexUnchecked <| "Tx" ++ addrSuffix) 0
     , { address = address addrSuffix
       , amount = token policyId name amount
       , datumOption = Nothing
@@ -393,4 +393,4 @@ asset addrSuffix policyId name amount =
 
 token : String -> String -> Int -> Value
 token policyId name amount =
-    Value.onlyToken (Bytes.fromStringUnchecked policyId) (Bytes.fromStringUnchecked name) (N.fromSafeInt amount)
+    Value.onlyToken (Bytes.fromHexUnchecked policyId) (Bytes.fromHexUnchecked name) (N.fromSafeInt amount)

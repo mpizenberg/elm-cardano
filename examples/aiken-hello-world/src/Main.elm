@@ -190,8 +190,8 @@ update msg model =
                     JD.at [ "validators" ]
                         (JD.index 0
                             (JD.map2 LockScript
-                                (JD.field "hash" JD.string |> JD.map Bytes.fromStringUnchecked)
-                                (JD.field "compiledCode" JD.string |> JD.map Bytes.fromStringUnchecked)
+                                (JD.field "hash" JD.string |> JD.map Bytes.fromHexUnchecked)
+                                (JD.field "compiledCode" JD.string |> JD.map Bytes.fromHexUnchecked)
                             )
                         )
               in

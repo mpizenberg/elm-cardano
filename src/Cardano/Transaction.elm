@@ -575,7 +575,7 @@ hashScriptData costModels tx =
     in
     case tx.witnessSet.redeemer of
         Nothing ->
-            Bytes.fromStringUnchecked ("80" ++ datumsHex ++ "a0")
+            Bytes.fromHexUnchecked ("80" ++ datumsHex ++ "a0")
                 |> Bytes.toU8
                 |> blake2b256 Nothing
                 |> Bytes.bytes
@@ -600,14 +600,14 @@ hashScriptData costModels tx =
                         E.fields
                             >> E.optionalField (E.int 1) identity .v2
                             >> E.optionalField (E.int 2) identity .v3
-                            >> E.optionalField (E.bytes <| Bytes.toBytes <| Bytes.fromStringUnchecked "00") identity .v1
+                            >> E.optionalField (E.bytes <| Bytes.toBytes <| Bytes.fromHexUnchecked "00") identity .v1
 
                 languageViewsHex =
                     E.encode (languageViewsEncoder languageViews)
                         |> Bytes.fromBytes
                         |> Bytes.toString
             in
-            Bytes.fromStringUnchecked (redeemersHex ++ datumsHex ++ languageViewsHex)
+            Bytes.fromHexUnchecked (redeemersHex ++ datumsHex ++ languageViewsHex)
                 |> Bytes.toU8
                 |> blake2b256 Nothing
                 |> Bytes.bytes

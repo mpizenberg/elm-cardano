@@ -307,7 +307,7 @@ toBytes : Address -> Bytes Address
 toBytes address =
     case address of
         Byron bytes ->
-            Bytes.fromStringUnchecked (Bytes.toString bytes)
+            Bytes.fromHexUnchecked (Bytes.toString bytes)
 
         Shelley { networkId, paymentCredential, stakeCredential } ->
             case ( paymentCredential, stakeCredential ) of
@@ -347,7 +347,7 @@ toBytes address =
             stakeAddressToBytes stakeAddress
                 -- Just to convert the phantom type
                 |> Bytes.toString
-                |> Bytes.fromStringUnchecked
+                |> Bytes.fromHexUnchecked
 
 
 {-| CBOR encoder for a stake address.
@@ -383,7 +383,7 @@ toBytesHelper networkId headerType payload =
                     "1"
     in
     (headerType ++ network ++ payload)
-        |> Bytes.fromStringUnchecked
+        |> Bytes.fromHexUnchecked
 
 
 {-| CBOR encoder for a [Credential], be it for payment or for stake.

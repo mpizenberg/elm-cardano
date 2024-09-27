@@ -35,7 +35,7 @@ natural n =
             nAsBytes =
                 N.toHexString n
                     |> prependWith0IfOddLength
-                    |> Bytes.fromStringUnchecked
+                    |> Bytes.fromHexUnchecked
                     |> Bytes.toBytes
         in
         E.tagged Tag.PositiveBigNum E.bytes nAsBytes
@@ -57,7 +57,7 @@ integer n =
             nAsBytes =
                 I.toHexString n
                     |> prependWith0IfOddLength
-                    |> Bytes.fromStringUnchecked
+                    |> Bytes.fromHexUnchecked
                     |> Bytes.toBytes
         in
         E.tagged Tag.PositiveBigNum E.bytes nAsBytes
@@ -72,7 +72,7 @@ integer n =
                 I.toHexString (I.add n I.one)
                     |> String.dropLeft 1
                     |> prependWith0IfOddLength
-                    |> Bytes.fromStringUnchecked
+                    |> Bytes.fromHexUnchecked
                     |> Bytes.toBytes
         in
         E.tagged Tag.NegativeBigNum E.bytes nAsBytes

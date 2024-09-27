@@ -34,12 +34,12 @@ suite =
                             { newBody
                                 | auxiliaryDataHash = Nothing
                                 , fee = Just (N.fromSafeInt 170869)
-                                , inputs = [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "bc8bf52ea894fb8e442fe3eea628be87d0c9a37baef185b70eb00a5c8a849d3b" } ]
+                                , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "bc8bf52ea894fb8e442fe3eea628be87d0c9a37baef185b70eb00a5c8a849d3b" } ]
                                 , outputs =
                                     [ { address =
                                             Address.base Mainnet
-                                                (VKeyHash (Bytes.fromStringUnchecked "80f9e2c88e6c817008f3a812ed889b4a4da8e0bd103f86e7335422aa"))
-                                                (VKeyHash (Bytes.fromStringUnchecked "122a946b9ad3d2ddf029d3a828f0468aece76895f15c9efbd69b4277"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "80f9e2c88e6c817008f3a812ed889b4a4da8e0bd103f86e7335422aa"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "122a946b9ad3d2ddf029d3a828f0468aece76895f15c9efbd69b4277"))
                                       , amount = Value.onlyLovelace (N.fromSafeInt 2316348)
                                       , datumOption = Nothing
                                       , referenceScript = Nothing
@@ -52,7 +52,7 @@ suite =
                         }
                 in
                 Transaction.serialize tx
-                    |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
+                    |> Expect.equal (Bytes.fromHexUnchecked expectedEncoding)
         , test "Complex transaction" <|
             \_ ->
                 let
@@ -63,18 +63,18 @@ suite =
                         { auxiliaryData = Nothing
                         , body =
                             { newBody
-                                | certificates = [ StakeDeregistration { delegator = ScriptHash (Bytes.fromStringUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401") } ]
+                                | certificates = [ StakeDeregistration { delegator = ScriptHash (Bytes.fromHexUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401") } ]
                                 , fee = Just (N.fromSafeInt 244305)
                                 , inputs =
-                                    [ { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "169422f7193e3418318c2420590778e68619119403472f70c0bb9e9feb2b4571" }
-                                    , { outputIndex = 0, transactionId = Bytes.fromStringUnchecked "cba5f1dd03010380d5c1a6471e7223ac48a7baf75c76e3824896d4398fe0155e" }
+                                    [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "169422f7193e3418318c2420590778e68619119403472f70c0bb9e9feb2b4571" }
+                                    , { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "cba5f1dd03010380d5c1a6471e7223ac48a7baf75c76e3824896d4398fe0155e" }
                                     ]
                                 , mint = bytesMap (Dict.fromList [ ( "13a36080b2263de3bf122d69f680eff37f8f640dac951e6048abd664", bytesMap (Dict.fromList [ ( "4b6f6a6e", Integer.fromSafeInt 1000000 ) ]) ) ])
                                 , outputs =
                                     [ { address =
                                             Address.base Testnet
-                                                (ScriptHash (Bytes.fromStringUnchecked "6665c42b15b35c7937381bd545c5e7b6b3a03a24cf0383d409ac4583"))
-                                                (ScriptHash (Bytes.fromStringUnchecked "381f757b787201d66ae47603d1abd06ceaa031188e923568c937e8bc"))
+                                                (ScriptHash (Bytes.fromHexUnchecked "6665c42b15b35c7937381bd545c5e7b6b3a03a24cf0383d409ac4583"))
+                                                (ScriptHash (Bytes.fromHexUnchecked "381f757b787201d66ae47603d1abd06ceaa031188e923568c937e8bc"))
                                       , amount =
                                             { assets = bytesMap (Dict.fromList [ ( "13a36080b2263de3bf122d69f680eff37f8f640dac951e6048abd664", bytesMap (Dict.fromList [ ( "4b6f6a6e", N.fromSafeInt 600000 ) ]) ) ])
                                             , lovelace = bigNat [ 61511935, 9 ]
@@ -84,8 +84,8 @@ suite =
                                       }
                                     , { address =
                                             Address.base Testnet
-                                                (ScriptHash (Bytes.fromStringUnchecked "de685e72586c4269087e282c9c7e78ba22082bce4a674977b4000e99"))
-                                                (ScriptHash (Bytes.fromStringUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401"))
+                                                (ScriptHash (Bytes.fromHexUnchecked "de685e72586c4269087e282c9c7e78ba22082bce4a674977b4000e99"))
+                                                (ScriptHash (Bytes.fromHexUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401"))
                                       , amount =
                                             { assets = bytesMap (Dict.fromList [ ( "13a36080b2263de3bf122d69f680eff37f8f640dac951e6048abd664", bytesMap (Dict.fromList [ ( "4b6f6a6e", N.fromSafeInt 400000 ) ]) ) ])
                                             , lovelace = bigNat [ 61511935, 9 ]
@@ -95,29 +95,29 @@ suite =
                                       }
                                     , { address =
                                             Address.base Testnet
-                                                (VKeyHash (Bytes.fromStringUnchecked "0743d16cfe3c4fcc0c11c2403bbc10dbc7ecdd4477e053481a368e7a"))
-                                                (VKeyHash (Bytes.fromStringUnchecked "06e2ae44dff6770dc0f4ada3cf4cf2605008e27aecdb332ad349fda7"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "0743d16cfe3c4fcc0c11c2403bbc10dbc7ecdd4477e053481a368e7a"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "06e2ae44dff6770dc0f4ada3cf4cf2605008e27aecdb332ad349fda7"))
                                       , amount = { assets = bytesMap Dict.empty, lovelace = bigNat [ 61511934, 9 ] }
                                       , datumOption = Nothing
                                       , referenceScript = Nothing
                                       }
                                     ]
-                                , withdrawals = [ ( { networkId = Testnet, stakeCredential = ScriptHash (Bytes.fromStringUnchecked "381f757b787201d66ae47603d1abd06ceaa031188e923568c937e8bc") }, N.zero ) ]
+                                , withdrawals = [ ( { networkId = Testnet, stakeCredential = ScriptHash (Bytes.fromHexUnchecked "381f757b787201d66ae47603d1abd06ceaa031188e923568c937e8bc") }, N.zero ) ]
                             }
                         , isValid = True
                         , witnessSet =
                             { newWitnessSet
                                 | vkeywitness =
                                     Just
-                                        [ { signature = Bytes.fromStringUnchecked "f2b04185587ed5af88cac6778b0a8392f1cd4d51e6c3722d96db62cae9d716f2d71a22aac6bde7ec097e1357b9e2ffa70eb9ab5d757d24180c843593fb302f09"
-                                          , vkey = Bytes.fromStringUnchecked "abd0f26723a5de57c10eb483b14c0aec1c365d911d46ab38684c2b9b2fa4a491"
+                                        [ { signature = Bytes.fromHexUnchecked "f2b04185587ed5af88cac6778b0a8392f1cd4d51e6c3722d96db62cae9d716f2d71a22aac6bde7ec097e1357b9e2ffa70eb9ab5d757d24180c843593fb302f09"
+                                          , vkey = Bytes.fromHexUnchecked "abd0f26723a5de57c10eb483b14c0aec1c365d911d46ab38684c2b9b2fa4a491"
                                           }
                                         ]
                             }
                         }
                 in
                 Transaction.serialize tx
-                    |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
+                    |> Expect.equal (Bytes.fromHexUnchecked expectedEncoding)
         , test "Tx with tricky asset order" <|
             \_ ->
                 let
@@ -132,15 +132,15 @@ suite =
                                 , fee = Just (N.fromSafeInt 183453)
                                 , inputs =
                                     [ { outputIndex = 0
-                                      , transactionId = Bytes.fromStringUnchecked "5ecbc2e3779c88ef83193e0788bd0ca3ee8e839695736ca2bd1a0d5d17c74d66"
+                                      , transactionId = Bytes.fromHexUnchecked "5ecbc2e3779c88ef83193e0788bd0ca3ee8e839695736ca2bd1a0d5d17c74d66"
                                       }
                                     ]
                                 , mint = bytesMap (Dict.fromList [ ( "2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15", bytesMap (Dict.fromList [ ( "68616c6c6f", Integer.fromSafeInt 300 ) ]) ) ])
                                 , outputs =
                                     [ { address =
                                             Address.base Testnet
-                                                (VKeyHash (Bytes.fromStringUnchecked "74976c54afaf444f7cd499bd8519aac6592b13b22b9d5817f0da5c52"))
-                                                (VKeyHash (Bytes.fromStringUnchecked "03d205532089ad2f7816892e2ef42849b7b52788e41b3fd43a6e01cf"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "74976c54afaf444f7cd499bd8519aac6592b13b22b9d5817f0da5c52"))
+                                                (VKeyHash (Bytes.fromHexUnchecked "03d205532089ad2f7816892e2ef42849b7b52788e41b3fd43a6e01cf"))
                                       , amount =
                                             { assets = bytesMap (Dict.fromList [ ( "2e2f143b3ccbe339145183dc2a799a469e92ab56e0d5b0bd04f54f15", bytesMap (Dict.fromList [ ( "", N.fromSafeInt 100 ), ( "112233221100", N.fromSafeInt 200 ), ( "68616c6c6f", N.fromSafeInt 300 ) ]) ) ])
                                             , lovelace = bigNat [ 12917915, 14901 ]
@@ -156,7 +156,7 @@ suite =
                         }
                 in
                 Transaction.serialize tx
-                    |> Expect.equal (Bytes.fromStringUnchecked expectedEncoding)
+                    |> Expect.equal (Bytes.fromHexUnchecked expectedEncoding)
         , test "Tx with plutus script" <|
             \_ ->
                 let
@@ -201,8 +201,8 @@ suite =
 
                     -- Lock script made with Aiken
                     lock =
-                        { script = PlutusScript PlutusV3 (Bytes.fromStringUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
-                        , scriptHash = Bytes.fromStringUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
+                        { script = PlutusScript PlutusV3 (Bytes.fromHexUnchecked "58b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881")
+                        , scriptHash = Bytes.fromHexUnchecked "3ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a330"
                         }
 
                     -- Combining the script hash with our stake credential
@@ -257,7 +257,7 @@ suite =
                         "84a8008282582031303030303030303030303030303030303030303030303030303030303030300182582070726576696f75736c7953656e74546f4c6f636b303030303030303030303030000182a3005839113ff0b1bb5815347c6f0c05328556d80c1f83ca47ac410d25ffb4a3306d653030303030303030303030303030303030303030303030303030011a001e8480028201d818581e581c6d653030303030303030303030303030303030303030303030303030a2005839016d6530303030303030303030303030303030303030303030303030306d653030303030303030303030303030303030303030303030303030011a00b435dd021a0002e5230b582023f1fb01ce7e5ca1f27956c8ed42cfdaa925dda512608a39952db32c135795290d818258203130303030303030303030303030303030303030303030303030303030303030010e81581c6d65303030303030303030303030303030303030303030303030303010a2005839016d6530303030303030303030303030303030303030303030303030306d653030303030303030303030303030303030303030303030303030011a00943ecb111a000457b5a30081825820564b45596d65303030303030303030303030303030303030303030303030303058405349474e41545552456d65303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303005a18200018201821951171a0061b0d9078158b758b501010032323232323225333002323232323253330073370e900118041baa0011323232533300a3370e900018059baa00113322323300100100322533301100114a0264a66601e66e3cdd718098010020a5113300300300130130013758601c601e601e601e601e601e601e601e601e60186ea801cdd7180718061baa00116300d300e002300c001300937540022c6014601600460120026012004600e00260086ea8004526136565734aae7555cf2ab9f5742ae881f5f6"
                 in
                 Result.map Transaction.serialize tx
-                    |> Expect.equal (Ok (Bytes.fromStringUnchecked expectedEncoding))
+                    |> Expect.equal (Ok (Bytes.fromHexUnchecked expectedEncoding))
         ]
 
 
@@ -283,7 +283,7 @@ bigNat xs =
 bytesMap : Dict String v -> BytesMap k v
 bytesMap keyValues =
     Dict.toList keyValues
-        |> List.map (\( k, v ) -> ( Bytes.fromStringUnchecked k, v ))
+        |> List.map (\( k, v ) -> ( Bytes.fromHexUnchecked k, v ))
         |> Bytes.Map.fromList
 
 

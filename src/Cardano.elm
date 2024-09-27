@@ -1414,7 +1414,7 @@ computeCoinSelection :
 computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
     let
         dummyOutput =
-            { address = Byron <| Bytes.fromStringUnchecked ""
+            { address = Byron <| Bytes.fromHexUnchecked ""
             , amount = Value.zero
             , datumOption = Nothing
             , referenceScript = Nothing

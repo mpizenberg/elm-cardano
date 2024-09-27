@@ -2,7 +2,7 @@ module Bytes.Comparable exposing
     ( Bytes
     , Any, toAny
     , chunksOf, width, isEmpty
-    , bytes, fromBytes, fromString, fromStringUnchecked, fromText
+    , bytes, fromBytes, fromHex, fromHexUnchecked, fromText
     , toBytes, toString, toText, toCbor, toU8
     )
 
@@ -15,7 +15,7 @@ module Bytes.Comparable exposing
 @docs Bytes
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
-@docs bytes, fromBytes, fromString, fromStringUnchecked, fromText
+@docs bytes, fromBytes, fromHex, fromHexUnchecked, fromText
 @docs toBytes, toString, toText, toCbor, toU8
 
 -}
@@ -73,16 +73,16 @@ width (Bytes str) =
 
 {-| Create a [Bytes] object from a hex-encoded string.
 -}
-fromString : String -> Maybe (Bytes a)
-fromString str =
+fromHex : String -> Maybe (Bytes a)
+fromHex str =
     str |> Hex.toBytes |> Maybe.map (always <| Bytes (String.toLower str))
 
 
-{-| Same as [fromString] except it does not check that the hex-encoded string is well formed.
+{-| Same as [fromHex] except it does not check that the hex-encoded string is well formed.
 It is your responsability.
 -}
-fromStringUnchecked : String -> Bytes a
-fromStringUnchecked =
+fromHexUnchecked : String -> Bytes a
+fromHexUnchecked =
     Bytes
 
 

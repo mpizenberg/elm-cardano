@@ -148,7 +148,7 @@ size (BytesMap m) =
 -}
 keys : BytesMap k v -> List (Bytes k)
 keys (BytesMap m) =
-    Dict.foldr (\k _ ks -> Bytes.fromStringUnchecked k :: ks) [] m
+    Dict.foldr (\k _ ks -> Bytes.fromHexUnchecked k :: ks) [] m
 
 
 {-| Get all of the values in a dictionary, in the order of their keys.
@@ -162,7 +162,7 @@ values (BytesMap m) =
 -}
 toList : BytesMap k v -> List ( Bytes k, v )
 toList (BytesMap m) =
-    Dict.foldr (\k v ks -> ( Bytes.fromStringUnchecked k, v ) :: ks) [] m
+    Dict.foldr (\k v ks -> ( Bytes.fromHexUnchecked k, v ) :: ks) [] m
 
 
 {-| Convert an association list into a `BytesMap`.
@@ -187,7 +187,7 @@ map f (BytesMap m) =
 -}
 mapWithKeys : (Bytes k -> a -> b) -> BytesMap k a -> BytesMap k b
 mapWithKeys f (BytesMap m) =
-    BytesMap <| Dict.map (Bytes.fromStringUnchecked >> f) m
+    BytesMap <| Dict.map (Bytes.fromHexUnchecked >> f) m
 
 
 {-| Fold over the values in a `BytesMap` from lowest key to highest key.
@@ -201,7 +201,7 @@ foldl f zero (BytesMap m) =
 -}
 foldlWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
 foldlWithKeys f zero (BytesMap m) =
-    Dict.foldl (Bytes.fromStringUnchecked >> f) zero m
+    Dict.foldl (Bytes.fromHexUnchecked >> f) zero m
 
 
 {-| Fold over the values in a `BytesMap` from highest key to lowest key.
@@ -215,7 +215,7 @@ foldr f zero (BytesMap m) =
 -}
 foldrWithKeys : (Bytes k -> v -> result -> result) -> result -> BytesMap k v -> result
 foldrWithKeys f zero (BytesMap m) =
-    Dict.foldr (Bytes.fromStringUnchecked >> f) zero m
+    Dict.foldr (Bytes.fromHexUnchecked >> f) zero m
 
 
 {-| Keep only the values that pass the given test.
@@ -229,7 +229,7 @@ filter f (BytesMap m) =
 -}
 filterWithKeys : (Bytes k -> v -> Bool) -> BytesMap k v -> BytesMap k v
 filterWithKeys f (BytesMap m) =
-    BytesMap <| Dict.filter (Bytes.fromStringUnchecked >> f) m
+    BytesMap <| Dict.filter (Bytes.fromHexUnchecked >> f) m
 
 
 
@@ -278,9 +278,9 @@ merge :
     -> result
 merge whenLeft whenBoth whenRight (BytesMap left) (BytesMap right) =
     Dict.merge
-        (Bytes.fromStringUnchecked >> whenLeft)
-        (Bytes.fromStringUnchecked >> whenBoth)
-        (Bytes.fromStringUnchecked >> whenRight)
+        (Bytes.fromHexUnchecked >> whenLeft)
+        (Bytes.fromHexUnchecked >> whenBoth)
+        (Bytes.fromHexUnchecked >> whenRight)
         left
         right
 

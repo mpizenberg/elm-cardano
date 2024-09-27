@@ -56,7 +56,7 @@ digestOfWith str blk =
 
 strToBytes : String -> List Int
 strToBytes str =
-    CB.fromString str
+    CB.fromHex str
         |> Maybe.map CB.toU8
         |> Maybe.withDefault []
 

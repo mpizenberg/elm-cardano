@@ -330,7 +330,7 @@ handleApiResponse response model =
 
 attemptDecode : { id : String, cbor : String } -> Result { txId : String, cbor : String, error : String } Transaction
 attemptDecode { id, cbor } =
-    Transaction.deserialize (Bytes.fromStringUnchecked cbor)
+    Transaction.deserialize (Bytes.fromHexUnchecked cbor)
         |> Result.fromMaybe { txId = id, cbor = cbor, error = "Failed to decode" }
 
 

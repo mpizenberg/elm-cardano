@@ -88,7 +88,7 @@ bigNum =
 -}
 failWith : String -> D.Decoder a
 failWith msg =
-    D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromStringUnchecked "..." ]
+    D.oneOf [ D.map Bytes.fromBytes D.raw, D.succeed <| Bytes.fromHexUnchecked "..." ]
         |> D.andThen
             (\rawBytes ->
                 let

@@ -467,7 +467,7 @@ apiDecoder method walletId =
                 (JDecode.field "response" <| dataSignatureDecoder)
 
         "submitTx" ->
-            JDecode.map (\r -> ApiResponse { walletId = walletId } (SubmittedTx (Bytes.fromStringUnchecked r)))
+            JDecode.map (\r -> ApiResponse { walletId = walletId } (SubmittedTx (Bytes.fromHexUnchecked r)))
                 (JDecode.field "response" JDecode.string)
 
         _ ->
@@ -501,7 +501,7 @@ addressDecoder =
     JDecode.string
         |> JDecode.andThen
             (\str ->
-                case Maybe.andThen Address.fromBytes (Bytes.fromString str) of
+                case Maybe.andThen Address.fromBytes (Bytes.fromHex str) of
                     Just address ->
                         JDecode.succeed address
 

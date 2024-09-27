@@ -37,6 +37,6 @@ auxiliaryData8a8f8dfe =
 
 strToBytes : String -> List Int
 strToBytes str =
-    Bytes.fromString str
+    Bytes.fromHex str
         |> Maybe.map Bytes.toU8
         |> Maybe.withDefault []

@@ -99,7 +99,7 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
         decodeRedeemer redeemerHex =
             -- Each redeemer is provided in CBOR, in a hex-encoded string
             -- Convert the hex strings to bytes
-            Bytes.fromStringUnchecked redeemerHex
+            Bytes.fromHexUnchecked redeemerHex
                 |> Bytes.toBytes
                 -- Decode the bytes into redeemers
                 |> CD.decode Redeemer.fromCborArray
