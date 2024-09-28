@@ -11,6 +11,23 @@ or online at [its static preview page][docs-preview].
 [aiken]: https://aiken-lang.org/
 [docs-preview]: https://elm-doc-preview.netlify.app/Cardano?repo=mpizenberg%2Felm-cardano&version=elm-doc-preview
 
+## Why elm-cardano?
+
+If you don’t know Elm, you might be tempted to just ignore this,
+why use something that isn’t Typescript in 2024?
+Well, let me give you the 30s elevator pitch.
+
+Your Elm code will have no runtime exception, so happy users,
+and happy maintainers that can focus on building products, not fixing bugs.
+Elm is statically typed, with a type system very similar to Aiken one,
+and compiler error messages that are so friendly, even Rust was inspired by it.
+When your code typechecks, it’s usually working, like in Rust, but even more true in Elm.
+Elm packages are very well documented usually.
+Every published package has a mandatory check that every exposed function must be documented.
+Elm compiles to JavaScript, and has a few ways to interact with,
+or be embedded in a regular HTML/JS app.
+If you don’t know how, just ask around on the Elm slack, people there are very friendly.
+
 ## Quickstart
 
 > Remark: this section aspirational as the elm package is not published yet.
