@@ -96,7 +96,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 emptyRefDict : RefDict a
 emptyRefDict =
-    Dict.Any.empty (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+    Dict.Any.empty (\ref -> ( Bytes.toHex ref.transactionId, ref.outputIndex ))
 
 
 {-| Convenience function to create a `Dict` with [OutputReference] keys from a list.
@@ -106,7 +106,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 refDictFromList : List ( OutputReference, a ) -> RefDict a
 refDictFromList =
-    Dict.Any.fromList (\ref -> ( Bytes.toString ref.transactionId, ref.outputIndex ))
+    Dict.Any.fromList (\ref -> ( Bytes.toHex ref.transactionId, ref.outputIndex ))
 
 
 {-| CBOR encoder for [OutputReference].
@@ -171,7 +171,7 @@ simpleOutput address value =
 -}
 refAsString : OutputReference -> String
 refAsString { transactionId, outputIndex } =
-    Bytes.toString transactionId ++ " #" ++ String.fromInt outputIndex
+    Bytes.toHex transactionId ++ " #" ++ String.fromInt outputIndex
 
 
 {-| Extract the amount of lovelace in an `Output`

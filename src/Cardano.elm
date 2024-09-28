@@ -1233,7 +1233,7 @@ processIntents localStateUtxos txIntents =
 -}
 dedupWithCbor : (a -> E.Encoder) -> List a -> List a
 dedupWithCbor encode items =
-    List.map (\a -> ( E.encode (encode a) |> Bytes.fromBytes |> Bytes.toString, a )) items
+    List.map (\a -> ( E.encode (encode a) |> Bytes.fromBytes |> Bytes.toHex, a )) items
         |> Dict.fromList
         |> Dict.values
 
@@ -1739,7 +1739,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         let
                             credAsText =
                                 Bytes.toText cred
-                                    |> Maybe.withDefault (Bytes.toString cred)
+                                    |> Maybe.withDefault (Bytes.toHex cred)
                                     |> String.left 28
                         in
                         ( cred, { vkey = dummyBytes 32 ("VKEY" ++ credAsText), signature = dummyBytes 64 ("SIGNATURE" ++ credAsText) } )

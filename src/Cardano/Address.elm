@@ -214,7 +214,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 emptyDict : Dict a
 emptyDict =
-    Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+    Dict.Any.empty (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
 
 
 {-| Create an address dictionary from a list.
@@ -225,7 +225,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 dictFromList : List ( Address, a ) -> Dict a
 dictFromList =
-    Dict.Any.fromList (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+    Dict.Any.fromList (toCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
 
 
 {-| Convenient alias for a `Dict` with [StakeAddress] keys.
@@ -246,7 +246,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
-    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
 
 
 {-| Create a stake address dictionary from a list.
@@ -257,7 +257,7 @@ WARNING: do not compare them with `==` since they contain functions.
 -}
 stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
 stakeDictFromList =
-    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toString)
+    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
 
 
 {-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.
@@ -307,46 +307,46 @@ toBytes : Address -> Bytes Address
 toBytes address =
     case address of
         Byron bytes ->
-            Bytes.fromHexUnchecked (Bytes.toString bytes)
+            Bytes.fromHexUnchecked (Bytes.toHex bytes)
 
         Shelley { networkId, paymentCredential, stakeCredential } ->
             case ( paymentCredential, stakeCredential ) of
                 -- (0) 0000.... PaymentKeyHash StakeKeyHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    toBytesHelper networkId "0" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeKeyHash)
+                    toBytesHelper networkId "0" (Bytes.toHex paymentKeyHash ++ Bytes.toHex stakeKeyHash)
 
                 -- (1) 0001.... ScriptHash StakeKeyHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (VKeyHash stakeKeyHash)) ) ->
-                    toBytesHelper networkId "1" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeKeyHash)
+                    toBytesHelper networkId "1" (Bytes.toHex paymentScriptHash ++ Bytes.toHex stakeKeyHash)
 
                 -- (2) 0010.... PaymentKeyHash ScriptHash
                 ( VKeyHash paymentKeyHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    toBytesHelper networkId "2" (Bytes.toString paymentKeyHash ++ Bytes.toString stakeScriptHash)
+                    toBytesHelper networkId "2" (Bytes.toHex paymentKeyHash ++ Bytes.toHex stakeScriptHash)
 
                 -- (3) 0011.... ScriptHash ScriptHash
                 ( ScriptHash paymentScriptHash, Just (InlineCredential (ScriptHash stakeScriptHash)) ) ->
-                    toBytesHelper networkId "3" (Bytes.toString paymentScriptHash ++ Bytes.toString stakeScriptHash)
+                    toBytesHelper networkId "3" (Bytes.toHex paymentScriptHash ++ Bytes.toHex stakeScriptHash)
 
                 -- (4) 0100.... PaymentKeyHash Pointer
                 ( VKeyHash paymentKeyHash, Just (PointerCredential _) ) ->
-                    toBytesHelper networkId "4" (Bytes.toString paymentKeyHash ++ Debug.todo "encode pointer credential")
+                    toBytesHelper networkId "4" (Bytes.toHex paymentKeyHash ++ Debug.todo "encode pointer credential")
 
                 -- (5) 0101.... ScriptHash Pointer
                 ( ScriptHash paymentScriptHash, Just (PointerCredential _) ) ->
-                    toBytesHelper networkId "5" (Bytes.toString paymentScriptHash ++ Debug.todo "encode pointer credential")
+                    toBytesHelper networkId "5" (Bytes.toHex paymentScriptHash ++ Debug.todo "encode pointer credential")
 
                 -- (6) 0110.... PaymentKeyHash ø
                 ( VKeyHash paymentKeyHash, Nothing ) ->
-                    toBytesHelper networkId "6" (Bytes.toString paymentKeyHash)
+                    toBytesHelper networkId "6" (Bytes.toHex paymentKeyHash)
 
                 -- (7) 0111.... ScriptHash ø
                 ( ScriptHash paymentScriptHash, Nothing ) ->
-                    toBytesHelper networkId "7" (Bytes.toString paymentScriptHash)
+                    toBytesHelper networkId "7" (Bytes.toHex paymentScriptHash)
 
         Reward stakeAddress ->
             stakeAddressToBytes stakeAddress
                 -- Just to convert the phantom type
-                |> Bytes.toString
+                |> Bytes.toHex
                 |> Bytes.fromHexUnchecked
 
 
@@ -364,11 +364,11 @@ stakeAddressToBytes { networkId, stakeCredential } =
     case stakeCredential of
         -- (14) 1110.... StakeKeyHash
         VKeyHash stakeKeyHash ->
-            toBytesHelper networkId "e" (Bytes.toString stakeKeyHash)
+            toBytesHelper networkId "e" (Bytes.toHex stakeKeyHash)
 
         -- (15) 1111.... ScriptHash
         ScriptHash stakeScriptHash ->
-            toBytesHelper networkId "f" (Bytes.toString stakeScriptHash)
+            toBytesHelper networkId "f" (Bytes.toHex stakeScriptHash)
 
 
 toBytesHelper : NetworkId -> String -> String -> Bytes a
@@ -434,7 +434,7 @@ decode =
                     Nothing ->
                         let
                             _ =
-                                Debug.log "Failed to decode address" (Bytes.toString <| Bytes.fromBytes bytes)
+                                Debug.log "Failed to decode address" (Bytes.toHex <| Bytes.fromBytes bytes)
                         in
                         D.fail
             )

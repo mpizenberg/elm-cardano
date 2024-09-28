@@ -27,7 +27,7 @@ encodeNatural =
                     |> EE.natural
                     |> E.encode
                     |> Bytes.fromBytes
-                    |> Bytes.toString
+                    |> Bytes.toHex
                     |> String.toUpper
                     |> Expect.equal "C249010000000000000000"
         ]

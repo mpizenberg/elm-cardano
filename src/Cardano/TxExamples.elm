@@ -340,7 +340,7 @@ prettyDatum datumOption =
 
 
 prettyCbor toCbor x =
-    E.encode (toCbor x) |> Bytes.fromBytes |> Bytes.toString
+    E.encode (toCbor x) |> Bytes.fromBytes |> Bytes.toHex
 
 
 prettyScript script =
@@ -418,7 +418,7 @@ prettyTx : Transaction -> String
 prettyTx tx =
     let
         prettyBytes b =
-            Maybe.withDefault (Bytes.toString b) (Bytes.toText b)
+            Maybe.withDefault (Bytes.toHex b) (Bytes.toText b)
 
         body =
             List.concat

@@ -217,14 +217,14 @@ signTx wallet partialSign tx =
 -}
 signTxCbor : Wallet -> { partialSign : Bool } -> Bytes Transaction -> Request
 signTxCbor wallet { partialSign } txBytes =
-    apiRequest wallet "signTx" [ JEncode.string (Bytes.toString txBytes), JEncode.bool partialSign ]
+    apiRequest wallet "signTx" [ JEncode.string (Bytes.toHex txBytes), JEncode.bool partialSign ]
 
 
 {-| Sign an arbitrary payload with your stake key.
 -}
 signData : Wallet -> { addr : String, payload : Bytes a } -> Request
 signData wallet { addr, payload } =
-    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toString payload ]
+    apiRequest wallet "signData" [ JEncode.string addr, JEncode.string <| Bytes.toHex payload ]
 
 
 {-| Encode a transaction and submit it via the wallet.
@@ -238,7 +238,7 @@ submitTx wallet tx =
 -}
 submitTxCbor : Wallet -> Bytes Transaction -> Request
 submitTxCbor wallet txBytes =
-    apiRequest wallet "submitTx" [ JEncode.string (Bytes.toString txBytes) ]
+    apiRequest wallet "submitTx" [ JEncode.string (Bytes.toHex txBytes) ]
 
 
 

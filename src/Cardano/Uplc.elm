@@ -76,7 +76,7 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
         jsEncode cborEncoder v =
             CE.encode (cborEncoder v)
                 |> Bytes.fromBytes
-                |> Bytes.toString
+                |> Bytes.toHex
                 |> JE.string
 
         ( refs, outputs ) =
@@ -84,7 +84,7 @@ evalScriptsCostsRaw vmConfig usedUtxos txBytes =
 
         jsArguments =
             JE.object
-                [ ( "tx_bytes", JE.string <| Bytes.toString txBytes )
+                [ ( "tx_bytes", JE.string <| Bytes.toHex txBytes )
                 , ( "utxos_refs_bytes", JE.list (jsEncode Utxo.encodeOutputReference) refs )
                 , ( "utxos_outputs_bytes", JE.list (jsEncode Utxo.encodeOutput) outputs )
                 , ( "cost_mdls_bytes", jsEncode Gov.encodeCostModels vmConfig.costModels )

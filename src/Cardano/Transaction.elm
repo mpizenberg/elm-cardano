@@ -569,7 +569,7 @@ hashScriptData costModels tx =
                     (E.list Data.toCbor
                         >> E.encode
                         >> Bytes.fromBytes
-                        >> Bytes.toString
+                        >> Bytes.toHex
                     )
                 |> Maybe.withDefault ""
     in
@@ -585,7 +585,7 @@ hashScriptData costModels tx =
                 redeemersHex =
                     E.encode (encodeRedeemersAsMap redeemers)
                         |> Bytes.fromBytes
-                        |> Bytes.toString
+                        |> Bytes.toHex
 
                 languageViews =
                     { v1 = Maybe.map (EE.indefiniteList E.int) costModels.plutusV1
@@ -605,7 +605,7 @@ hashScriptData costModels tx =
                 languageViewsHex =
                     E.encode (languageViewsEncoder languageViews)
                         |> Bytes.fromBytes
-                        |> Bytes.toString
+                        |> Bytes.toHex
             in
             Bytes.fromHexUnchecked (redeemersHex ++ datumsHex ++ languageViewsHex)
                 |> Bytes.toU8

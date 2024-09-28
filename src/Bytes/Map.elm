@@ -83,21 +83,21 @@ empty =
 -}
 singleton : Bytes k -> v -> BytesMap k v
 singleton k v =
-    BytesMap <| Dict.singleton (Bytes.toString k) v
+    BytesMap <| Dict.singleton (Bytes.toHex k) v
 
 
 {-| Insert a key-value pair into a `BytesMap`. Replaces value when there is a collision.
 -}
 insert : Bytes k -> v -> BytesMap k v -> BytesMap k v
 insert k v (BytesMap m) =
-    BytesMap <| Dict.insert (Bytes.toString k) v m
+    BytesMap <| Dict.insert (Bytes.toHex k) v m
 
 
 {-| Update the value of a `BytesMap` for a specific key with a given function.
 -}
 update : Bytes k -> (Maybe v -> Maybe v) -> BytesMap k v -> BytesMap k v
 update k f (BytesMap m) =
-    BytesMap <| Dict.update (Bytes.toString k) f m
+    BytesMap <| Dict.update (Bytes.toHex k) f m
 
 
 {-| Remove a key-value pair from a `BytesMap`. If the key is not found, no changes
@@ -105,7 +105,7 @@ are made.
 -}
 remove : Bytes k -> BytesMap k v -> BytesMap k v
 remove k (BytesMap m) =
-    BytesMap <| Dict.remove (Bytes.toString k) m
+    BytesMap <| Dict.remove (Bytes.toHex k) m
 
 
 
@@ -123,14 +123,14 @@ isEmpty (BytesMap m) =
 -}
 member : Bytes k -> BytesMap k v -> Bool
 member k (BytesMap m) =
-    Dict.member (Bytes.toString k) m
+    Dict.member (Bytes.toHex k) m
 
 
 {-| Get the value associated with a key. If the key is not found, return `Nothing`. This is useful when you are not sure if a key will be in the `BytesMap`
 -}
 get : Bytes k -> BytesMap k v -> Maybe v
 get k (BytesMap m) =
-    Dict.get (Bytes.toString k) m
+    Dict.get (Bytes.toHex k) m
 
 
 {-| Determine the number of key-value pairs in the `BytesMap`.
@@ -299,5 +299,5 @@ fromCbor valueDecoder =
     D.map BytesMap <|
         D.dict
             -- Convert the key from Bytes to hex String
-            (D.map (Bytes.toString << Bytes.fromBytes) D.bytes)
+            (D.map (Bytes.toHex << Bytes.fromBytes) D.bytes)
             valueDecoder

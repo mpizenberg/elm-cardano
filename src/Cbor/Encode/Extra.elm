@@ -149,7 +149,7 @@ toCanonicalKey encodeKey k =
         encodedKey =
             E.encode (encodeKey k)
                 |> Bytes.fromBytes
-                |> Bytes.toString
+                |> Bytes.toHex
     in
     ( String.length encodedKey, encodedKey )
 

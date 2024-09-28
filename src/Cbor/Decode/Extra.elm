@@ -75,7 +75,7 @@ bigNum =
         |> D.andThen
             (\( sign, bytes ) ->
                 -- TODO: do something more efficient than going through a hex string
-                case Bytes.fromBytes bytes |> Bytes.toString |> Natural.fromHexString of
+                case Bytes.fromBytes bytes |> Bytes.toHex |> Natural.fromHexString of
                     Just nat ->
                         D.succeed ( sign, nat )
 
@@ -93,7 +93,7 @@ failWith msg =
             (\rawBytes ->
                 let
                     _ =
-                        Debug.log msg (Bytes.toString rawBytes)
+                        Debug.log msg (Bytes.toHex rawBytes)
                 in
                 D.fail
             )

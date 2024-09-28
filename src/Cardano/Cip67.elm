@@ -87,7 +87,7 @@ fromBytes : Bytes MultiAsset.AssetName -> Maybe Cip67
 fromBytes tnBytes =
     let
         tnString =
-            Bytes.toString tnBytes
+            Bytes.toHex tnBytes
     in
     labelFromHex (String.left 8 tnString)
         |> Maybe.map
@@ -141,7 +141,7 @@ fromCbor =
 -}
 toBytes : Cip67 -> Bytes MultiAsset.AssetName
 toBytes { label, assetName } =
-    (labelToHex label ++ Bytes.toString assetName)
+    (labelToHex label ++ Bytes.toHex assetName)
         |> Bytes.fromHexUnchecked
 
 
@@ -155,9 +155,9 @@ labelToHex label =
                 |> Bytes.fromBytes
 
         checksumStr =
-            Bytes.toString <| Crc8.digest labelBytes
+            Bytes.toHex <| Crc8.digest labelBytes
     in
-    "0" ++ Bytes.toString labelBytes ++ checksumStr ++ "0"
+    "0" ++ Bytes.toHex labelBytes ++ checksumStr ++ "0"
 
 
 {-| CBOR encoder.

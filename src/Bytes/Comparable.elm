@@ -3,20 +3,20 @@ module Bytes.Comparable exposing
     , Any, toAny
     , chunksOf, width, isEmpty
     , bytes, fromBytes, fromHex, fromHexUnchecked, fromText
-    , toBytes, toString, toText, toCbor, toU8
+    , toBytes, toHex, toText, toCbor, toU8
     )
 
 {-| Comparable Bytes
 
 -- TODO: Because we rely on the sorting of the hex string,
 -- it is super important to check that we only use
--- lower case OR upper case letters, but no mix
+-- lower case letters, but no uppercase.
 
 @docs Bytes
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
 @docs bytes, fromBytes, fromHex, fromHexUnchecked, fromText
-@docs toBytes, toString, toText, toCbor, toU8
+@docs toBytes, toHex, toText, toCbor, toU8
 
 -}
 
@@ -102,8 +102,8 @@ fromBytes bs =
 
 {-| Convert [Bytes] into a hex-encoded String.
 -}
-toString : Bytes a -> String
-toString (Bytes str) =
+toHex : Bytes a -> String
+toHex (Bytes str) =
     str
 
 

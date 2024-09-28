@@ -222,7 +222,7 @@ update msg model =
 
                 Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)) ->
                     ( { model
-                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx submitted: " ++ Bytes.toString txId
+                        | lastApiResponse = "wallet: " ++ walletId ++ ", Tx submitted: " ++ Bytes.toHex txId
                         , lastError = ""
                       }
                     , Cmd.none
@@ -341,7 +341,7 @@ update msg model =
                         , toWallet <|
                             Cip30.encodeRequest <|
                                 Cip30.signData wallet
-                                    { addr = Address.toBytes address |> Bytes.toString
+                                    { addr = Address.toBytes address |> Bytes.toHex
                                     , payload = Bytes.fromBytes <| Bytes.Encode.encode (Bytes.Encode.unsignedInt8 42)
                                     }
                         )

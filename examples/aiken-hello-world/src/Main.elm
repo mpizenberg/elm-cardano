@@ -355,7 +355,7 @@ view model =
         BlueprintLoaded loadedWallet lockScript { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
-                    ++ [ div [] [ text <| "Script hash: " ++ Bytes.toString lockScript.hash ]
+                    ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
                        , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
                        , button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
                        , displayErrors errors
@@ -382,7 +382,7 @@ view model =
             in
             div []
                 (viewLoadedWallet loadedWallet
-                    ++ [ div [] [ text <| "Tx submitted! with ID: " ++ Bytes.toString txId ]
+                    ++ [ div [] [ text <| "Tx submitted! with ID: " ++ Bytes.toHex txId ]
                        , actionButton
                        , displayErrors errors
                        ]
@@ -401,7 +401,7 @@ displayErrors err =
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
     [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
-    , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString) ]
+    , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toHex) ]
     , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]
 

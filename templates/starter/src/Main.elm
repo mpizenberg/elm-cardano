@@ -122,7 +122,7 @@ view model =
         WalletLoaded { wallet, utxos, changeAddress } ->
             div []
                 [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
-                , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString) ]
+                , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toHex) ]
                 , div [] [ text <| "UTxO count: " ++ String.fromInt (List.length utxos) ]
                 ]
 
