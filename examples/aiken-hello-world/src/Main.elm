@@ -49,7 +49,6 @@ type Model
     | WalletLoading
         { wallet : Cip30.Wallet
         , utxos : List Cip30.Utxo
-        , changeAddress : Maybe Address
         }
     | WalletLoaded LoadedWallet { errors : String }
     | BlueprintLoaded LoadedWallet LockScript { errors : String }
@@ -118,13 +117,13 @@ update msg model =
 
                 -- We just connected to the wallet, let’s ask for the available utxos
                 ( Ok (Cip30.EnabledWallet wallet), WalletDiscovered _ ) ->
-                    ( WalletLoading { wallet = wallet, utxos = [], changeAddress = Nothing }
+                    ( WalletLoading { wallet = wallet, utxos = [] }
                     , toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Nothing }
                     )
 
                 -- We just received the utxos, let’s ask for the main change address of the wallet
                 ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxos)), WalletLoading { wallet } ) ->
-                    ( WalletLoading { wallet = wallet, utxos = utxos, changeAddress = Nothing }
+                    ( WalletLoading { wallet = wallet, utxos = utxos }
                     , toWallet (Cip30.encodeRequest (Cip30.getChangeAddress wallet))
                     )
 
@@ -402,7 +401,7 @@ displayErrors err =
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
     [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
-    , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString)]
+    , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString) ]
     , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]
 

@@ -1,7 +1,8 @@
 port module Main exposing (..)
 
 import Browser
-import Cardano.Address exposing (Address)
+import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Address as Address exposing (Address)
 import Cardano.Cip30 as Cip30
 import Cardano.Utxo exposing (Output, OutputReference)
 import Html exposing (Html, button, div, text)
@@ -43,7 +44,6 @@ type Model
     | WalletLoading
         { wallet : Cip30.Wallet
         , utxos : List ( OutputReference, Output )
-        , changeAddress : Maybe Address
         }
     | WalletLoaded
         { wallet : Cip30.Wallet
@@ -74,13 +74,13 @@ update msg model =
 
                 -- We just connected to the wallet, let’s ask for the available utxos
                 ( Ok (Cip30.EnabledWallet wallet), WalletDiscovered _ ) ->
-                    ( WalletLoading { wallet = wallet, utxos = [], changeAddress = Nothing }
+                    ( WalletLoading { wallet = wallet, utxos = [] }
                     , toWallet <| Cip30.encodeRequest <| Cip30.getUtxos wallet { amount = Nothing, paginate = Nothing }
                     )
 
                 -- We just received the utxos, let’s ask for the main change address of the wallet
                 ( Ok (Cip30.ApiResponse { walletId } (Cip30.WalletUtxos utxos)), WalletLoading { wallet } ) ->
-                    ( WalletLoading { wallet = wallet, utxos = utxos, changeAddress = Nothing }
+                    ( WalletLoading { wallet = wallet, utxos = utxos }
                     , toWallet (Cip30.encodeRequest (Cip30.getChangeAddress wallet))
                     )
 
@@ -122,6 +122,7 @@ view model =
         WalletLoaded { wallet, utxos, changeAddress } ->
             div []
                 [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
+                , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString) ]
                 , div [] [ text <| "UTxO count: " ++ String.fromInt (List.length utxos) ]
                 ]
 
