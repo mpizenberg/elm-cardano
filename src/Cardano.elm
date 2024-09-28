@@ -168,9 +168,8 @@ UTxOs are like bills, you spend them whole and get change for overspending.
         Transaction.findOutputUtxosAt scriptAddress nativeLockTx
             |> List.head
 
-    updatedLocalStateUtxos =
-        -- TODO: Transaction.updateUtxoState
-        Transaction.updateUtxoState localStateUtxos nativeLockTx
+    { updatedState } =
+        Cardano.updateLocalState txId nativeLockTx localStateUtxos
 
     nativeUnlockTx =
         [ Spend <|
@@ -187,7 +186,7 @@ UTxOs are like bills, you spend them whole and get change for overspending.
         , SendTo me oneAda
         , SendTo scriptAddress oneAda
         ]
-            |> finalize updatedLocalStateUtxos []
+            |> finalize updatedState []
 
 Alright, how about doing all those things with Plutus scripts now?
 Plutus scripts can be used for many purposes such as minting,
@@ -326,9 +325,8 @@ We can embed it directly in the transaction witness.
         Transaction.findOutputUtxosAt scriptAddress lockInPlutusScriptTx
             |> List.head
 
-    updatedLocalStateUtxos =
-        -- TODO: Transaction.updateUtxoState
-        Transaction.updateUtxoState localStateUtxos nativeLockTx
+    { updatedState } =
+        Cardano.updateLocalState txId lockInPlutusScriptTx localStateUtxos
 
     lockScript =
         extractedFromTheBlueprint
@@ -355,7 +353,7 @@ We can embed it directly in the transaction witness.
             , referenceScript = Nothing
             }
         ]
-            |> finalize updatedLocalStateUtxos []
+            |> finalize updatedState []
 
 
 ## Code Documentation
