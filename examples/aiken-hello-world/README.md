@@ -1,5 +1,7 @@
 # hello-world
 
+https://github.com/user-attachments/assets/e6a534ef-aead-48de-9b25-d9843664b50a
+
 Write validators in the `validators` folder, and supporting functions in the `lib` folder using `.ak` as a file extension.
 
 ```aiken
