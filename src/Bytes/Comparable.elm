@@ -2,7 +2,7 @@ module Bytes.Comparable exposing
     ( Bytes
     , Any, toAny
     , chunksOf, width, isEmpty
-    , bytes, fromBytes, fromHex, fromHexUnchecked, fromText
+    , fromBytes, fromHex, fromHexUnchecked, fromText, fromU8
     , toBytes, toHex, toText, toCbor, toU8
     )
 
@@ -15,7 +15,7 @@ module Bytes.Comparable exposing
 @docs Bytes
 @docs Any, toAny
 @docs chunksOf, width, isEmpty
-@docs bytes, fromBytes, fromHex, fromHexUnchecked, fromText
+@docs fromBytes, fromHex, fromHexUnchecked, fromText, fromU8
 @docs toBytes, toHex, toText, toCbor, toU8
 
 -}
@@ -52,8 +52,8 @@ toAny (Bytes str) =
 
 {-| Create a [Bytes] object from individual U8 integers.
 -}
-bytes : List Int -> Bytes a
-bytes =
+fromU8 : List Int -> Bytes a
+fromU8 =
     List.map E.unsignedInt8 >> E.sequence >> E.encode >> fromBytes
 
 

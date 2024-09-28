@@ -578,7 +578,7 @@ hashScriptData costModels tx =
             Bytes.fromHexUnchecked ("80" ++ datumsHex ++ "a0")
                 |> Bytes.toU8
                 |> blake2b256 Nothing
-                |> Bytes.bytes
+                |> Bytes.fromU8
 
         Just redeemers ->
             let
@@ -610,7 +610,7 @@ hashScriptData costModels tx =
             Bytes.fromHexUnchecked (redeemersHex ++ datumsHex ++ languageViewsHex)
                 |> Bytes.toU8
                 |> blake2b256 Nothing
-                |> Bytes.bytes
+                |> Bytes.fromU8
 
 
 

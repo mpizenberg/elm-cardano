@@ -1,6 +1,6 @@
 module Cardano.DataTests exposing (..)
 
-import Bytes.Comparable as Bytes exposing (bytes)
+import Bytes.Comparable as Bytes exposing (fromU8)
 import Cardano.Data as Data exposing (Data(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
@@ -28,7 +28,7 @@ fuzzer =
                         , Fuzz.map Integer.fromSafeInt <| Fuzz.intRange -(2 ^ 51) -(2 ^ 50)
                         , Fuzz.map Integer.fromSafeInt <| Fuzz.intRange (2 ^ 50) (2 ^ 51)
                         ]
-                , Fuzz.map (Bytes << bytes) <|
+                , Fuzz.map (Bytes << fromU8) <|
                     Fuzz.oneOf
                         [ Fuzz.list byte
                         , Fuzz.listOfLengthBetween 65 130 byte
@@ -82,12 +82,12 @@ suite =
             , testEncode "C349010000000000000000" <|
                 Int (Integer.fromSafeString "-0x010000000000000001")
             , testEncode "40" <|
-                (Bytes <| bytes [])
+                (Bytes <| fromU8 [])
             , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
                 Constr Natural.one
                     [ Int Integer.negativeTwo
-                    , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (bytes [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
-                    , Constr Natural.three [ Bytes (bytes [ 0xB1 ]), List [ Int Integer.zero, Bytes (bytes [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (bytes []) ]
+                    , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (fromU8 [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
+                    , Constr Natural.three [ Bytes (fromU8 [ 0xB1 ]), List [ Int Integer.zero, Bytes (fromU8 [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (fromU8 []) ]
                     ]
             ]
         , describe "fromCbor"
@@ -110,12 +110,12 @@ suite =
             , testDecode "C349010000000000000000" <|
                 Int (Integer.fromSafeString "-0x010000000000000001")
             , testDecode "40" <|
-                (Bytes <| bytes [])
+                (Bytes <| fromU8 [])
             , testDecode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
                 Constr Natural.one
                     [ Int Integer.negativeTwo
-                    , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (bytes [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
-                    , Constr Natural.three [ Bytes (bytes [ 0xB1 ]), List [ Int Integer.zero, Bytes (bytes [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (bytes []) ]
+                    , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (fromU8 [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
+                    , Constr Natural.three [ Bytes (fromU8 [ 0xB1 ]), List [ Int Integer.zero, Bytes (fromU8 [ 0xA0, 0x6D, 0x8D, 0xCB ]) ], Bytes (fromU8 []) ]
                     ]
             ]
         , describe "toCbor >> fromCbor"

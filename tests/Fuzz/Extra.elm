@@ -14,10 +14,10 @@ natural =
 bytesOfSize : Int -> Fuzzer (Bytes a)
 bytesOfSize size =
     Fuzz.listOfLength size (Fuzz.intRange 0 255)
-        |> Fuzz.map Bytes.bytes
+        |> Fuzz.map Bytes.fromU8
 
 
 bytes : Fuzzer (Bytes a)
 bytes =
     Fuzz.listOfLengthBetween 0 128 (Fuzz.intRange 0 255)
-        |> Fuzz.map Bytes.bytes
+        |> Fuzz.map Bytes.fromU8

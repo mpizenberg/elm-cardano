@@ -58,7 +58,7 @@ hash data =
         |> Bytes.fromBytes
         |> Bytes.toU8
         |> blake2b256 Nothing
-        |> Bytes.bytes
+        |> Bytes.fromU8
 
 
 {-| Phantom type for auxiliary data hashes.
