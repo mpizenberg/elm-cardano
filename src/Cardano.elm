@@ -37,14 +37,14 @@ That’s enough theory, let’s get more concrete.
 
 Let’s first define some addresses we are going to be using.
 
-    fromBech32 addressString =
-        Address.fromBech32 addressString
+    addressFromHex addressHexString =
+        Cardano.Address.fromBytes addressHexString
             |> Maybe.withDefault shouldNotErrorIfIsACorrectAddress
 
     ( me, you, someone ) =
-        ( fromBech32 "addr..."
-        , fromBech32 "addr..."
-        , fromBech32 "addr..."
+        ( addressFromHex "01..."
+        , addressFromHex "01..."
+        , addressFromHex "01..."
         )
 
 Here is a simple way to send 1 Ada to someone else.
