@@ -12,3 +12,5 @@ aiken build
 # build the elm frontend
 npx elm-cardano make src/Main.elm --output main.js && python -m http.server
 ```
+
+https://github.com/user-attachments/assets/2b8c254e-3e43-4622-a984-b90a07d2d396
