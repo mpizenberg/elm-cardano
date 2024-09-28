@@ -402,6 +402,7 @@ displayErrors err =
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
     [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
+    , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toString)]
     , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]
 
