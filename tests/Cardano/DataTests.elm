@@ -5,6 +5,7 @@ import Cardano.Data as Data exposing (Data(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Test as Cbor
+import Dict.Any
 import Expect
 import Fuzz exposing (Fuzzer)
 import Hex.Convert.Extra as Hex
@@ -35,6 +36,22 @@ fuzzer =
                         ]
                 ]
 
+        -- Map with no duplicate key and keys ordered
+        -- by the spec for canonical CBOR (byte size then value)
+        canonicalMap pairs =
+            Dict.Any.fromList toCanonicalKey pairs
+                |> Dict.Any.toList
+                |> Map
+
+        toCanonicalKey k =
+            let
+                encodedKey =
+                    E.encode (Data.toCbor k)
+                        |> Bytes.fromBytes
+                        |> Bytes.toHex
+            in
+            ( String.length encodedKey, encodedKey )
+
         whole depth =
             if depth <= 0 then
                 leaf
@@ -47,7 +64,7 @@ fuzzer =
                 Fuzz.oneOf
                     [ Fuzz.map List <|
                         Fuzz.listOfLengthBetween 0 depth nested
-                    , Fuzz.map Map <|
+                    , Fuzz.map canonicalMap <|
                         Fuzz.listOfLengthBetween 0 depth <|
                             Fuzz.map2 Tuple.pair nested nested
                     , Fuzz.map2 Constr
