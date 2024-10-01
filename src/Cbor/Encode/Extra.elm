@@ -1,14 +1,14 @@
 module Cbor.Encode.Extra exposing
     ( natural, integer
     , nonEmptyField
-    , associativeList, indefiniteList
+    , associativeList, indefiniteList, beginBytes
     )
 
 {-| Extra CBOR encoding utility functions.
 
 @docs natural, integer
 @docs nonEmptyField
-@docs associativeList, indefiniteList
+@docs associativeList, indefiniteList, beginBytes
 
 -}
 
@@ -159,3 +159,10 @@ toCanonicalKey encodeKey k =
 indefiniteList : (a -> E.Encoder) -> List a -> E.Encoder
 indefiniteList =
     E.indefiniteList
+
+
+{-| If you really need to build bytes with indefinite arrays.
+-}
+beginBytes : E.Encoder
+beginBytes =
+    E.beginBytes

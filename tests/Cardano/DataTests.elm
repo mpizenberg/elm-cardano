@@ -67,7 +67,10 @@ suite =
                 Constr Natural.zero []
             , testEncode "80" <|
                 List []
-            , testEncode "9F010203FF" <|
+
+            -- , testEncode "9F010203FF" <|
+            -- Now using definite length instead of indefinite length
+            , testEncode "83010203" <|
                 List [ Int Integer.one, Int Integer.two, Int Integer.three ]
             , testEncode "A0" <|
                 Map []
@@ -83,7 +86,10 @@ suite =
                 Int (Integer.fromSafeString "-0x010000000000000001")
             , testEncode "40" <|
                 (Bytes <| fromU8 [])
-            , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
+
+            -- , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
+            -- Now using definite length instead of indefinite length
+            , testEncode "d87a8321d87e82d87c822143c2599b01d87c8341b1820044a06d8dcb40" <|
                 Constr Natural.one
                     [ Int Integer.negativeTwo
                     , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (fromU8 [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]

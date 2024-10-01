@@ -1,8 +1,8 @@
-module Cardano.Data exposing (Data(..), fromCbor, toCbor, encodeList)
+module Cardano.Data exposing (Data(..), fromCbor, toCbor)
 
 {-| Handling Cardano Data objects.
 
-@docs Data, fromCbor, toCbor, encodeList
+@docs Data, fromCbor, toCbor
 
 -}
 
@@ -27,27 +27,6 @@ type Data
     | Bytes (Bytes Any)
 
 
-{-| NOTE: 'Data' lists are weirdly encoded:
-
-1.  They are encoded as definite empty lists (0x80)
-2.  But, are encoded as indefinite list otherwise.
-
--}
-encodeList : (data -> E.Encoder) -> List data -> E.Encoder
-encodeList encoder xs =
-    case xs of
-        [] ->
-            E.length 0
-
-        _ ->
-            E.indefiniteList encoder xs
-
-
-encodeDataList : List Data -> E.Encoder
-encodeDataList xs =
-    encodeList toCbor xs
-
-
 {-| CBOR encoder for [Data].
 -}
 toCbor : Data -> E.Encoder
@@ -60,26 +39,25 @@ toCbor data =
                         Natural.toInt ixNat
                 in
                 if ix < 7 then
-                    E.tagged (Tag.Unknown <| 121 + ix) encodeDataList fields
+                    E.tagged (Tag.Unknown <| 121 + ix) (E.list toCbor) fields
 
                 else
-                    E.tagged (Tag.Unknown <| 1280 + ix - 7) encodeDataList fields
+                    E.tagged (Tag.Unknown <| 1280 + ix - 7) (E.list toCbor) fields
 
             else
                 E.tagged (Tag.Unknown 102)
                     (E.tuple <|
                         E.elems
                             >> E.elem EE.natural .ixNat
-                            >> E.elem encodeDataList .fields
+                            >> E.elem (E.list toCbor) .fields
                     )
                     { ixNat = ixNat, fields = fields }
 
         Map xs ->
-            -- TODO: check if this needs to use EE.associativeList instead
             E.associativeList toCbor toCbor xs
 
         List xs ->
-            encodeDataList xs
+            E.list toCbor xs
 
         Int i ->
             EE.integer i
@@ -90,7 +68,7 @@ toCbor data =
 
             else
                 E.sequence <|
-                    E.beginBytes
+                    EE.beginBytes
                         :: List.foldr
                             (\chunk rest -> E.bytes (Bytes.toBytes chunk) :: rest)
                             [ E.break ]
