@@ -5,6 +5,7 @@ import Cardano.Data as Data exposing (Data(..))
 import Cbor.Decode as D
 import Cbor.Encode as E
 import Cbor.Test as Cbor
+import Dict.Any
 import Expect
 import Fuzz exposing (Fuzzer)
 import Hex.Convert.Extra as Hex
@@ -35,6 +36,22 @@ fuzzer =
                         ]
                 ]
 
+        -- Map with no duplicate key and keys ordered
+        -- by the spec for canonical CBOR (byte size then value)
+        canonicalMap pairs =
+            Dict.Any.fromList toCanonicalKey pairs
+                |> Dict.Any.toList
+                |> Map
+
+        toCanonicalKey k =
+            let
+                encodedKey =
+                    E.encode (Data.toCbor k)
+                        |> Bytes.fromBytes
+                        |> Bytes.toHex
+            in
+            ( String.length encodedKey, encodedKey )
+
         whole depth =
             if depth <= 0 then
                 leaf
@@ -47,7 +64,7 @@ fuzzer =
                 Fuzz.oneOf
                     [ Fuzz.map List <|
                         Fuzz.listOfLengthBetween 0 depth nested
-                    , Fuzz.map Map <|
+                    , Fuzz.map canonicalMap <|
                         Fuzz.listOfLengthBetween 0 depth <|
                             Fuzz.map2 Tuple.pair nested nested
                     , Fuzz.map2 Constr
@@ -67,7 +84,10 @@ suite =
                 Constr Natural.zero []
             , testEncode "80" <|
                 List []
-            , testEncode "9F010203FF" <|
+
+            -- , testEncode "9F010203FF" <|
+            -- Now using definite length instead of indefinite length
+            , testEncode "83010203" <|
                 List [ Int Integer.one, Int Integer.two, Int Integer.three ]
             , testEncode "A0" <|
                 Map []
@@ -83,7 +103,10 @@ suite =
                 Int (Integer.fromSafeString "-0x010000000000000001")
             , testEncode "40" <|
                 (Bytes <| fromU8 [])
-            , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
+
+            -- , testEncode "D87A9F21D87E9FD87C9F2143C2599BFF01FFD87C9F41B19F0044A06D8DCBFF40FFFF" <|
+            -- Now using definite length instead of indefinite length
+            , testEncode "d87a8321d87e82d87c822143c2599b01d87c8341b1820044a06d8dcb40" <|
                 Constr Natural.one
                     [ Int Integer.negativeTwo
                     , Constr Natural.five [ Constr Natural.three [ Int Integer.negativeTwo, Bytes (fromU8 [ 0xC2, 0x59, 0x9B ]) ], Int Integer.one ]
