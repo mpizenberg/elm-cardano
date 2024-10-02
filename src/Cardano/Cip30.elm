@@ -298,7 +298,7 @@ type Response
     = AvailableWallets (List WalletDescriptor)
     | EnabledWallet Wallet
     | ApiResponse { walletId : String } ApiResponse
-    | Error String
+    | ApiError { code : Int, info : String }
     | UnhandledResponseType String
 
 
@@ -358,12 +358,24 @@ responseDecoder =
                                 )
 
                     "cip30-error" ->
-                        JDecode.field "error" JDecode.string
-                            |> JDecode.map Error
+                        JDecode.field "error" errorDecoder
+                            |> JDecode.map ApiError
 
                     _ ->
                         JDecode.succeed (UnhandledResponseType responseType)
             )
+
+
+errorDecoder : Decoder { code : Int, info : String }
+errorDecoder =
+    JDecode.oneOf
+        [ JDecode.map2 (\code info -> { code = code, info = info })
+            (JDecode.field "code" JDecode.int)
+            (JDecode.field "info" JDecode.string)
+        , JDecode.map (\msg -> { code = 0, info = msg })
+            (JDecode.field "message" JDecode.string)
+        , JDecode.map (\msg -> { code = 0, info = msg }) JDecode.string
+        ]
 
 
 discoverDecoder : Decoder Response

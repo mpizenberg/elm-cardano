@@ -236,8 +236,8 @@ update msg model =
                     , Cmd.none
                     )
 
-                Ok (Cip30.Error error) ->
-                    ( { model | lastError = error }, Cmd.none )
+                Ok (Cip30.ApiError error) ->
+                    ( { model | lastError = Debug.toString error }, Cmd.none )
 
                 Ok (Cip30.UnhandledResponseType error) ->
                     ( { model | lastError = error }, Cmd.none )
