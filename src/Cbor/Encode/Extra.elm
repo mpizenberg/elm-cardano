@@ -13,6 +13,7 @@ module Cbor.Encode.Extra exposing
 -}
 
 import Bytes.Comparable as Bytes
+import Cbor
 import Cbor.Encode as E
 import Cbor.Tag as Tag
 import Dict.Any
@@ -27,8 +28,16 @@ natural n =
     if isSafeNat n then
         E.int (N.toInt n)
 
+    else if isU64 n then
+        let
+            msbLsb =
+                N.divModBy (N.fromSafeInt <| 2 ^ 32) n
+                    |> Maybe.map (\( msb, lsb ) -> ( N.toInt msb, N.toInt lsb ))
+                    |> Maybe.withDefault ( 0, 0 )
+        in
+        E.any (Cbor.CborInt64 msbLsb)
+
     else
-        -- TODO: if < 2^64 we should encode as u64 instead!
         let
             -- simple implementation with hex encoding
             -- TODO: improve this with a better performing approach if needed
@@ -45,26 +54,24 @@ natural n =
 -}
 integer : Integer -> E.Encoder
 integer n =
-    if isSafeInt n then
+    if I.isNonNegative n then
+        natural (I.toNatural n)
+
+    else if isSafeInt n then
         E.int (I.toInt n)
 
-    else if I.isNonNegative n then
-        -- Positive n
-        -- TODO: if 64-bit, we should encode as u64 instead!
+    else if isNegativeCborU64 n then
         let
-            -- simple implementation with hex encoding
-            -- TODO: improve this with a better performing approach if needed
-            nAsBytes =
-                I.toHexString n
-                    |> prependWith0IfOddLength
-                    |> Bytes.fromHexUnchecked
-                    |> Bytes.toBytes
+            msbLsb =
+                I.toNatural n
+                    |> N.divModBy (N.fromSafeInt <| 2 ^ 32)
+                    |> Maybe.map (\( msb, lsb ) -> ( -(N.toInt msb), N.toInt lsb ))
+                    |> Maybe.withDefault ( 0, 0 )
         in
-        E.tagged Tag.PositiveBigNum E.bytes nAsBytes
+        E.any (Cbor.CborInt64 msbLsb)
 
     else
-        -- Negative n
-        -- TODO: if 64-bit, we should encode as u64 instead!
+        -- Negative big number
         let
             -- simple implementation with hex encoding
             -- TODO: improve this with a better performing approach if needed
@@ -81,12 +88,38 @@ integer n =
 isSafeInt : Integer -> Bool
 isSafeInt n =
     (n |> I.isLessThanOrEqual (I.fromSafeInt I.maxSafeInt))
-        && (n |> I.isGreaterThanOrEqual (I.fromSafeInt I.minSafeInt))
+        && (n |> I.isGreaterThan (I.fromSafeInt I.minSafeInt))
 
 
 isSafeNat : Natural -> Bool
 isSafeNat n =
     n |> N.isLessThanOrEqual (N.fromSafeInt N.maxSafeInt)
+
+
+isU64 : Natural -> Bool
+isU64 n =
+    n |> N.isLessThan limit64Bits
+
+
+{-| Check if n is >= -(2^64)
+
+BEWARE the >= here and not > since negative CBOR numbers can go up to that.
+Also we don’t check the number sign here, it’s the caller responsability.
+
+-}
+isNegativeCborU64 : Integer -> Bool
+isNegativeCborU64 n =
+    I.toNatural n |> N.isLessThanOrEqual limit64Bits
+
+
+limit32Bits : Natural
+limit32Bits =
+    N.fromSafeInt (2 ^ 32)
+
+
+limit64Bits : Natural
+limit64Bits =
+    N.mul limit32Bits limit32Bits
 
 
 prependWith0IfOddLength : String -> String
