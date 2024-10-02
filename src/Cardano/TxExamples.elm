@@ -422,7 +422,7 @@ prettyTx tx =
 
         body =
             List.concat
-                [ [ "Tx fee: ₳ " ++ (Maybe.withDefault Natural.zero tx.body.fee |> Natural.toString) ]
+                [ [ "Tx fee: ₳ " ++ (tx.body.fee |> Natural.toString) ]
                 , prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
                 , prettyList "Tx inputs:" prettyInput tx.body.inputs
                 , [ "Tx outputs:" ]
