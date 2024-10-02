@@ -1818,7 +1818,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         txBody =
             { inputs = inputsOutputs.spentInputs
             , outputs = inputsOutputs.createdOutputs
-            , fee = Just feeAmount
+            , fee = feeAmount
             , ttl = Maybe.map .end otherInfo.timeValidityRange
             , certificates = [] -- TODO
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
@@ -1975,7 +1975,7 @@ checkInsufficientFee : { refScriptBytes : Int } -> Fee -> Transaction -> Result 
 checkInsufficientFee refSize fee tx =
     let
         declaredFee =
-            Maybe.withDefault Natural.zero tx.body.fee
+            tx.body.fee
 
         computedFee =
             Transaction.computeFees Transaction.defaultTxFeeParams refSize tx

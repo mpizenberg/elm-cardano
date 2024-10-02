@@ -87,7 +87,7 @@ new =
 type alias TransactionBody =
     { inputs : List OutputReference -- 0
     , outputs : List Output -- 1
-    , fee : Maybe Natural -- 2 TODO: remove the Maybe
+    , fee : Natural -- 2
     , ttl : Maybe Natural -- 3 a slot number
     , certificates : List Certificate -- 4
     , withdrawals : List ( StakeAddress, Natural ) -- 5
@@ -124,7 +124,7 @@ newBody : TransactionBody
 newBody =
     { inputs = []
     , outputs = []
-    , fee = Nothing
+    , fee = Natural.zero
     , ttl = Nothing
     , certificates = []
     , withdrawals = []
@@ -652,7 +652,7 @@ encodeTransactionBody =
         E.fields
             >> E.field 0 encodeInputs .inputs
             >> E.field 1 encodeOutputs .outputs
-            >> E.optionalField 2 EE.natural .fee
+            >> E.field 2 EE.natural .fee
             >> E.optionalField 3 EE.natural .ttl
             >> EE.nonEmptyField 4 List.isEmpty encodeCertificates .certificates
             >> EE.nonEmptyField 5 List.isEmpty (EE.associativeList Address.stakeAddressToCbor EE.natural) .withdrawals
@@ -1027,7 +1027,7 @@ decodeBody =
         buildTxBody inputs outputs fee ttl certificates withdrawals update auxiliaryDataHash validityIntervalStart mint scriptDataHash collateral requiredSigners networkId collateralReturn totalCollateral referenceInputs votingProcedures proposalProcedures currentTreasuryValue treasuryDonation =
             { inputs = inputs
             , outputs = outputs
-            , fee = Just fee
+            , fee = fee
             , ttl = ttl
             , certificates = certificates |> Maybe.withDefault []
             , withdrawals = withdrawals |> Maybe.withDefault []
@@ -1632,7 +1632,7 @@ setOutputs outputs body =
 
 setFee : Natural -> TransactionBody -> TransactionBody
 setFee fee body =
-    { body | fee = Just fee }
+    { body | fee = fee }
 
 
 setTtl : Natural -> TransactionBody -> TransactionBody

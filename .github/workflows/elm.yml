@@ -74,6 +74,8 @@ jobs:
       - run: cd examples/wallet-cip30 && elm make src/Main.elm --output /dev/null
       - run: cd examples/ogmios && elm make src/Main.elm --output /dev/null
       - run: cd examples/txbuild && elm make src/Main.elm --output /dev/null
+      - run: cd examples/aiken-hello-world && elm make src/Main.elm --output /dev/null
+      - run: cd examples/smart-bucket && elm make src/Main.elm --output /dev/null
 
   format:
     runs-on: ubuntu-latest
