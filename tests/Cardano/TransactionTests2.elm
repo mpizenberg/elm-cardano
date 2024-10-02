@@ -85,7 +85,7 @@ body8a8f8dfe : TransactionBody
 body8a8f8dfe =
     { newBody
         | auxiliaryDataHash = Just (Bytes.fromHexUnchecked "36663d429bded43331a968fcaa3a0aba03d6d83474176b8c85a019b0b408ff8d")
-        , fee = Just (N.fromSafeInt 203781)
+        , fee = N.fromSafeInt 203781
         , inputs =
             [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "41b2bf9badec879f09dc9154c582da12f0c5a7970cd3f922ed34baf83e19e2e1" }
             , { outputIndex = 1, transactionId = Bytes.fromHexUnchecked "41b2bf9badec879f09dc9154c582da12f0c5a7970cd3f922ed34baf83e19e2e1" }
@@ -159,7 +159,7 @@ decodebf095309 =
 bodybf095309 : TransactionBody
 bodybf095309 =
     { newBody
-        | fee = Just (N.fromSafeInt 211613)
+        | fee = N.fromSafeInt 211613
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "03b02cff29a5f2dfc827e00345eaab8b29a3d740e9878aa6e5dd2b52da0763c5" } ]
         , outputs =
             [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "d80fe69ded1ff90f41e526d0332a2ff98ba8a0d85ceb8941b5178420"), stakeCredential = Nothing }
@@ -319,7 +319,7 @@ body9c91bdbb =
     { newBody
         | auxiliaryDataHash = Just (Bytes.fromHexUnchecked "91ebd602815a977fff9028bbebbe7bfb7f8ae703c65a684e5c85f380f5249e24")
         , collateral = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" } ]
-        , fee = Just (N.fromSafeInt 228509)
+        , fee = N.fromSafeInt 228509
         , inputs =
             [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" }
             , { outputIndex = 1, transactionId = Bytes.fromHexUnchecked "f6e81bb9da6b4d635f3d774c7b7a58813a47b899bb52fef34caa4250fa8aa261" }
@@ -440,7 +440,7 @@ bodyef45fe8e =
                 , drepCredential = Address.VKeyHash (Bytes.fromHexUnchecked "7bdef7aaf3c925e97ca42d36f119b0469a12cca4a17ecfefc6900350")
                 }
             ]
-        , fee = Just (N.fromSafeInt 1000000)
+        , fee = N.fromSafeInt 1000000
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "88e54d6ae3c2c6e456d42c6b9aea6b3f8ebc31cd2b65ac273536e7eaa144d3ce" } ]
         , outputs =
             [ { address =
@@ -512,7 +512,7 @@ body4385b3d8 =
                 , drep = DrepCredential (Address.VKeyHash (Bytes.fromHexUnchecked "6c8a0c80777f9e4dc043dabc48e8391c7821a5b42c850be268cf1a51"))
                 }
             ]
-        , fee = Just (N.fromSafeInt 189965)
+        , fee = N.fromSafeInt 189965
         , inputs =
             [ { outputIndex = 0
               , transactionId = Bytes.fromHexUnchecked "8b70ecda03d3340232f71bad2411c5bb55b1b9b9ee3942db9d85b3ac327809ee"
@@ -591,7 +591,7 @@ body1e5dd53b =
                 , drep = AlwaysAbstain
                 }
             ]
-        , fee = Just (N.fromSafeInt 173333)
+        , fee = N.fromSafeInt 173333
         , inputs =
             [ { outputIndex = 1
               , transactionId = Bytes.fromHexUnchecked "856073e491ed7b92134da94468bd4b68f971d338718241f98ca326f1782aef29"
@@ -665,7 +665,7 @@ decode15f82a36 =
 body15f82a36 : TransactionBody
 body15f82a36 =
     { newBody
-        | fee = Just (N.fromSafeInt 175929)
+        | fee = N.fromSafeInt 175929
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "a584f292713ef96210dbcd377cb1fcc537f6f055c4f99df83cb0eb1e3079983d" } ]
         , outputs =
             [ { address =
@@ -733,7 +733,7 @@ decode7925c2e6 =
 body7925c2e6 : TransactionBody
 body7925c2e6 =
     { newBody
-        | fee = Just (N.fromSafeInt 500000)
+        | fee = N.fromSafeInt 500000
         , inputs = [ { outputIndex = 7, transactionId = Bytes.fromHexUnchecked "a6a9c42c3d88b0839c10d794476b9a6e96bfb0d7bedef7c1e30821ada172d6e3" } ]
         , outputs =
             [ { address =

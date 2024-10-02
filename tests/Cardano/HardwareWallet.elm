@@ -33,7 +33,7 @@ suite =
                         , body =
                             { newBody
                                 | auxiliaryDataHash = Nothing
-                                , fee = Just (N.fromSafeInt 170869)
+                                , fee = N.fromSafeInt 170869
                                 , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "bc8bf52ea894fb8e442fe3eea628be87d0c9a37baef185b70eb00a5c8a849d3b" } ]
                                 , outputs =
                                     [ { address =
@@ -64,7 +64,7 @@ suite =
                         , body =
                             { newBody
                                 | certificates = [ StakeDeregistration { delegator = ScriptHash (Bytes.fromHexUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401") } ]
-                                , fee = Just (N.fromSafeInt 244305)
+                                , fee = N.fromSafeInt 244305
                                 , inputs =
                                     [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "169422f7193e3418318c2420590778e68619119403472f70c0bb9e9feb2b4571" }
                                     , { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "cba5f1dd03010380d5c1a6471e7223ac48a7baf75c76e3824896d4398fe0155e" }
@@ -129,7 +129,7 @@ suite =
                         , body =
                             { newBody
                                 | auxiliaryDataHash = Nothing
-                                , fee = Just (N.fromSafeInt 183453)
+                                , fee = N.fromSafeInt 183453
                                 , inputs =
                                     [ { outputIndex = 0
                                       , transactionId = Bytes.fromHexUnchecked "5ecbc2e3779c88ef83193e0788bd0ca3ee8e839695736ca2bd1a0d5d17c74d66"

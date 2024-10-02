@@ -151,7 +151,7 @@ txBody79acf081 =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 218873)
+        , fee = N.fromSafeInt 218873
         , ttl = Just (N.fromSafeInt 4500080)
     }
 
@@ -236,7 +236,7 @@ txBody871b14fb =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 168449)
+        , fee = N.fromSafeInt 168449
         , ttl = Just (N.fromSafeInt 4500520)
     }
 
@@ -299,7 +299,7 @@ txBodyf3a0835d =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 178701)
+        , fee = N.fromSafeInt 178701
         , ttl = Just (N.fromSafeInt 4503440)
         , certificates =
             [ Transaction.StakeRegistration { delegator = Address.VKeyHash (Bytes.fromHexUnchecked "0e5b086df87a2a0c5c398b41d413f84176c527da5e5cb641f4598844") }
@@ -368,7 +368,7 @@ txBody841cca81 =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 191461)
+        , fee = N.fromSafeInt 191461
         , ttl = Just (N.fromSafeInt 4503580)
         , certificates =
             [ Transaction.PoolRegistration
@@ -467,7 +467,7 @@ txBody896cf8fe =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 179053)
+        , fee = N.fromSafeInt 179053
         , ttl = Just (N.fromSafeInt 4507780)
         , certificates =
             [ Transaction.PoolRetirement
@@ -535,7 +535,7 @@ txBody3dd8be52 =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 224021)
+        , fee = N.fromSafeInt 224021
         , ttl = Just (N.fromSafeInt 4519640)
         , certificates =
             [ Transaction.PoolRegistration
@@ -634,7 +634,7 @@ txBody3c03090c =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 183673)
+        , fee = N.fromSafeInt 183673
         , ttl = Just (N.fromSafeInt 4527700)
         , certificates =
             [ Transaction.PoolRegistration
@@ -711,7 +711,7 @@ txBody35d2728e =
               , referenceScript = Nothing
               }
             ]
-        , fee = Just (N.fromSafeInt 900000)
+        , fee = N.fromSafeInt 900000
         , ttl = Just (N.fromSafeInt 10000000)
         , certificates =
             [ Transaction.MoveInstantaneousRewardsCert
@@ -1186,7 +1186,7 @@ decodea2d8a927 =
 txBodya2d8a927 : TransactionBody
 txBodya2d8a927 =
     { newBody
-        | fee = Just (N.fromSafeInt 215651)
+        | fee = N.fromSafeInt 215651
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "a6afff5e962033731b67a256b9205fdaadc57faa06793dbde553dd26a2cd1732" } ]
         , outputs =
             [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "86880a8bb19ec8742db9076795c5107f7ffc65a889e7b0980ffeaca2"), stakeCredential = Just (Address.PointerCredential { certificateIndex = 12, slotNumber = 12, transactionIndex = 12 }) }
@@ -1245,7 +1245,7 @@ decode2383af05 =
 txBody2383af05 : TransactionBody
 txBody2383af05 =
     { newBody
-        | fee = Just (N.fromSafeInt 1000000)
+        | fee = N.fromSafeInt 1000000
         , inputs = [ { outputIndex = 1, transactionId = Bytes.fromHexUnchecked "72cb2dde1d5cea967255d6dd141aaf76801840033760f452763436bd1afc3836" } ]
         , outputs =
             [ { address = Address.Byron (Bytes.fromHexUnchecked "82d818584283581cce81d6b8d9f957ff8da898172fd08beea98e575b61e8ce01d0182372a101581e581c2b0b011ba3683d182bc2472ac7a7d5939b443746208b10c34367d9d6001a53e87e3b")
@@ -1303,7 +1303,7 @@ decode1bcd8fa7 =
 txBody1bcd8fa7 : TransactionBody
 txBody1bcd8fa7 =
     { newBody
-        | fee = Just (N.fromSafeInt 169884)
+        | fee = N.fromSafeInt 169884
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "ca6267b5f2b336da224e6b5efac292f0eaf45b40f7f7b931e4b5ee21e68455d8" } ]
         , outputs =
             [ { address = Address.Byron (Bytes.fromHexUnchecked "82d818582183581c5f0b7754ae7707405bc7dcd03fce70fa7295ebd69d069ff786d78445a0001aea367506")
@@ -1383,7 +1383,7 @@ txBodyc220e20c : TransactionBody
 txBodyc220e20c =
     { newBody
         | auxiliaryDataHash = Just (Bytes.fromHexUnchecked "c2d2b42fbacf30eeddab1447f525297eec0ab134f8cddd2025a075c69d57e4bc")
-        , fee = Just (N.fromSafeInt 175401)
+        , fee = N.fromSafeInt 175401
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "5b06f6ea129a404d5bc610880be35376625a8f7f11773bf79db1889eb3bb87eb" } ]
         , outputs =
             [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "c96001f4a4e10567ac18be3c47663a00a858f51c56779e94993d30ef"), stakeCredential = Nothing }
@@ -1460,7 +1460,7 @@ txBody254685a8 : TransactionBody
 txBody254685a8 =
     { newBody
         | auxiliaryDataHash = Just (Bytes.fromHexUnchecked "27c2bbc74ce52de561afc65f4db18eaff9cf05938e570c2370bca19bf8b33c68")
-        , fee = Just (N.fromSafeInt 176457)
+        , fee = N.fromSafeInt 176457
         , inputs = [ { outputIndex = 1, transactionId = Bytes.fromHexUnchecked "d241c8e10ff0d9ac04cfed2a6d6d6f80d0250bc2a47489df7b436f0d9f769b4d" } ]
         , outputs =
             [ { address =
@@ -1529,7 +1529,7 @@ decode4a3f8676 =
 txBody4a3f8676 : TransactionBody
 txBody4a3f8676 =
     { newBody
-        | fee = Just (N.fromSafeInt 500000)
+        | fee = N.fromSafeInt 500000
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "e7db1f809fcc21d3dd108ced6218bf0f0cbb6a0f679f848ff1790b68d3a35872" } ]
         , outputs =
             [ { address =
@@ -1603,7 +1603,7 @@ txBodye252be4c : TransactionBody
 txBodye252be4c =
     { newBody
         | auxiliaryDataHash = Nothing
-        , fee = Just (N.fromSafeInt 1000000)
+        , fee = N.fromSafeInt 1000000
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "d9a8ae2194e2e25e8079a04a4694e2679464a4f51512863a0008a35a85762ff0" } ]
         , outputs =
             [ { address =
@@ -1671,7 +1671,7 @@ decodefc863a44 =
 txBodyfc863a44 : TransactionBody
 txBodyfc863a44 =
     { newBody
-        | fee = Just (N.fromSafeInt 217553)
+        | fee = N.fromSafeInt 217553
         , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "bf30608a974d09c56dd62ca10199ec11746ea2d90dbd83649d4f37c629b1ba84" } ]
         , outputs =
             [ { address =

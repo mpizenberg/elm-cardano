@@ -42,7 +42,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0 ]
                         }
                     , witnessSet =
@@ -72,7 +72,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just feeAmount
+                            | fee = feeAmount
                             , inputs = [ makeRef "0" 0 ]
                             , outputs = [ Utxo.fromLovelace testAddr.me adaLeft ]
                         }
@@ -96,7 +96,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0 ]
                             , outputs = [ Utxo.fromLovelace testAddr.me (ada 3) ]
                         }
@@ -132,7 +132,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0 ]
                             , outputs =
                                 [ Utxo.fromLovelace testAddr.you (ada 1)
@@ -162,7 +162,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
                             , outputs =
                                 [ Utxo.fromLovelace testAddr.you (ada 6)
@@ -204,7 +204,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
                             , outputs =
                                 [ Utxo.simpleOutput testAddr.you threeCatTwoAda
@@ -244,7 +244,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
                             , outputs =
                                 [ Utxo.simpleOutput testAddr.you threeCatMinAda
@@ -289,7 +289,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0, makeRef "1" 1 ]
                             , referenceInputs = [ cat.scriptRef, dog.scriptRef ]
                             , mint =
@@ -401,7 +401,7 @@ okTxBuilding =
                 { newTx
                     | body =
                         { newBody
-                            | fee = Just (ada 2)
+                            | fee = ada 2
                             , inputs = [ makeRef "0" 0, utxoBeingSpent ]
                             , requiredSigners = [ myKeyCred ]
                             , outputs =
