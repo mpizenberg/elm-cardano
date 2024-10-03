@@ -370,15 +370,16 @@ We can embed it directly in the transaction witness.
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), CredentialHash, NetworkId(..), StakeAddress)
+import Cardano.Address as Address exposing (Address(..), Credential, CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
+import Cardano.Gov exposing (ActionId, Anchor, Vote, Voter)
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, VKeyWitness, WitnessSet)
+import Cardano.Transaction as Transaction exposing (PoolId, PoolParams, Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
@@ -405,7 +406,7 @@ type TxIntent
         , scriptWitness : ScriptWitness
         }
       -- Issuing certificates
-    | IssueCertificate -- TODO
+    | IssueCertificate CertificateIssuance
       -- Withdrawing rewards
     | WithdrawRewards
         -- TODO: check that the addres type match the scriptWitness field
@@ -413,7 +414,11 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
-    | Vote -- TODO
+    | Vote
+        Vote
+        { voter : VoterWitness
+        , action : ActionId
+        }
     | Propose -- TODO
 
 
@@ -437,6 +442,57 @@ type SpendSource
         , datumWitness : Maybe (WitnessSource Data)
         , plutusScriptWitness : PlutusScriptWitness
         }
+
+
+{-| All intents requiring the on-chain publication of a certificate.
+
+These include stake registration and delegation,
+stake pool management, and voting or delegating your voting power.
+
+-}
+type CertificateIssuance
+    = RegisterStake { delegator : CredentialWitness }
+    | UnregisterStake { delegator : CredentialWitness }
+    | DelegateStake { delegator : CredentialWitness, poolId : Bytes PoolId }
+      -- Pool management
+    | RegisterPool PoolParams
+    | RetirePool { poolId : Bytes PoolId, epoch : Natural }
+      -- Vote management
+    | RegisterDrep { drep : CredentialWitness, info : Maybe Anchor }
+    | UnregisterDrep { drep : CredentialWitness }
+    | VoteAlwaysAbstain { delegator : CredentialWitness }
+    | VoteAlwaysNoConfidence { delegator : CredentialWitness }
+    | DelegateVotes { delegator : CredentialWitness, drep : Credential }
+
+
+{-| The type of credential to provide.
+
+It can either be a key, typically from a wallet,
+a native script, or a plutus script.
+
+-}
+type CredentialWitness
+    = WithKey (Bytes CredentialHash)
+    | WithScript ScriptWitness
+
+
+credentialIsPlutusScript : CredentialWitness -> Bool
+credentialIsPlutusScript cred =
+    case cred of
+        WithScript (PlutusWitness _) ->
+            True
+
+        _ ->
+            False
+
+
+{-| Voting credentials can either come from
+the a DRep, a stake pool, or Constitutional Committee member.
+-}
+type VoterWitness
+    = WithCommiteeHotCred CredentialWitness
+    | WithDrepCred CredentialWitness
+    | WithPoolCred (Bytes CredentialHash)
 
 
 {-| Represents the inputs and outputs of a transaction.
@@ -714,8 +770,67 @@ containPlutusScripts txIntents =
                 PlutusWitness _ ->
                     True
 
-        IssueCertificate :: _ ->
-            Debug.todo "certificateHasScript?"
+        (IssueCertificate (RegisterStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (UnregisterStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (DelegateStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (RegisterPool _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (IssueCertificate (RetirePool _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (IssueCertificate (RegisterDrep { drep })) :: otherIntents ->
+            if credentialIsPlutusScript drep then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (UnregisterDrep { drep })) :: otherIntents ->
+            if credentialIsPlutusScript drep then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (VoteAlwaysAbstain { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (VoteAlwaysNoConfidence { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (DelegateVotes { delegator, drep })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
 
         (WithdrawRewards { scriptWitness }) :: otherIntents ->
             case scriptWitness of
@@ -725,8 +840,16 @@ containPlutusScripts txIntents =
                 _ ->
                     containPlutusScripts otherIntents
 
-        Vote :: _ ->
-            Debug.todo "voteHasScript?"
+        (Vote _ { voter }) :: otherIntents ->
+            case voter of
+                WithCommiteeHotCred (WithScript (PlutusWitness _)) ->
+                    True
+
+                WithDrepCred (WithScript (PlutusWitness _)) ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
 
         Propose :: _ ->
             Debug.todo "proposeHasScript?"
@@ -1069,11 +1192,10 @@ preProcessIntents txIntents =
                                 , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
                             }
 
-                -- TODO: Handle certificates
-                IssueCertificate ->
+                IssueCertificate _ ->
                     Debug.todo "certificates"
 
-                Vote ->
+                Vote _ _ ->
                     Debug.todo "vote"
 
                 Propose ->

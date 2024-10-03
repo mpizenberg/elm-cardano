@@ -42,6 +42,7 @@ suite =
         , decodeInputs
         , decodeOutputs
         , decodeOutputfd83f4f9
+        , decode437389ef
         ]
 
 
@@ -798,6 +799,81 @@ decode2264f554 =
 -- Last (max 2) blocks processed:
 --   height: 10825161, slot: 134566787, id: 75e8e41ce84f72fbf06cd427628cd5383e85ca96befe862c6220e56973a89ca8
 --   height: 10825160, slot: 134566783, id: c0dfc4acb0f2ef91c13d9e739c12b8796773a1063024be98e5ac722d8b302b78
+
+
+{-| Conway transaction on Preview with some governance stuff
+
+Tx id: 437389efa6ef8ce5f230b9b991d84aa316664076649cbce47713d7fd3511566d
+
+-}
+decode437389ef : Test
+decode437389ef =
+    test "Tx (Preview) id 437389efa6ef8ce5f230b9b991d84aa316664076649cbce47713d7fd3511566d" <|
+        \_ ->
+            Bytes.fromHexUnchecked "84a400818258205dd37b30379c9f200c1cc4008525e55d044e139becd4148e071f88ba0bffb137000182825839005dd37e2fcd78fef83200d645ca4ce6e3052c39c9ffe0456dd27e7727ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb439821a00115cb0a1581c2fe3c3364b443194b10954771c95819b8d6ed464033c21f03f8facb5a1446955534401825839005dd37e2fcd78fef83200d645ca4ce6e3052c39c9ffe0456dd27e7727ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb4391a0065fa67021a0002bae9048283078200581cee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb4391a001e848083098200581cee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb4398200581c9b239a50a537c0e366ffe6e0577ef462cd80be375e8f1c654771e3c2a1008282582052967973501373037fdd0e830be19af37cbd2b7247a1249eda9fa59d48413add5840c5d53f6f4e3d5c4069cb181485cabfec3d028d32248db63835d6d6faaa68331a25fc0015b342bf43132ad19f1ef0b56792532dcdf12caebcd6ce831978e0330e8258201c0241c418256d83462323e12c9428082afe9bc93d4dc1deafbddd48e3400a6d5840348f7188359afc2b7167421853fec79606f7a2691db23470846e615e0bc15ee470349a3fd02302222f1955e58e259175ef592e365460cd3e68f3076e3c6dc60bf5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body437389ef
+                        , witnessSet = witnessSet437389ef
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body437389ef =
+    { newBody
+        | certificates =
+            [ RegCert { delegator = Address.VKeyHash (Bytes.fromHexUnchecked "ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb439"), deposit = N.fromSafeInt 2000000 }
+            , VoteDelegCert { delegator = Address.VKeyHash (Bytes.fromHexUnchecked "ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb439"), drep = DrepCredential (Address.VKeyHash (Bytes.fromHexUnchecked "9b239a50a537c0e366ffe6e0577ef462cd80be375e8f1c654771e3c2")) }
+            ]
+        , fee = N.fromSafeInt 178921
+        , inputs =
+            [ { outputIndex = 0
+              , transactionId = Bytes.fromHexUnchecked "5dd37b30379c9f200c1cc4008525e55d044e139becd4148e071f88ba0bffb137"
+              }
+            ]
+        , outputs =
+            [ { address =
+                    Address.Shelley
+                        { networkId = Testnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "5dd37e2fcd78fef83200d645ca4ce6e3052c39c9ffe0456dd27e7727")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromHexUnchecked "ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb439")))
+                        }
+              , amount = { assets = bytesMap (Dict.fromList [ ( "2fe3c3364b443194b10954771c95819b8d6ed464033c21f03f8facb5", bytesMap (Dict.fromList [ ( "69555344", N.fromSafeInt 1 ) ]) ) ]), lovelace = N.fromSafeInt 1137840 }
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            , { address =
+                    Address.Shelley
+                        { networkId = Testnet
+                        , paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "5dd37e2fcd78fef83200d645ca4ce6e3052c39c9ffe0456dd27e7727")
+                        , stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromHexUnchecked "ee3f333b37909e7ff5094ac62ca6f7881fba93e83d29226fadcdb439")))
+                        }
+              , amount = Value.onlyLovelace (N.fromSafeInt 6683239)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+    }
+
+
+witnessSet437389ef =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromHexUnchecked "c5d53f6f4e3d5c4069cb181485cabfec3d028d32248db63835d6d6faaa68331a25fc0015b342bf43132ad19f1ef0b56792532dcdf12caebcd6ce831978e0330e"
+                  , vkey = Bytes.fromHexUnchecked "52967973501373037fdd0e830be19af37cbd2b7247a1249eda9fa59d48413add"
+                  }
+                , { signature = Bytes.fromHexUnchecked "348f7188359afc2b7167421853fec79606f7a2691db23470846e615e0bc15ee470349a3fd02302222f1955e58e259175ef592e365460cd3e68f3076e3c6dc60b"
+                  , vkey = Bytes.fromHexUnchecked "1c0241c418256d83462323e12c9428082afe9bc93d4dc1deafbddd48e3400a6d"
+                  }
+                ]
+    }
+
+
+
 --
 --
 --
