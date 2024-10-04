@@ -446,7 +446,8 @@ okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIn
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { depositContext = Cardano.defaultDepositContext
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }
@@ -640,7 +641,8 @@ failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, tx
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { depositContext = Cardano.defaultDepositContext
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }

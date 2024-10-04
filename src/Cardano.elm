@@ -1,9 +1,10 @@
 module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
+    , CertificateIssuance(..), ActionProposal(..), CredentialWitness(..), VoterWitness(..)
     , TxOtherInfo(..)
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
-    , updateLocalState
+    , DepositContext, defaultDepositContext, updateLocalState
     , dummyBytes
     )
 
@@ -359,10 +360,11 @@ We can embed it directly in the transaction witness.
 ## Code Documentation
 
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
+@docs CertificateIssuance, ActionProposal, CredentialWitness, VoterWitness
 @docs TxOtherInfo
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
-@docs updateLocalState
+@docs DepositContext, defaultDepositContext, updateLocalState
 @docs dummyBytes
 
 -}
@@ -370,16 +372,16 @@ We can embed it directly in the transaction witness.
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), Credential, CredentialHash, NetworkId(..), StakeAddress)
+import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov exposing (Action(..), ActionId, Anchor, Constitution, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter)
+import Cardano.Gov exposing (ActionId, Anchor, Constitution, Drep(..), ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote)
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (PoolId, PoolParams, Transaction, TransactionBody, VKeyWitness, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Certificate(..), PoolId, PoolParams, Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
@@ -477,13 +479,13 @@ a native script, or a plutus script.
 -}
 type CredentialWitness
     = WithKey (Bytes CredentialHash)
-    | WithScript ScriptWitness
+    | WithScript (Bytes CredentialHash) ScriptWitness
 
 
 credentialIsPlutusScript : CredentialWitness -> Bool
 credentialIsPlutusScript cred =
     case cred of
-        WithScript (PlutusWitness _) ->
+        WithScript _ (PlutusWitness _) ->
             True
 
         _ ->
@@ -551,6 +553,8 @@ extractWitnessRef witnessSource =
             Just ref
 
 
+{-| The different kinds of proposals available for governance.
+-}
 type ActionProposal
     = ParameterChange ProtocolParamUpdate
     | HardForkInitiation ProtocolVersion
@@ -670,7 +674,8 @@ finalize localStateUtxos txOtherInfo txIntents =
                             \_ _ -> Ok []
                 in
                 finalizeAdvanced
-                    { localStateUtxos = localStateUtxos
+                    { depositContext = defaultDepositContext
+                    , localStateUtxos = localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = defaultEvalScriptsCosts
                     }
@@ -866,7 +871,7 @@ containPlutusScripts txIntents =
             else
                 containPlutusScripts otherIntents
 
-        (IssueCertificate (DelegateVotes { delegator, drep })) :: otherIntents ->
+        (IssueCertificate (DelegateVotes { delegator })) :: otherIntents ->
             if credentialIsPlutusScript delegator then
                 True
 
@@ -883,10 +888,10 @@ containPlutusScripts txIntents =
 
         (Vote _ { voter }) :: otherIntents ->
             case voter of
-                WithCommiteeHotCred (WithScript (PlutusWitness _)) ->
+                WithCommiteeHotCred (WithScript _ (PlutusWitness _)) ->
                     True
 
-                WithDrepCred (WithScript (PlutusWitness _)) ->
+                WithDrepCred (WithScript _ (PlutusWitness _)) ->
                     True
 
                 _ ->
@@ -915,7 +920,8 @@ Analyze all intents and perform the following actions:
 
 -}
 finalizeAdvanced :
-    { localStateUtxos : Utxo.RefDict Output
+    { depositContext : DepositContext
+    , localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
     }
@@ -923,8 +929,8 @@ finalizeAdvanced :
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
-    case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
+finalizeAdvanced { depositContext, localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+    case ( processIntents depositContext localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
 
@@ -1105,6 +1111,8 @@ type alias PreProcessedIntents =
     , requiredSigners : List (List (Bytes CredentialHash))
     , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
+    , certificates : List Certificate
+    , certificatesRedeemers : List (InputsOutputs -> Data)
     }
 
 
@@ -1120,6 +1128,8 @@ noIntent =
     , requiredSigners = []
     , mints = []
     , withdrawals = []
+    , certificates = []
+    , certificatesRedeemers = []
     }
 
 
@@ -1241,8 +1251,71 @@ preProcessIntents txIntents =
                                 , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
                             }
 
-                IssueCertificate _ ->
-                    Debug.todo "certificates"
+                IssueCertificate (RegisterStake { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> RegCert { delegator = VKeyHash keyCred, deposit = Natural.zero })
+                        (\scriptHash -> RegCert { delegator = ScriptHash scriptHash, deposit = Natural.zero })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (UnregisterStake { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> UnregCert { delegator = VKeyHash keyCred, refund = Natural.zero })
+                        (\scriptHash -> UnregCert { delegator = ScriptHash scriptHash, refund = Natural.zero })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (DelegateStake { delegator, poolId }) ->
+                    preprocessCert
+                        (\keyCred -> StakeDelegation { delegator = VKeyHash keyCred, poolId = poolId })
+                        (\scriptHash -> StakeDelegation { delegator = ScriptHash scriptHash, poolId = poolId })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (RegisterDrep { drep, info }) ->
+                    preprocessCert
+                        (\keyCred -> RegDrepCert { drepCredential = VKeyHash keyCred, deposit = Natural.zero, anchor = info })
+                        (\scriptHash -> RegDrepCert { drepCredential = ScriptHash scriptHash, deposit = Natural.zero, anchor = info })
+                        drep
+                        preProcessedIntents
+
+                IssueCertificate (UnregisterDrep { drep }) ->
+                    preprocessCert
+                        (\keyCred -> UnregDrepCert { drepCredential = VKeyHash keyCred, refund = Natural.zero })
+                        (\scriptHash -> UnregDrepCert { drepCredential = ScriptHash scriptHash, refund = Natural.zero })
+                        drep
+                        preProcessedIntents
+
+                IssueCertificate (VoteAlwaysAbstain { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = AlwaysAbstain })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = AlwaysAbstain })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (VoteAlwaysNoConfidence { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = AlwaysNoConfidence })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = AlwaysNoConfidence })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (DelegateVotes { delegator, drep }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = DrepCredential drep })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = DrepCredential drep })
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (RegisterPool poolParams) ->
+                    { preProcessedIntents
+                        | certificates = PoolRegistration poolParams :: preProcessedIntents.certificates
+                    }
+
+                IssueCertificate (RetirePool { poolId, epoch }) ->
+                    { preProcessedIntents
+                        | certificates = PoolRetirement { poolId = poolId, epoch = epoch } :: preProcessedIntents.certificates
+                    }
 
                 Vote _ _ ->
                     Debug.todo "vote"
@@ -1252,6 +1325,34 @@ preProcessIntents txIntents =
     in
     -- Use fold right so that the outputs list is in the correct order
     List.foldr stepIntent noIntent txIntents
+
+
+preprocessCert :
+    (Bytes CredentialHash -> Certificate)
+    -> (Bytes CredentialHash -> Certificate)
+    -> CredentialWitness
+    -> PreProcessedIntents
+    -> PreProcessedIntents
+preprocessCert certWithKeyF certWithScriptF cred preProcessedIntents =
+    case cred of
+        WithKey keyCred ->
+            { preProcessedIntents
+                | certificates = certWithKeyF keyCred :: preProcessedIntents.certificates
+            }
+
+        WithScript scriptHash (NativeWitness script) ->
+            { preProcessedIntents
+                | certificates = certWithScriptF scriptHash :: preProcessedIntents.certificates
+                , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+            }
+
+        WithScript scriptHash (PlutusWitness { script, redeemerData, requiredSigners }) ->
+            { preProcessedIntents
+                | certificates = certWithScriptF scriptHash :: preProcessedIntents.certificates
+                , certificatesRedeemers = redeemerData :: preProcessedIntents.certificatesRedeemers
+                , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+            }
 
 
 type alias ProcessedIntents =
@@ -1266,13 +1367,44 @@ type alias ProcessedIntents =
     , totalMinted : MultiAsset Integer
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
+    , certificates : List Certificate
+    , certificatesRedeemers : List (InputsOutputs -> Data)
+    }
+
+
+{-| Context of expected values for deposits amounts.
+-}
+type alias DepositContext =
+    { poolDepositRequirement : Natural
+    , stakeDepositRequirement : Natural
+    , dRepDepositRequirement : Natural
+    , previousDeposits :
+        { pool : Bytes CredentialHash -> Maybe Natural
+        , stake : Bytes CredentialHash -> Maybe Natural
+        , drep : Bytes CredentialHash -> Maybe Natural
+        }
+    }
+
+
+{-| Default values for the deposits amount.
+-}
+defaultDepositContext : DepositContext
+defaultDepositContext =
+    { poolDepositRequirement = Natural.fromSafeInt 500000000
+    , stakeDepositRequirement = Natural.fromSafeInt 2000000
+    , dRepDepositRequirement = Natural.fromSafeInt 500000000
+    , previousDeposits =
+        { pool = always (Just <| Natural.fromSafeInt 500000000)
+        , stake = always (Just <| Natural.fromSafeInt 2000000)
+        , drep = always (Just <| Natural.fromSafeInt 500000000)
+        }
     }
 
 
 {-| Process already pre-processed intents and validate them all.
 -}
-processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
-processIntents localStateUtxos txIntents =
+processIntents : DepositContext -> Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
+processIntents depositContext localStateUtxos txIntents =
     let
         preProcessedIntents =
             preProcessIntents txIntents
@@ -1338,12 +1470,17 @@ processIntents localStateUtxos txIntents =
         preCreatedOutputs =
             preCreated noInputsOutputs
 
+        { certificates, totalDeposit, totalRefund } =
+            processCertificates depositContext preProcessedIntents.certificates
+
         -- Compute total inputs and outputs to check the Tx balance
         totalInput =
             Dict.Any.foldl (\_ -> Value.add) preSelected.sum preProcessedIntents.freeInputs
+                |> Value.add (Value.onlyLovelace totalRefund)
 
         totalOutput =
             Dict.Any.foldl (\_ -> Value.add) preCreatedOutputs.sum preProcessedIntents.freeOutputs
+                |> Value.add (Value.onlyLovelace totalDeposit)
     in
     if not <| Dict.Any.isEmpty absentOutputReferencesInLocalState then
         Err <| ReferenceOutputsMissingFromLocalState (Dict.Any.keys absentOutputReferencesInLocalState)
@@ -1396,8 +1533,70 @@ processIntents localStateUtxos txIntents =
                     , withdrawals =
                         List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
                             |> Address.stakeDictFromList
+                    , certificates = certificates
+                    , certificatesRedeemers = preProcessedIntents.certificatesRedeemers
                     }
                 )
+
+
+{-| Helper function to process certificates and compute total deposits/refunds.
+-}
+processCertificates : DepositContext -> List Certificate -> { certificates : List Certificate, totalDeposit : Natural, totalRefund : Natural }
+processCertificates context certs =
+    List.foldl
+        (\cert ({ certificates, totalDeposit, totalRefund } as acc) ->
+            case cert of
+                RegCert { delegator } ->
+                    { certificates = RegCert { delegator = delegator, deposit = context.stakeDepositRequirement } :: certificates
+                    , totalDeposit = Natural.add totalDeposit context.stakeDepositRequirement
+                    , totalRefund = totalRefund
+                    }
+
+                UnregCert { delegator } ->
+                    let
+                        actualRefund =
+                            -- TODO: fail when a deposit is not found in context
+                            context.previousDeposits.stake (Address.extractCredentialHash delegator)
+                                |> Maybe.withDefault Natural.zero
+                    in
+                    { certificates = UnregCert { delegator = delegator, refund = actualRefund } :: certificates
+                    , totalDeposit = totalDeposit
+                    , totalRefund = Natural.add totalRefund actualRefund
+                    }
+
+                RegDrepCert { drepCredential, anchor } ->
+                    { certificates = RegDrepCert { drepCredential = drepCredential, deposit = context.dRepDepositRequirement, anchor = anchor } :: certificates
+                    , totalDeposit = Natural.add totalDeposit context.dRepDepositRequirement
+                    , totalRefund = totalRefund
+                    }
+
+                UnregDrepCert { drepCredential } ->
+                    let
+                        actualRefund =
+                            -- TODO: fail when a deposit is not found in context
+                            context.previousDeposits.drep (Address.extractCredentialHash drepCredential)
+                                |> Maybe.withDefault Natural.zero
+                    in
+                    { certificates = UnregDrepCert { drepCredential = drepCredential, refund = actualRefund } :: certificates
+                    , totalDeposit = totalDeposit
+                    , totalRefund = Natural.add totalRefund actualRefund
+                    }
+
+                -- For Pool registration there is a deposit (not shown in cert)
+                -- but for unregistration we don’t recover the refund immediately.
+                -- It’s recovered later via the pool reward address.
+                PoolRegistration _ ->
+                    { certificates = cert :: certificates
+                    , totalDeposit = Natural.add totalDeposit context.poolDepositRequirement
+                    , totalRefund = totalRefund
+                    }
+
+                -- For other certificate types, just pass them through
+                _ ->
+                    { acc | certificates = cert :: certificates }
+        )
+        { certificates = [], totalDeposit = Natural.zero, totalRefund = Natural.zero }
+        certs
 
 
 {-| Helper function
@@ -1886,10 +2085,11 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                     )
                 |> List.filterMap identity
 
-        -- TODO
-        sortedCertRedeemers : List Redeemer
-        sortedCertRedeemers =
-            []
+        -- No need to sort certificates redeemers
+        certRedeemers : List Redeemer
+        certRedeemers =
+            processedIntents.certificatesRedeemers
+                |> List.indexedMap (\id redeemerF -> makeRedeemer Redeemer.Cert id (redeemerF inputsOutputs))
 
         -- Look for inputs at addresses that will need signatures
         walletCredsInInputs : List (Bytes CredentialHash)
@@ -1935,7 +2135,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         [ sortedSpendRedeemers
                         , sortedMintRedeemers
                         , sortedWithdrawalsRedeemers
-                        , sortedCertRedeemers
+                        , certRedeemers
                         ]
             }
 
@@ -1992,7 +2192,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , outputs = inputsOutputs.createdOutputs
             , fee = feeAmount
             , ttl = Maybe.map .end otherInfo.timeValidityRange
-            , certificates = [] -- TODO
+            , certificates = processedIntents.certificates
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing
             , auxiliaryDataHash =
