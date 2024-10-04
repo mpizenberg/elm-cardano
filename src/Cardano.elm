@@ -374,7 +374,7 @@ import Cardano.Address as Address exposing (Address(..), Credential, CredentialH
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov exposing (ActionId, Anchor, Vote, Voter)
+import Cardano.Gov exposing (Action(..), ActionId, Anchor, Constitution, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter)
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
@@ -419,7 +419,11 @@ type TxIntent
         { voter : VoterWitness
         , action : ActionId
         }
-    | Propose -- TODO
+    | Propose
+        { govAction : ActionProposal
+        , offchainInfo : Anchor
+        , depositReturnAccount : StakeAddress
+        }
 
 
 {-| Represents different sources for spending assets.
@@ -545,6 +549,23 @@ extractWitnessRef witnessSource =
 
         WitnessReference ref ->
             Just ref
+
+
+type ActionProposal
+    = ParameterChange ProtocolParamUpdate
+    | HardForkInitiation ProtocolVersion
+    | TreasuryWithdrawal
+        { destination : StakeAddress
+        , amount : Natural
+        }
+    | NoConfidence
+    | UpdateCommittee
+        { removeMembers : List Credential
+        , addMembers : List { newMember : Credential, expirationEpoch : Natural }
+        , quorumThreshold : UnitInterval
+        }
+    | NewConstitution Constitution
+    | Info
 
 
 {-| Represents additional information for a transaction.
@@ -851,8 +872,16 @@ containPlutusScripts txIntents =
                 _ ->
                     containPlutusScripts otherIntents
 
-        Propose :: _ ->
-            Debug.todo "proposeHasScript?"
+        (Propose { govAction }) :: otherIntents ->
+            case govAction of
+                ParameterChange _ ->
+                    True
+
+                TreasuryWithdrawal _ ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -1198,7 +1227,7 @@ preProcessIntents txIntents =
                 Vote _ _ ->
                     Debug.todo "vote"
 
-                Propose ->
+                Propose _ ->
                     Debug.todo "propose"
     in
     -- Use fold right so that the outputs list is in the correct order
