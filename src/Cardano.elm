@@ -491,7 +491,7 @@ credentialIsPlutusScript cred =
 
 
 {-| Voting credentials can either come from
-the a DRep, a stake pool, or Constitutional Committee member.
+a DRep, a stake pool, or Constitutional Committee member.
 -}
 type VoterWitness
     = WithCommiteeHotCred CredentialWitness
@@ -605,6 +605,7 @@ type TxFinalizationError
     | DuplicatedMetadataTags Int
     | IncorrectTimeValidityRange String
     | UplcVmError String
+    | GovProposalsNotSupportedInSimpleFinalize
     | FailurePleaseReportToElmCardano String
 
 
@@ -632,7 +633,8 @@ finalize :
     -> List TxIntent
     -> Result TxFinalizationError Transaction
 finalize localStateUtxos txOtherInfo txIntents =
-    guessFeeSource localStateUtxos txIntents
+    assertNoGovProvosals txIntents
+        |> Result.andThen (\_ -> guessFeeSource localStateUtxos txIntents)
         |> Result.andThen
             (\feeSource ->
                 let
@@ -676,6 +678,24 @@ finalize localStateUtxos txOtherInfo txIntents =
                     txOtherInfo
                     txIntents
             )
+
+
+{-| Simple helper function needed to check that there isn’t any proposal
+in the Tx intents when using the simple [finalize] function.
+This is because finalization requires some governance state, not provided here,
+such as guardrails script hash, last enacted proposals, etc.
+-}
+assertNoGovProvosals : List TxIntent -> Result TxFinalizationError ()
+assertNoGovProvosals intents =
+    case intents of
+        [] ->
+            Ok ()
+
+        (Propose _) :: _ ->
+            Err GovProposalsNotSupportedInSimpleFinalize
+
+        _ :: otherIntents ->
+            assertNoGovProvosals otherIntents
 
 
 {-| Attempt to guess the [Address] used to pay the fees from the list of intents.
@@ -1652,6 +1672,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
 
         -- Perform coin selection and output creation with the change
         -- for all address where there are target values (inputs and fees)
+        -- TODO: do it instead per credential, not per address
         coinSelectionAndChangeOutputs : Result TxFinalizationError (Address.Dict ( CoinSelection.Selection, List Output ))
         coinSelectionAndChangeOutputs =
             targetValuesAndOutputs
