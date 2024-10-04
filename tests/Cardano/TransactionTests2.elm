@@ -43,6 +43,7 @@ suite =
         , decodeOutputs
         , decodeOutputfd83f4f9
         , decode437389ef
+        , decode59fd3532
         ]
 
 
@@ -868,6 +869,59 @@ witnessSet437389ef =
                   }
                 , { signature = Bytes.fromHexUnchecked "348f7188359afc2b7167421853fec79606f7a2691db23470846e615e0bc15ee470349a3fd02302222f1955e58e259175ef592e365460cd3e68f3076e3c6dc60b"
                   , vkey = Bytes.fromHexUnchecked "1c0241c418256d83462323e12c9428082afe9bc93d4dc1deafbddd48e3400a6d"
+                  }
+                ]
+    }
+
+
+{-| Conway transaction, Gov proposal Ikigai
+
+Tx id: 59fd353253eb177e2104e8f23ea4c63e3d32ef95c7865d03e90d3884424dc1db
+
+-}
+decode59fd3532 : Test
+decode59fd3532 =
+    test "Tx id 59fd353253eb177e2104e8f23ea4c63e3d32ef95c7865d03e90d3884424dc1db" <|
+        \_ ->
+            Bytes.fromHexUnchecked "84a400d9010281825820a1b1f8d369dfbd92bb326ee0988df821223b697c414f12d4accd3bbc9c0fd988000181825839015337c0baec2ed3cd5542408e9b4416cc9347328301638f0cc9ecce352058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe231a0095e327021a0002b35914d9010281841b000000174876e800581de12058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe23810682784d68747470733a2f2f632d697066732d67772e6e6d6b722e696f2f697066732f516d5864664453536b52385459426e744d54346e75544c39734539453434464a6e705756706159385a5466776a6a5820d4efa9e0c3d80f5be35def08551eaf5aef17eae832fdb835e5f4b208d98f3dffa100d9010281825820fda2a51fcdfefc31161ca70f05140f679f64262f9a3e9620291de296219f099a58406735e04d05c6529c18e217d0951582c42c9d44eab53d45b33e6c657ca1ea6fcab5b9effd3eccd422e49ef7e4aeaa2dfcab14e74d510d6d24bc30d8846a124009f5f6"
+                |> Transaction.deserialize
+                |> Expect.equal
+                    (Just
+                        { body = body59fd3532
+                        , witnessSet = witnessSet59fd3532
+                        , isValid = True
+                        , auxiliaryData = Nothing
+                        }
+                    )
+
+
+body59fd3532 =
+    { newBody
+        | fee = N.fromSafeInt 176985
+        , inputs = [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "a1b1f8d369dfbd92bb326ee0988df821223b697c414f12d4accd3bbc9c0fd988" } ]
+        , outputs =
+            [ { address = Address.Shelley { networkId = Mainnet, paymentCredential = Address.VKeyHash (Bytes.fromHexUnchecked "5337c0baec2ed3cd5542408e9b4416cc9347328301638f0cc9ecce35"), stakeCredential = Just (Address.InlineCredential (Address.VKeyHash (Bytes.fromHexUnchecked "2058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe23"))) }
+              , amount = Value.onlyLovelace (N.fromSafeInt 9823015)
+              , datumOption = Nothing
+              , referenceScript = Nothing
+              }
+            ]
+        , proposalProcedures =
+            [ { anchor = { dataHash = Bytes.fromHexUnchecked "d4efa9e0c3d80f5be35def08551eaf5aef17eae832fdb835e5f4b208d98f3dff", url = "https://c-ipfs-gw.nmkr.io/ipfs/QmXdfDSSkR8TYBntMT4nuTL9sE9E44FJnpWVpaY8ZTfwjj" }
+              , deposit = bigNat [ 7792640, 1490 ]
+              , govAction = Info
+              , rewardAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromHexUnchecked "2058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe23") }
+              }
+            ]
+    }
+
+
+witnessSet59fd3532 =
+    { newWitnessSet
+        | vkeywitness =
+            Just
+                [ { signature = Bytes.fromHexUnchecked "6735e04d05c6529c18e217d0951582c42c9d44eab53d45b33e6c657ca1ea6fcab5b9effd3eccd422e49ef7e4aeaa2dfcab14e74d510d6d24bc30d8846a124009"
+                  , vkey = Bytes.fromHexUnchecked "fda2a51fcdfefc31161ca70f05140f679f64262f9a3e9620291de296219f099a"
                   }
                 ]
     }
