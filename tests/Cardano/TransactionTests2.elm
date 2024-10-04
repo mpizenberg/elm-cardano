@@ -688,7 +688,7 @@ body15f82a36 =
                     }
               , deposit = bigNat [ 7792640, 1490 ]
               , govAction = Info
-              , rewardAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromHexUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7") }
+              , depositReturnAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromHexUnchecked "45dee6ee5d7f631b6226d45f29da411c42fa7e816dc0948d31e0dba7") }
               }
             ]
     }
@@ -910,7 +910,7 @@ body59fd3532 =
             [ { anchor = { dataHash = Bytes.fromHexUnchecked "d4efa9e0c3d80f5be35def08551eaf5aef17eae832fdb835e5f4b208d98f3dff", url = "https://c-ipfs-gw.nmkr.io/ipfs/QmXdfDSSkR8TYBntMT4nuTL9sE9E44FJnpWVpaY8ZTfwjj" }
               , deposit = bigNat [ 7792640, 1490 ]
               , govAction = Info
-              , rewardAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromHexUnchecked "2058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe23") }
+              , depositReturnAccount = { networkId = Mainnet, stakeCredential = Address.VKeyHash (Bytes.fromHexUnchecked "2058a6f90d7f85735fe3c0f2db06e90c25dfb06e5b1a61e67bb4fe23") }
               }
             ]
     }

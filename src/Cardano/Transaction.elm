@@ -685,7 +685,7 @@ encodeProposalProcedure =
     E.tuple
         (E.elems
             >> E.elem EE.natural .deposit
-            >> E.elem Address.stakeAddressToCbor .rewardAccount
+            >> E.elem Address.stakeAddressToCbor .depositReturnAccount
             >> E.elem Gov.encodeAction .govAction
             >> E.elem Gov.encodeAnchor .anchor
         )

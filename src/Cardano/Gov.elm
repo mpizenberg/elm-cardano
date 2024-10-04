@@ -161,7 +161,7 @@ votingProcedureFromCbor =
 -}
 type alias ProposalProcedure =
     { deposit : Natural
-    , rewardAccount : StakeAddress
+    , depositReturnAccount : StakeAddress
     , govAction : Action
     , anchor : Anchor
     }
