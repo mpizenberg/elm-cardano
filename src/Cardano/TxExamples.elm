@@ -1,11 +1,11 @@
 module Cardano.TxExamples exposing
-    ( example1, example2, example3
+    ( example1, example2, example3, example4
     , prettyTx
     )
 
 {-| Just a module to make sure that examples compile when we change stuff.
 
-@docs example1, example2, example3
+@docs example1, example2, example3, example4
 
 @docs prettyTx
 
@@ -13,13 +13,14 @@ module Cardano.TxExamples exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
+import Cardano exposing (CertificateIssuance(..), CredentialWitness(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.Data as Data
+import Cardano.Gov exposing (Drep(..))
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
-import Cardano.Transaction exposing (Transaction)
+import Cardano.Transaction exposing (Certificate(..), Transaction)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
@@ -210,6 +211,24 @@ example3 _ =
 
 
 
+-- EXAMPLE 4: Register a stake key, delegate to a stake pool and to a DRep
+
+
+example4 _ =
+    let
+        myStakeKeyHash =
+            Address.extractStakeKeyHash exAddr.me
+                |> Maybe.withDefault (dummyCredentialHash "ERROR")
+    in
+    [ Spend <| FromWallet exAddr.me ada.two
+    , IssueCertificate <| RegisterStake { delegator = WithKey myStakeKeyHash }
+    , IssueCertificate <| DelegateStake { delegator = WithKey myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+    , IssueCertificate <| DelegateVotes { delegator = WithKey myStakeKeyHash, drep = VKeyHash <| dummyCredentialHash "drep" }
+    ]
+        |> finalize globalStateUtxos []
+
+
+
 -- Helper functions to build stuff
 
 
@@ -222,14 +241,14 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (dummyCredentialHash name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
+        , paymentCredential = VKeyHash (dummyCredentialHash <| "key-" ++ name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash <| "stk-" ++ name))
         }
 
 
 makeAddress : String -> Address
 makeAddress name =
-    Address.enterprise Mainnet (dummyCredentialHash name)
+    Address.enterprise Mainnet (dummyCredentialHash <| "key-" ++ name)
 
 
 makeRef : String -> Int -> OutputReference
@@ -301,6 +320,80 @@ prettyCred cred =
 prettyWithdrawal : ( StakeAddress, Natural ) -> String
 prettyWithdrawal ( { stakeCredential }, amount ) =
     "₳ " ++ Natural.toString amount ++ " @ stakeCred:" ++ prettyCred stakeCredential
+
+
+prettyCert : Certificate -> String
+prettyCert cert =
+    case cert of
+        StakeRegistration { delegator } ->
+            "stake-registration for " ++ prettyCred delegator
+
+        StakeDeregistration { delegator } ->
+            "stake-deregistration for " ++ prettyCred delegator
+
+        StakeDelegation { delegator, poolId } ->
+            "stake-delegation for " ++ prettyCred delegator ++ " to pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId
+
+        PoolRegistration _ ->
+            "pool-registration"
+
+        PoolRetirement { poolId, epoch } ->
+            "pool-retirement for pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId ++ " at epoch " ++ Natural.toString epoch
+
+        GenesisKeyDelegation _ ->
+            "genesis-key-delegation"
+
+        MoveInstantaneousRewardsCert _ ->
+            "move-instantaneous-rewards"
+
+        RegCert { delegator, deposit } ->
+            "stake-registration for " ++ prettyCred delegator ++ " with deposit ₳ " ++ Natural.toString deposit
+
+        UnregCert { delegator, refund } ->
+            "stake-unregistration for " ++ prettyCred delegator ++ " with refund ₳ " ++ Natural.toString refund
+
+        VoteDelegCert { delegator, drep } ->
+            "vote-deleg-cert for " ++ prettyCred delegator ++ " to " ++ prettyDrep drep
+
+        StakeVoteDelegCert { delegator, poolId, drep } ->
+            "stake-vote-deleg-cert for " ++ prettyCred delegator ++ " to " ++ prettyDrep drep ++ " and " ++ (Bytes.toText >> Maybe.withDefault "") poolId
+
+        StakeRegDelegCert _ ->
+            "stake-reg-deleg-cert TODO"
+
+        VoteRegDelegCert _ ->
+            "vote-reg-deleg-cert TODO"
+
+        StakeVoteRegDelegCert _ ->
+            "stake-vote-reg-deleg-cert TODO"
+
+        AuthCommitteeHotCert _ ->
+            "auth-committee-hot-cert TODO"
+
+        ResignCommitteeColdCert _ ->
+            "resign-committee-cold-cert TODO"
+
+        RegDrepCert { drepCredential, deposit } ->
+            "reg-drep-cert as " ++ prettyCred drepCredential ++ " with deposit ₳ " ++ Natural.toString deposit
+
+        UnregDrepCert { drepCredential, refund } ->
+            "unreg-drep-cert as " ++ prettyCred drepCredential ++ " with refund ₳ " ++ Natural.toString refund
+
+        UpdateDrepCert { drepCredential } ->
+            "update-drep-cert of " ++ prettyCred drepCredential
+
+
+prettyDrep : Drep -> String
+prettyDrep drep =
+    case drep of
+        DrepCredential cred ->
+            prettyCred cred
+
+        AlwaysAbstain ->
+            "ALWAYS ABSTAIN"
+
+        AlwaysNoConfidence ->
+            "ALWAYS NO CONFIDENCE"
 
 
 prettyValue : Value -> List String
@@ -430,6 +523,7 @@ prettyTx tx =
                     |> List.map (indent 3)
                 , prettyMints "Tx mints:" tx.body.mint
                 , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
+                , prettyList "Tx certificates:" prettyCert tx.body.certificates
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
                     ("Tx collateral (total: ₳ " ++ (Maybe.withDefault "not set" <| Maybe.map String.fromInt tx.body.totalCollateral) ++ "):")
@@ -451,6 +545,8 @@ prettyTx tx =
                         |> Maybe.map (prettyList "Tx plutus V1 scripts:" prettyBytes)
                     , tx.witnessSet.plutusV2Script
                         |> Maybe.map (prettyList "Tx plutus V2 scripts:" prettyBytes)
+                    , tx.witnessSet.plutusV3Script
+                        |> Maybe.map (prettyList "Tx plutus V3 scripts:" prettyBytes)
                     , tx.witnessSet.redeemer
                         |> Maybe.map (prettyList "Tx redeemers:" prettyRedeemer)
 
@@ -469,6 +565,7 @@ prettyTx tx =
                         , prettyList "Tx native scripts in auxiliary data:" (prettyScript << Script.Native) auxData.nativeScripts
                         , prettyList "Tx plutus V1 scripts in auxiliary data:" prettyBytes auxData.plutusV1Scripts
                         , prettyList "Tx plutus V2 scripts in auxiliary data:" prettyBytes auxData.plutusV2Scripts
+                        , prettyList "Tx plutus V3 scripts in auxiliary data:" prettyBytes auxData.plutusV3Scripts
                         ]
     in
     List.concat [ body, witnessSet, auxiliaryData ]

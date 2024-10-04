@@ -1543,7 +1543,7 @@ processIntents depositContext localStateUtxos txIntents =
 -}
 processCertificates : DepositContext -> List Certificate -> { certificates : List Certificate, totalDeposit : Natural, totalRefund : Natural }
 processCertificates context certs =
-    List.foldl
+    List.foldr
         (\cert ({ certificates, totalDeposit, totalRefund } as acc) ->
             case cert of
                 RegCert { delegator } ->
@@ -1860,6 +1860,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
                     Dict.Any.insert addr { targetInputValue = Value.zero, freeOutput = v }
 
                 whenBoth addr input output =
+                    -- TODO: some optimization can be done here to reduce both sides
                     Dict.Any.insert addr { targetInputValue = input, freeOutput = output }
             in
             Dict.Any.merge whenInput
@@ -2101,11 +2102,22 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                             |> Maybe.andThen (Address.extractPubKeyHash << .address)
                     )
 
+        -- Look for stake credentials needed for withdrawals
+        withdrawalsStakeCreds : List (Bytes CredentialHash)
+        withdrawalsStakeCreds =
+            Dict.Any.keys processedIntents.withdrawals
+                |> List.filterMap (\stakeAddress -> Address.extractCredentialKeyHash stakeAddress.stakeCredential)
+
+        -- Look for stake credentials needed for certificates
+        certificatesCreds : List (Bytes CredentialHash)
+        certificatesCreds =
+            List.concatMap extractCertificateCred processedIntents.certificates
+
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
-            (walletCredsInInputs ++ processedIntents.requiredSigners)
+            (walletCredsInInputs ++ processedIntents.requiredSigners ++ withdrawalsStakeCreds ++ certificatesCreds)
                 |> List.map
                     (\cred ->
                         let
@@ -2226,6 +2238,72 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
     , isValid = True
     , auxiliaryData = txAuxData
     }
+
+
+{-| Helper to extract the credential associated with a certificate.
+-}
+extractCertificateCred : Certificate -> List (Bytes CredentialHash)
+extractCertificateCred cert =
+    case cert of
+        StakeRegistration _ ->
+            -- not needed, but this will be deprecated anyway
+            []
+
+        StakeDeregistration { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeDelegation { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        PoolRegistration _ ->
+            Debug.todo "How many signatures with pool params?"
+
+        PoolRetirement _ ->
+            Debug.todo "How many signatures for pool retirement?"
+
+        -- Not handled, deprecated
+        GenesisKeyDelegation _ ->
+            []
+
+        -- Not handled, deprecated
+        MoveInstantaneousRewardsCert _ ->
+            []
+
+        RegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        UnregCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        VoteDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeVoteDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        VoteRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeVoteRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        AuthCommitteeHotCert _ ->
+            Debug.todo "How many signatures for AuthCommitteHortCert?"
+
+        ResignCommitteeColdCert _ ->
+            Debug.todo "How many signatures for ResignCommitteeColdCert?"
+
+        RegDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
+
+        UnregDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
+
+        UpdateDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
 
 
 {-| Update the known local state with the spent and created UTxOs of a given transaction.

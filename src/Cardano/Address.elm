@@ -2,7 +2,7 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , fromBech32, fromBytes, enterprise, script, base, pointer
-    , isShelleyWallet, extractCredentialHash, extractPubKeyHash, extractStakeCredential
+    , isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
     , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
     , networkIdFromInt
@@ -19,7 +19,7 @@ module Cardano.Address exposing
 
 @docs fromBech32, fromBytes, enterprise, script, base, pointer
 
-@docs isShelleyWallet, extractCredentialHash, extractPubKeyHash, extractStakeCredential
+@docs isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
 
 @docs Dict, emptyDict, dictFromList
 
@@ -179,6 +179,18 @@ extractCredentialHash cred =
             hash
 
 
+{-| Extract the credential key hash (Nothing if it’s a script).
+-}
+extractCredentialKeyHash : Credential -> Maybe (Bytes CredentialHash)
+extractCredentialKeyHash cred =
+    case cred of
+        VKeyHash hash ->
+            Just hash
+
+        ScriptHash _ ->
+            Nothing
+
+
 {-| Extract the pubkey hash of a Shelley wallet address.
 -}
 extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
@@ -203,6 +215,23 @@ extractStakeCredential address =
     case address of
         Shelley { stakeCredential } ->
             stakeCredential
+
+        _ ->
+            Nothing
+
+
+{-| Extract the stake key hash of a Shelley address.
+-}
+extractStakeKeyHash : Address -> Maybe (Bytes CredentialHash)
+extractStakeKeyHash address =
+    case address of
+        Shelley { stakeCredential } ->
+            case stakeCredential of
+                Just (InlineCredential (VKeyHash hash)) ->
+                    Just hash
+
+                _ ->
+                    Nothing
 
         _ ->
             Nothing
