@@ -184,31 +184,38 @@ proposalProcedureFromCbor =
 -}
 type Action
     = ParameterChange
-        { govActionId : Maybe ActionId
+        --0
+        { latestEnacted : Maybe ActionId
         , protocolParamUpdate : ProtocolParamUpdate
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
+      -- 1
     | HardForkInitiation
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , protocolVersion : ProtocolVersion
         }
+      -- 2
     | TreasuryWithdrawals
         { withdrawals : List ( StakeAddress, Natural )
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
+      -- 3
     | NoConfidence
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         }
+      -- 4
     | UpdateCommittee
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , removedMembers : List Credential
         , addedMembers : List { newMember : Credential, expirationEpoch : Natural }
         , quorumThreshold : UnitInterval
         }
+      -- 5
     | NewConstitution
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , constitution : Constitution
         }
+      -- 6
     | Info
 
 
@@ -263,7 +270,7 @@ decodeAction =
                         D.map3
                             (\govActionId update policy ->
                                 ParameterChange
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , protocolParamUpdate = update
                                     , guardrailsPolicy = policy
                                     }
@@ -276,7 +283,7 @@ decodeAction =
                         D.map2
                             (\govActionId version ->
                                 HardForkInitiation
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , protocolVersion = version
                                     }
                             )
@@ -297,7 +304,7 @@ decodeAction =
                     3 ->
                         D.map
                             (\govActionId ->
-                                NoConfidence { govActionId = govActionId }
+                                NoConfidence { latestEnacted = govActionId }
                             )
                             (D.maybe actionIdFromCbor)
 
@@ -305,7 +312,7 @@ decodeAction =
                         D.map4
                             (\govActionId removed added threshold ->
                                 UpdateCommittee
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , removedMembers = removed
                                     , addedMembers = added
                                     , quorumThreshold = threshold
@@ -322,7 +329,7 @@ decodeAction =
                         D.map2
                             (\govActionId constitution ->
                                 NewConstitution
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , constitution = constitution
                                     }
                             )
@@ -732,18 +739,18 @@ encodeDrepVotingThresholds thresholds =
 encodeAction : Action -> E.Encoder
 encodeAction action =
     case action of
-        ParameterChange { govActionId, protocolParamUpdate, guardrailsPolicy } ->
+        ParameterChange { latestEnacted, protocolParamUpdate, guardrailsPolicy } ->
             E.list identity
                 [ E.int 0
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeProtocolParamUpdate protocolParamUpdate
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
-        HardForkInitiation { govActionId, protocolVersion } ->
+        HardForkInitiation { latestEnacted, protocolVersion } ->
             E.list identity
                 [ E.int 1
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeProtocolVersion protocolVersion
                 ]
 
@@ -754,25 +761,25 @@ encodeAction action =
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
-        NoConfidence { govActionId } ->
+        NoConfidence { latestEnacted } ->
             E.list identity
                 [ E.int 3
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 ]
 
-        UpdateCommittee { govActionId, removedMembers, addedMembers, quorumThreshold } ->
+        UpdateCommittee { latestEnacted, removedMembers, addedMembers, quorumThreshold } ->
             E.list identity
                 [ E.int 4
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , E.list Address.credentialToCbor removedMembers
                 , EE.associativeList Address.credentialToCbor EE.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
                 , encodeRationalNumber quorumThreshold
                 ]
 
-        NewConstitution { govActionId, constitution } ->
+        NewConstitution { latestEnacted, constitution } ->
             E.list identity
                 [ E.int 5
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeConstitution constitution
                 ]
 
