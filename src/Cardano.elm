@@ -2181,8 +2181,9 @@ extractCertificateCred cert =
         StakeDelegation { delegator } ->
             [ Address.extractCredentialHash delegator ]
 
-        PoolRegistration _ ->
-            Debug.todo "How many signatures with pool params?"
+        PoolRegistration { poolOwners } ->
+            -- Is that correct?
+            poolOwners
 
         PoolRetirement _ ->
             Debug.todo "How many signatures for pool retirement?"
