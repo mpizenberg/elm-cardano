@@ -13,7 +13,7 @@ module Cardano.TxExamples exposing
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (CertificateIssuance(..), CredentialWitness(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
+import Cardano exposing (CertificateIntent(..), CredentialWitness(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.Data as Data
 import Cardano.Gov exposing (Drep(..))
@@ -220,8 +220,8 @@ example4 _ =
             Address.extractStakeKeyHash exAddr.me
                 |> Maybe.withDefault (dummyCredentialHash "ERROR")
     in
-    [ Spend <| FromWallet exAddr.me ada.two
-    , IssueCertificate <| RegisterStake { delegator = WithKey myStakeKeyHash }
+    [ Spend <| FromWallet exAddr.me ada.two -- 2 ada for the registration deposit
+    , IssueCertificate <| RegisterStake { delegator = WithKey myStakeKeyHash, deposit = Natural.fromSafeInt 2000000 }
     , IssueCertificate <| DelegateStake { delegator = WithKey myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
     , IssueCertificate <| DelegateVotes { delegator = WithKey myStakeKeyHash, drep = VKeyHash <| dummyCredentialHash "drep" }
     ]
