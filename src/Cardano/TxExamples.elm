@@ -325,22 +325,22 @@ prettyWithdrawal ( { stakeCredential }, amount ) =
 prettyCert : Certificate -> String
 prettyCert cert =
     case cert of
-        StakeRegistration { delegator } ->
+        StakeRegistrationCert { delegator } ->
             "stake-registration for " ++ prettyCred delegator
 
-        StakeDeregistration { delegator } ->
+        StakeDeregistrationCert { delegator } ->
             "stake-deregistration for " ++ prettyCred delegator
 
-        StakeDelegation { delegator, poolId } ->
+        StakeDelegationCert { delegator, poolId } ->
             "stake-delegation for " ++ prettyCred delegator ++ " to pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId
 
-        PoolRegistration _ ->
+        PoolRegistrationCert _ ->
             "pool-registration"
 
-        PoolRetirement { poolId, epoch } ->
+        PoolRetirementCert { poolId, epoch } ->
             "pool-retirement for pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId ++ " at epoch " ++ Natural.toString epoch
 
-        GenesisKeyDelegation _ ->
+        GenesisKeyDelegationCert _ ->
             "genesis-key-delegation"
 
         MoveInstantaneousRewardsCert _ ->

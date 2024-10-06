@@ -458,7 +458,7 @@ okTxBuilding =
                             , outputs = [ Utxo.fromLovelace testAddr.me (ada 1) ]
                             , certificates =
                                 [ RegCert { delegator = VKeyHash myStakeKeyHash, deposit = Natural.fromSafeInt 2000000 }
-                                , StakeDelegation { delegator = VKeyHash myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+                                , StakeDelegationCert { delegator = VKeyHash myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
                                 , VoteDelegCert { delegator = VKeyHash myStakeKeyHash, drep = DrepCredential <| VKeyHash <| dummyCredentialHash "drep" }
                                 ]
                         }

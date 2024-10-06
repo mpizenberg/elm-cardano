@@ -1271,8 +1271,8 @@ preProcessIntents txIntents =
 
                 IssueCertificate (DelegateStake { delegator, poolId }) ->
                     preprocessCert
-                        (\keyCred -> StakeDelegation { delegator = VKeyHash keyCred, poolId = poolId })
-                        (\scriptHash -> StakeDelegation { delegator = ScriptHash scriptHash, poolId = poolId })
+                        (\keyCred -> StakeDelegationCert { delegator = VKeyHash keyCred, poolId = poolId })
+                        (\scriptHash -> StakeDelegationCert { delegator = ScriptHash scriptHash, poolId = poolId })
                         { deposit = Natural.zero, refund = Natural.zero }
                         delegator
                         preProcessedIntents
@@ -1319,13 +1319,13 @@ preProcessIntents txIntents =
 
                 IssueCertificate (RegisterPool { deposit } poolParams) ->
                     { preProcessedIntents
-                        | certificates = PoolRegistration poolParams :: preProcessedIntents.certificates
+                        | certificates = PoolRegistrationCert poolParams :: preProcessedIntents.certificates
                         , totalCertDeposit = Natural.add deposit preProcessedIntents.totalCertDeposit
                     }
 
                 IssueCertificate (RetirePool { poolId, epoch }) ->
                     { preProcessedIntents
-                        | certificates = PoolRetirement { poolId = poolId, epoch = epoch } :: preProcessedIntents.certificates
+                        | certificates = PoolRetirementCert { poolId = poolId, epoch = epoch } :: preProcessedIntents.certificates
                     }
 
                 Vote _ _ ->
@@ -2171,25 +2171,25 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
 extractCertificateCred : Certificate -> List (Bytes CredentialHash)
 extractCertificateCred cert =
     case cert of
-        StakeRegistration _ ->
+        StakeRegistrationCert _ ->
             -- not needed, but this will be deprecated anyway
             []
 
-        StakeDeregistration { delegator } ->
+        StakeDeregistrationCert { delegator } ->
             [ Address.extractCredentialHash delegator ]
 
-        StakeDelegation { delegator } ->
+        StakeDelegationCert { delegator } ->
             [ Address.extractCredentialHash delegator ]
 
-        PoolRegistration { poolOwners } ->
+        PoolRegistrationCert { poolOwners } ->
             -- Is that correct?
             poolOwners
 
-        PoolRetirement _ ->
+        PoolRetirementCert _ ->
             Debug.todo "How many signatures for pool retirement?"
 
         -- Not handled, deprecated
-        GenesisKeyDelegation _ ->
+        GenesisKeyDelegationCert _ ->
             []
 
         -- Not handled, deprecated

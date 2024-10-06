@@ -267,12 +267,12 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = StakeRegistration { delegator : Credential } -- 0 (will be deprecated after Conway)
-    | StakeDeregistration { delegator : Credential } -- 1 (will be deprecated after Conway)
-    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId } -- 2
-    | PoolRegistration PoolParams -- 3
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural } -- 4
-    | GenesisKeyDelegation
+    = StakeRegistrationCert { delegator : Credential } -- 0 (will be deprecated after Conway)
+    | StakeDeregistrationCert { delegator : Credential } -- 1 (will be deprecated after Conway)
+    | StakeDelegationCert { delegator : Credential, poolId : Bytes PoolId } -- 2
+    | PoolRegistrationCert PoolParams -- 3
+    | PoolRetirementCert { poolId : Bytes PoolId, epoch : Natural } -- 4
+    | GenesisKeyDelegationCert
         -- 5 (deprecated in Conway)
         { genesisHash : Bytes GenesisHash
         , genesisDelegateHash : Bytes GenesisDelegateHash
@@ -776,23 +776,23 @@ encodeCertificate : Certificate -> E.Encoder
 encodeCertificate certificate =
     E.list identity <|
         case certificate of
-            StakeRegistration { delegator } ->
+            StakeRegistrationCert { delegator } ->
                 [ E.int 0
                 , Address.credentialToCbor delegator
                 ]
 
-            StakeDeregistration { delegator } ->
+            StakeDeregistrationCert { delegator } ->
                 [ E.int 1
                 , Address.credentialToCbor delegator
                 ]
 
-            StakeDelegation { delegator, poolId } ->
+            StakeDelegationCert { delegator, poolId } ->
                 [ E.int 2
                 , Address.credentialToCbor delegator
                 , Bytes.toCbor poolId
                 ]
 
-            PoolRegistration poolParams ->
+            PoolRegistrationCert poolParams ->
                 [ E.int 3
                 , Bytes.toCbor poolParams.operator
                 , Bytes.toCbor poolParams.vrfKeyHash
@@ -805,13 +805,13 @@ encodeCertificate certificate =
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
-            PoolRetirement { poolId, epoch } ->
+            PoolRetirementCert { poolId, epoch } ->
                 [ E.int 4
                 , Bytes.toCbor poolId
                 , EE.natural epoch
                 ]
 
-            GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
+            GenesisKeyDelegationCert { genesisHash, genesisDelegateHash, vrfKeyHash } ->
                 [ E.int 5
                 , Bytes.toCbor genesisHash
                 , Bytes.toCbor genesisDelegateHash
@@ -1282,27 +1282,27 @@ decodeCertificateHelper length id =
     case ( length, id ) of
         -- stake_registration = (0, stake_credential)
         ( 2, 0 ) ->
-            D.map (\cred -> StakeRegistration { delegator = cred }) decodeCredential
+            D.map (\cred -> StakeRegistrationCert { delegator = cred }) decodeCredential
 
         -- stake_deregistration = (1, stake_credential)
         ( 2, 1 ) ->
-            D.map (\cred -> StakeDeregistration { delegator = cred }) decodeCredential
+            D.map (\cred -> StakeDeregistrationCert { delegator = cred }) decodeCredential
 
         -- stake_delegation = (2, stake_credential, pool_keyhash)
         ( 3, 2 ) ->
             D.map2
-                (\cred poolId -> StakeDelegation { delegator = cred, poolId = poolId })
+                (\cred poolId -> StakeDelegationCert { delegator = cred, poolId = poolId })
                 decodeCredential
                 (D.map Bytes.fromBytes D.bytes)
 
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
         ( 10, 3 ) ->
-            D.map PoolRegistration <| D.oneOf [ decodePoolParams, D.failWith "Failed to decode pool params" ]
+            D.map PoolRegistrationCert <| D.oneOf [ decodePoolParams, D.failWith "Failed to decode pool params" ]
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
-            D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
+            D.map2 (\poolId epoch -> PoolRetirementCert { poolId = poolId, epoch = epoch })
                 (D.map Bytes.fromBytes D.bytes)
                 D.natural
 
@@ -1310,7 +1310,7 @@ decodeCertificateHelper length id =
         ( 4, 5 ) ->
             D.map3
                 (\genHash genDelHash vrfKeyHash ->
-                    GenesisKeyDelegation
+                    GenesisKeyDelegationCert
                         { genesisHash = genHash
                         , genesisDelegateHash = genDelHash
                         , vrfKeyHash = vrfKeyHash
