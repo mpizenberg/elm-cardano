@@ -2,15 +2,16 @@ module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
+import Cardano exposing (CertificateIntent(..), CredentialWitness(..), Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.Data as Data
+import Cardano.Gov exposing (Drep(..))
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
 import Cardano.Script as Script exposing (PlutusVersion(..))
-import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
+import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction, newBody, newWitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
@@ -47,7 +48,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -78,7 +79,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -102,7 +103,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -141,7 +142,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -174,8 +175,8 @@ okTxBuilding =
                             | vkeywitness =
                                 Just
                                     -- Two keys since I pay the fee, and spend your utxo
-                                    [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" }
-                                    , { vkey = dummyBytes 32 "VKEYyou", signature = dummyBytes 64 "SIGNATUREyou" }
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYkey-you", signature = dummyBytes 64 "SIGNATUREkey-you" }
                                     ]
                         }
                 }
@@ -213,7 +214,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -253,7 +254,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -311,7 +312,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -419,11 +420,55 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                             , plutusV3Script = Just [ lock.scriptBytes ]
                             , redeemer =
                                 Uplc.evalScriptsCosts Uplc.defaultVmConfig (Utxo.refDictFromList localStateUtxos) tx
                                     |> Result.toMaybe
+                        }
+                }
+            )
+
+        -- Test with stake registration, pool delegation and drep delegation
+        , let
+            myStakeKeyHash =
+                Address.extractStakeKeyHash testAddr.me
+                    |> Maybe.withDefault (dummyCredentialHash "ERROR")
+          in
+          okTxTest "Test with stake registration, pool delegation and drep delegation"
+            { localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                ]
+            , evalScriptsCosts = \_ _ -> Ok []
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| FromWallet testAddr.me <| Value.onlyLovelace (ada 2) -- 2 ada for the registration deposit
+                , IssueCertificate <| RegisterStake { delegator = WithKey myStakeKeyHash, deposit = ada 2 }
+                , IssueCertificate <| DelegateStake { delegator = WithKey myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+                , IssueCertificate <| DelegateVotes { delegator = WithKey myStakeKeyHash, drep = VKeyHash <| dummyCredentialHash "drep" }
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = ada 2
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me (ada 1) ]
+                            , certificates =
+                                [ RegCert { delegator = VKeyHash myStakeKeyHash, deposit = Natural.fromSafeInt 2000000 }
+                                , StakeDelegation { delegator = VKeyHash myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+                                , VoteDelegCert { delegator = VKeyHash myStakeKeyHash, drep = DrepCredential <| VKeyHash <| dummyCredentialHash "drep" }
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness =
+                                Just
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYstk-me", signature = dummyBytes 64 "SIGNATUREstk-me" }
+                                    ]
                         }
                 }
             )
@@ -734,8 +779,8 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (dummyCredentialHash name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
+        , paymentCredential = VKeyHash (dummyCredentialHash <| "key-" ++ name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash <| "stk-" ++ name))
         }
 
 
