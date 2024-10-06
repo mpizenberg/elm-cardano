@@ -2,7 +2,7 @@ module Cardano.TxBuilding exposing (suite)
 
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (CertificateIntent(..), CredentialWitness(..), Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
+import Cardano exposing (CertificateIntent(..), CredentialWitness(..), Fee(..), GovernanceState, ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.Data as Data
@@ -33,7 +33,8 @@ okTxBuilding : Test
 okTxBuilding =
     describe "Successfull"
         [ okTxTest "with just manual fees"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -53,7 +54,8 @@ okTxBuilding =
                 }
             )
         , okTxTest "with just auto fees"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = autoFee
             , txOtherInfo = []
@@ -84,7 +86,8 @@ okTxBuilding =
                 }
             )
         , okTxTest "with spending from, and sending to the same address"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -120,7 +123,8 @@ okTxBuilding =
                 in
                 Expect.ok (Cardano.finalize localStateUtxos [] txIntents)
         , okTxTest "send 1 ada from me to you"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -147,7 +151,8 @@ okTxBuilding =
                 }
             )
         , okTxTest "I pay the fees for your ada transfer to me"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAdaOutput 1 testAddr.you 7
                 ]
@@ -189,7 +194,8 @@ okTxBuilding =
                 { threeCat | lovelace = ada 2 }
           in
           okTxTest "send 3 cat with 2 ada from me to you"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
@@ -229,7 +235,8 @@ okTxBuilding =
                 { threeCat | lovelace = minAda }
           in
           okTxTest "send 3 cat with minAda from me to you"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
@@ -259,7 +266,8 @@ okTxBuilding =
                 }
             )
         , okTxTest "mint 1 dog and burn 1 cat"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
                 , ( dog.scriptRef, dog.refOutput )
@@ -376,7 +384,8 @@ okTxBuilding =
                 ]
           in
           okTxTest "spend 2 ada from a plutus script holding 4 ada"
-            { localStateUtxos = localStateUtxos
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = localStateUtxos
             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -436,7 +445,8 @@ okTxBuilding =
                     |> Maybe.withDefault (dummyCredentialHash "ERROR")
           in
           okTxTest "Test with stake registration, pool delegation and drep delegation"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 ]
             , evalScriptsCosts = \_ _ -> Ok []
@@ -478,7 +488,8 @@ okTxBuilding =
 okTxTest :
     String
     ->
-        { localStateUtxos : List ( OutputReference, Output )
+        { govState : GovernanceState
+        , localStateUtxos : List ( OutputReference, Output )
         , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
@@ -486,12 +497,13 @@ okTxTest :
         }
     -> (Transaction -> Transaction)
     -> Test
-okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectTransaction =
+okTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectTransaction =
     test description <|
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { govState = govState
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }
@@ -515,7 +527,8 @@ failTxBuilding =
                 in
                 Expect.equal (Err UnableToGuessFeeSource) (Cardano.finalize localStateUtxos [] [])
         , failTxTest "when there is no utxo in local state"
-            { localStateUtxos = []
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -530,7 +543,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there is insufficient manual fee (0.1 ada here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = Natural.fromSafeInt 100000 } ]
             , txOtherInfo = []
@@ -545,7 +559,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when inputs are missing from local state"
-            { localStateUtxos = []
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -563,7 +578,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when Tx intents are unbalanced (too much spend here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -578,7 +594,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when Tx intents are unbalanced (too much send here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -593,7 +610,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there is not enough minAda in created output (100 lovelaces here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -611,7 +629,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when we send CNT without Ada"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
                 ]
@@ -632,7 +651,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there are duplicated metadata tags (tag 0 here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo =
@@ -650,7 +670,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when validity range is incorrect (start > end)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = [ TxTimeValidityRange { start = 1, end = Natural.zero } ]
@@ -672,7 +693,8 @@ failTxBuilding =
 failTxTest :
     String
     ->
-        { localStateUtxos : List ( OutputReference, Output )
+        { govState : GovernanceState
+        , localStateUtxos : List ( OutputReference, Output )
         , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
@@ -680,12 +702,13 @@ failTxTest :
         }
     -> (TxFinalizationError -> Expectation)
     -> Test
-failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectedFailure =
+failTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectedFailure =
     test description <|
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { govState = govState
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }

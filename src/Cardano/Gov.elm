@@ -200,9 +200,7 @@ type Action
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
       -- 3
-    | NoConfidence
-        { latestEnacted : Maybe ActionId
-        }
+    | NoConfidence { latestEnacted : Maybe ActionId }
       -- 4
     | UpdateCommittee
         { latestEnacted : Maybe ActionId
