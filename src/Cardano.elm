@@ -2369,7 +2369,7 @@ extractCertificateCred cert =
             [ Address.extractCredentialHash delegator ]
 
         AuthCommitteeHotCert _ ->
-            Debug.todo "How many signatures for AuthCommitteHortCert?"
+            Debug.todo "How many signatures for AuthCommitteeHotCert?"
 
         ResignCommitteeColdCert _ ->
             Debug.todo "How many signatures for ResignCommitteeColdCert?"
