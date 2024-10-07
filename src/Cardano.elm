@@ -2333,12 +2333,11 @@ extractCertificateCred cert =
         StakeDelegationCert { delegator } ->
             [ Address.extractCredentialHash delegator ]
 
-        PoolRegistrationCert { poolOwners } ->
-            -- Is that correct?
-            poolOwners
+        PoolRegistrationCert { operator, poolOwners } ->
+            operator :: poolOwners
 
-        PoolRetirementCert _ ->
-            Debug.todo "How many signatures for pool retirement?"
+        PoolRetirementCert { poolId } ->
+            [ poolId ]
 
         -- Not handled, deprecated
         GenesisKeyDelegationCert _ ->

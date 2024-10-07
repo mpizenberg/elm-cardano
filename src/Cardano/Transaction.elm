@@ -300,8 +300,8 @@ This is a 28-bytes Blake2b-224 hash.
 -- TODO: Move Pool stuff into its own module
 
 -}
-type PoolId
-    = PoolId Never
+type alias PoolId =
+    CredentialHash
 
 
 {-| Phantom type for Genesis hash.
