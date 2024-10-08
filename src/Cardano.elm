@@ -1145,8 +1145,7 @@ type alias PreProcessedIntents =
     , requiredSigners : List (List (Bytes CredentialHash))
     , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
-    , certificates : List Certificate
-    , certificatesRedeemers : List (InputsOutputs -> Data)
+    , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposalIntents : List ProposalIntent
     , totalDeposit : Natural
     , totalRefund : Natural
@@ -1166,7 +1165,6 @@ noIntent =
     , mints = []
     , withdrawals = []
     , certificates = []
-    , certificatesRedeemers = []
     , proposalIntents = []
     , totalDeposit = Natural.zero
     , totalRefund = Natural.zero
@@ -1357,13 +1355,13 @@ preProcessIntents txIntents =
 
                 IssueCertificate (RegisterPool { deposit } poolParams) ->
                     { preProcessedIntents
-                        | certificates = PoolRegistrationCert poolParams :: preProcessedIntents.certificates
+                        | certificates = ( PoolRegistrationCert poolParams, Nothing ) :: preProcessedIntents.certificates
                         , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
                     }
 
                 IssueCertificate (RetirePool { poolId, epoch }) ->
                     { preProcessedIntents
-                        | certificates = PoolRetirementCert { poolId = poolId, epoch = epoch } :: preProcessedIntents.certificates
+                        | certificates = ( PoolRetirementCert { poolId = poolId, epoch = epoch }, Nothing ) :: preProcessedIntents.certificates
                     }
 
                 Vote _ _ ->
@@ -1396,14 +1394,14 @@ preprocessCert certWithKeyF certWithScriptF { deposit, refund } cred preProcesse
     case cred of
         WithKey keyCred ->
             { preProcessedIntents
-                | certificates = certWithKeyF keyCred :: preProcessedIntents.certificates
+                | certificates = ( certWithKeyF keyCred, Nothing ) :: preProcessedIntents.certificates
                 , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
                 , totalRefund = Natural.add refund preProcessedIntents.totalRefund
             }
 
         WithScript scriptHash (NativeWitness script) ->
             { preProcessedIntents
-                | certificates = certWithScriptF scriptHash :: preProcessedIntents.certificates
+                | certificates = ( certWithScriptF scriptHash, Nothing ) :: preProcessedIntents.certificates
                 , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
                 , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
                 , totalRefund = Natural.add refund preProcessedIntents.totalRefund
@@ -1411,8 +1409,7 @@ preprocessCert certWithKeyF certWithScriptF { deposit, refund } cred preProcesse
 
         WithScript scriptHash (PlutusWitness { script, redeemerData, requiredSigners }) ->
             { preProcessedIntents
-                | certificates = certWithScriptF scriptHash :: preProcessedIntents.certificates
-                , certificatesRedeemers = redeemerData :: preProcessedIntents.certificatesRedeemers
+                | certificates = ( certWithScriptF scriptHash, Just redeemerData ) :: preProcessedIntents.certificates
                 , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
                 , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
                 , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
@@ -1432,14 +1429,8 @@ type alias ProcessedIntents =
     , totalMinted : MultiAsset Integer
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
-    , certificates : List Certificate
-
-    -- TODO: actually, I probably need to keep track
-    -- of the cert and proposal redeemers indices!
-    -- Instead of having a separate list where I lost where these came from :facepalm:
-    , certificatesRedeemers : List (InputsOutputs -> Data)
-    , proposals : List ProposalProcedure
-    , proposalsRedeemers : List Data
+    , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
+    , proposals : List ( ProposalProcedure, Maybe Data )
     }
 
 
@@ -1598,18 +1589,18 @@ processIntents govState localStateUtxos txIntents =
                         List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
                             |> Address.stakeDictFromList
                     , certificates = preProcessedIntents.certificates
-                    , certificatesRedeemers = preProcessedIntents.certificatesRedeemers
                     , proposals =
                         preProcessedIntents.proposalIntents
                             |> List.map
                                 (\{ govAction, offchainInfo, deposit, depositReturnAccount } ->
-                                    { deposit = deposit
-                                    , depositReturnAccount = depositReturnAccount
-                                    , anchor = offchainInfo
-                                    , govAction = actionFromIntent govState govAction
-                                    }
+                                    ( { deposit = deposit
+                                      , depositReturnAccount = depositReturnAccount
+                                      , anchor = offchainInfo
+                                      , govAction = actionFromIntent govState govAction
+                                      }
+                                    , proposalRedeemer govAction
+                                    )
                                 )
-                    , proposalsRedeemers = List.filterMap (\p -> proposalRedeemer p.govAction) preProcessedIntents.proposalIntents
                     }
                 )
 
@@ -1949,7 +1940,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
 
         -- Perform coin selection and output creation with the change
         -- for all address where there are target values (inputs and fees)
-        -- TODO: do it instead per credential, not per address
+        -- TODO: do it instead per credential, not per address???
         coinSelectionAndChangeOutputs : Result TxFinalizationError (Address.Dict ( CoinSelection.Selection, List Output ))
         coinSelectionAndChangeOutputs =
             targetValuesAndOutputs
@@ -2163,14 +2154,24 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         -- No need to sort certificates redeemers
         certRedeemers : List Redeemer
         certRedeemers =
-            processedIntents.certificatesRedeemers
-                |> List.indexedMap (\id redeemerF -> makeRedeemer Redeemer.Cert id (redeemerF inputsOutputs))
+            processedIntents.certificates
+                |> List.indexedMap
+                    (\id ( _, maybeRedeemerF ) ->
+                        Maybe.map
+                            (\redeemerF -> makeRedeemer Redeemer.Cert id (redeemerF inputsOutputs))
+                            maybeRedeemerF
+                    )
+                |> List.filterMap identity
 
         -- No need to sort proposals redeemers
         proposalRedeemers : List Redeemer
         proposalRedeemers =
-            processedIntents.proposalsRedeemers
-                |> List.indexedMap (\id data -> makeRedeemer Redeemer.Propose id data)
+            processedIntents.proposals
+                |> List.indexedMap
+                    (\id ( _, maybeData ) ->
+                        Maybe.map (makeRedeemer Redeemer.Propose id) maybeData
+                    )
+                |> List.filterMap identity
 
         -- Look for inputs at addresses that will need signatures
         walletCredsInInputs : List (Bytes CredentialHash)
@@ -2191,7 +2192,8 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         -- Look for stake credentials needed for certificates
         certificatesCreds : List (Bytes CredentialHash)
         certificatesCreds =
-            List.concatMap extractCertificateCred processedIntents.certificates
+            List.map Tuple.first processedIntents.certificates
+                |> List.concatMap extractCertificateCred
 
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
@@ -2285,7 +2287,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , outputs = inputsOutputs.createdOutputs
             , fee = feeAmount
             , ttl = Maybe.map .end otherInfo.timeValidityRange
-            , certificates = processedIntents.certificates
+            , certificates = List.map Tuple.first processedIntents.certificates
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing
             , auxiliaryDataHash =
@@ -2309,7 +2311,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
             , votingProcedures = [] -- TODO votingProcedures
-            , proposalProcedures = processedIntents.proposals
+            , proposalProcedures = List.map Tuple.first processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation
             }
