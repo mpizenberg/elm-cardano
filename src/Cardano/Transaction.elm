@@ -288,8 +288,8 @@ type Certificate
     | StakeRegDelegCert { delegator : Credential, poolId : Bytes PoolId, deposit : Natural } -- 11 Registers stake credentials and delegates to a stake pool
     | VoteRegDelegCert { delegator : Credential, drep : Drep, deposit : Natural } -- 12 Registers stake credentials and delegates to a DRep
     | StakeVoteRegDelegCert { delegator : Credential, poolId : Bytes PoolId, drep : Drep, deposit : Natural } -- 13 Registers stake credentials, delegates to a pool, and to a DRep
-    | AuthCommitteeHotCert { commiteeColdCredential : Credential, comiteeHotCredential : Credential } -- 14 Authorizes the constitutional committee hot credential
-    | ResignCommitteeColdCert { commiteeColdCredential : Credential, anchor : Maybe Anchor } -- 15 Resigns the constitutional committee cold credential
+    | AuthCommitteeHotCert { committeeColdCredential : Credential, committeeHotCredential : Credential } -- 14 Authorizes the constitutional committee hot credential
+    | ResignCommitteeColdCert { committeeColdCredential : Credential, anchor : Maybe Anchor } -- 15 Resigns the constitutional committee cold credential
     | RegDrepCert { drepCredential : Credential, deposit : Natural, anchor : Maybe Anchor } -- 16 Registers DRep's credentials
     | UnregDrepCert { drepCredential : Credential, refund : Natural } -- 17 Unregisters (retires) DRep's credentials
     | UpdateDrepCert { drepCredential : Credential, anchor : Maybe Anchor } -- 18 Updates DRep's metadata anchor
@@ -879,16 +879,16 @@ encodeCertificate certificate =
                 ]
 
             -- 14 Authorizes the constitutional committee hot credential
-            AuthCommitteeHotCert { commiteeColdCredential, comiteeHotCredential } ->
+            AuthCommitteeHotCert { committeeColdCredential, committeeHotCredential } ->
                 [ E.int 14
-                , Address.credentialToCbor commiteeColdCredential
-                , Address.credentialToCbor comiteeHotCredential
+                , Address.credentialToCbor committeeColdCredential
+                , Address.credentialToCbor committeeHotCredential
                 ]
 
             -- 15 Resigns the constitutional committee cold credential
-            ResignCommitteeColdCert { commiteeColdCredential, anchor } ->
+            ResignCommitteeColdCert { committeeColdCredential, anchor } ->
                 [ E.int 15
-                , Address.credentialToCbor commiteeColdCredential
+                , Address.credentialToCbor committeeColdCredential
                 , E.maybe Gov.encodeAnchor anchor
                 ]
 
@@ -1382,14 +1382,14 @@ decodeCertificateHelper length id =
         -- auth_committee_hot_cert = (14, committee_cold_credential, committee_hot_credential)
         ( 3, 14 ) ->
             D.map2
-                (\cold hot -> AuthCommitteeHotCert { commiteeColdCredential = cold, comiteeHotCredential = hot })
+                (\cold hot -> AuthCommitteeHotCert { committeeColdCredential = cold, committeeHotCredential = hot })
                 decodeCredential
                 decodeCredential
 
         -- resign_committee_cold_cert = (15, committee_cold_credential, anchor / nil)
         ( 3, 15 ) ->
             D.map2
-                (\cold anchor -> ResignCommitteeColdCert { commiteeColdCredential = cold, anchor = anchor })
+                (\cold anchor -> ResignCommitteeColdCert { committeeColdCredential = cold, anchor = anchor })
                 decodeCredential
                 (D.maybe Gov.decodeAnchor)
 

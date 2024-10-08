@@ -492,7 +492,7 @@ credentialIsPlutusScript cred =
 a DRep, a stake pool, or Constitutional Committee member.
 -}
 type VoterWitness
-    = WithCommiteeHotCred CredentialWitness
+    = WithCommitteeHotCred CredentialWitness
     | WithDrepCred CredentialWitness
     | WithPoolCred (Bytes CredentialHash)
 
@@ -891,7 +891,7 @@ containPlutusScripts txIntents =
 
         (Vote voter _) :: otherIntents ->
             case voter of
-                WithCommiteeHotCred (WithScript _ (PlutusWitness _)) ->
+                WithCommitteeHotCred (WithScript _ (PlutusWitness _)) ->
                     True
 
                 WithDrepCred (WithScript _ (PlutusWitness _)) ->
@@ -1362,18 +1362,18 @@ preProcessIntents txIntents =
                         | certificates = ( PoolRetirementCert { poolId = poolId, epoch = epoch }, Nothing ) :: preProcessedIntents.certificates
                     }
 
-                Vote (WithCommiteeHotCred (WithKey cred)) votes ->
+                Vote (WithCommitteeHotCred (WithKey cred)) votes ->
                     { preProcessedIntents
                         | votes = { voter = VoterCommitteeHotCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                     }
 
-                Vote (WithCommiteeHotCred (WithScript cred (NativeWitness script))) votes ->
+                Vote (WithCommitteeHotCred (WithScript cred (NativeWitness script))) votes ->
                     { preProcessedIntents
                         | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                         , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
                     }
 
-                Vote (WithCommiteeHotCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
+                Vote (WithCommitteeHotCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
                     { preProcessedIntents
                         | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Just redeemerData } :: preProcessedIntents.votes
                         , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
