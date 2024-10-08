@@ -12,7 +12,7 @@ module Cardano.Gov exposing
     , Nonce(..), UnitInterval, PositiveInterval
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
-    , Voter(..), voterFromCbor, encodeVoter
+    , Voter(..), voterTag, voterFromCbor, encodeVoter
     , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
     )
 
@@ -44,14 +44,14 @@ module Cardano.Gov exposing
 
 @docs Vote, encodeVote
 
-@docs Voter, voterFromCbor, encodeVoter
+@docs Voter, voterTag, voterFromCbor, encodeVoter
 
 @docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
-import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
+import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
 import Cardano.MultiAsset exposing (PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, decodeExUnitPrices, encodeExUnitPrices)
 import Cardano.Utils exposing (RationalNumber, decodeRational, encodeRationalNumber)
@@ -77,6 +77,27 @@ type Voter
     = VoterCommitteeHotCred Credential -- 0, addr_keyhash // 1, scripthash
     | VoterDrepCred Credential -- 2, addr_keyhash // 3, scripthash
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
+
+
+{-| Helper function to help sort voters.
+-}
+voterTag : Voter -> Int
+voterTag voter =
+    case voter of
+        VoterCommitteeHotCred (VKeyHash _) ->
+            0
+
+        VoterCommitteeHotCred (ScriptHash _) ->
+            1
+
+        VoterDrepCred (VKeyHash _) ->
+            2
+
+        VoterDrepCred (ScriptHash _) ->
+            3
+
+        VoterPoolId _ ->
+            4
 
 
 {-| Decoder for Voter type.

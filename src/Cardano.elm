@@ -380,7 +380,7 @@ import Cardano.Address as Address exposing (Address(..), Credential(..), Credent
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter(..))
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
@@ -420,11 +420,7 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
-    | Vote
-        Vote
-        { voter : VoterWitness
-        , action : ActionId
-        }
+    | Vote VoterWitness (List { actionId : ActionId, vote : Vote })
     | Propose ProposalIntent
 
 
@@ -893,7 +889,7 @@ containPlutusScripts txIntents =
                 _ ->
                     containPlutusScripts otherIntents
 
-        (Vote _ { voter }) :: otherIntents ->
+        (Vote voter _) :: otherIntents ->
             case voter of
                 WithCommiteeHotCred (WithScript _ (PlutusWitness _)) ->
                     True
@@ -1147,6 +1143,7 @@ type alias PreProcessedIntents =
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposalIntents : List ProposalIntent
+    , votes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
     , totalDeposit : Natural
     , totalRefund : Natural
     }
@@ -1166,6 +1163,7 @@ noIntent =
     , withdrawals = []
     , certificates = []
     , proposalIntents = []
+    , votes = []
     , totalDeposit = Natural.zero
     , totalRefund = Natural.zero
     }
@@ -1364,8 +1362,46 @@ preProcessIntents txIntents =
                         | certificates = ( PoolRetirementCert { poolId = poolId, epoch = epoch }, Nothing ) :: preProcessedIntents.certificates
                     }
 
-                Vote _ _ ->
-                    Debug.todo "vote"
+                Vote (WithCommiteeHotCred (WithKey cred)) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
+
+                Vote (WithCommiteeHotCred (WithScript cred (NativeWitness script))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                        , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                    }
+
+                Vote (WithCommiteeHotCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Just redeemerData } :: preProcessedIntents.votes
+                        , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                        , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                    }
+
+                Vote (WithDrepCred (WithKey cred)) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
+
+                Vote (WithDrepCred (WithScript cred (NativeWitness script))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                        , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                    }
+
+                Vote (WithDrepCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (ScriptHash cred), votes = votes, redeemer = Just redeemerData } :: preProcessedIntents.votes
+                        , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                        , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                    }
+
+                Vote (WithPoolCred cred) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterPoolId cred, votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
 
                 -- For proposals, we accumulate the deposit,
                 -- then we keep intents as is, because to actually convert the action type,
@@ -1431,6 +1467,7 @@ type alias ProcessedIntents =
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposals : List ( ProposalProcedure, Maybe Data )
+    , votes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
     }
 
 
@@ -1601,6 +1638,7 @@ processIntents govState localStateUtxos txIntents =
                                     , proposalRedeemer govAction
                                     )
                                 )
+                    , votes = preProcessedIntents.votes
                     }
                 )
 
@@ -2173,6 +2211,23 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                     )
                 |> List.filterMap identity
 
+        -- Sort votes with the Voter order
+        txVotes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
+        txVotes =
+            List.sortBy (\{ voter } -> Gov.voterTag voter) processedIntents.votes
+
+        -- Build the Vote redeemer with the same order as txVotes
+        voteRedeemers : List Redeemer
+        voteRedeemers =
+            txVotes
+                |> List.indexedMap
+                    (\id { redeemer } ->
+                        Maybe.map
+                            (\redeemerF -> makeRedeemer Redeemer.Vote id (redeemerF inputsOutputs))
+                            redeemer
+                    )
+                |> List.filterMap identity
+
         -- Look for inputs at addresses that will need signatures
         walletCredsInInputs : List (Bytes CredentialHash)
         walletCredsInInputs =
@@ -2231,6 +2286,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         , sortedWithdrawalsRedeemers
                         , certRedeemers
                         , proposalRedeemers
+                        , voteRedeemers
                         ]
             }
 
@@ -2310,7 +2366,9 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
-            , votingProcedures = [] -- TODO votingProcedures
+            , votingProcedures =
+                txVotes
+                    |> List.map (\{ voter, votes } -> ( voter, List.map (\{ actionId, vote } -> ( actionId, Gov.VotingProcedure vote Nothing )) votes ))
             , proposalProcedures = List.map Tuple.first processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation

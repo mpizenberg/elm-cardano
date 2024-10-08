@@ -1,27 +1,28 @@
 module Cardano.TxExamples exposing
-    ( example1, example2, example3, example4, example5
+    ( example1, example2, example3, example4, example5, example6
     , prettyTx
     )
 
 {-| Just a module to make sure that examples compile when we change stuff.
 
-@docs example1, example2, example3, example4, example5
+@docs example1, example2, example3, example4, example5, example6
 
 @docs prettyTx
 
 -}
 
+import Blake2b exposing (blake2b224)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWitness(..), Fee(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), dummyBytes, finalize, finalizeAdvanced)
+import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWitness(..), Fee(..), ScriptWitness(..), SpendSource(..), TxIntent(..), TxOtherInfo(..), VoterWitness(..), WitnessSource(..), dummyBytes, finalize, finalizeAdvanced)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
-import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, noParamUpdate)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, Vote(..), noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits)
-import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
+import Cardano.Script as Script exposing (NativeScript(..), PlutusScript, PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction)
 import Cardano.Uplc as Uplc
 import Cardano.Utils exposing (RationalNumber)
@@ -332,6 +333,55 @@ example5 _ =
             }
             (AutoFee { paymentSource = exAddr.me })
             []
+
+
+
+-- EXAMPLE 6: Votes
+
+
+example6 _ =
+    let
+        myStakeKeyHash =
+            Address.extractStakeKeyHash exAddr.me
+                |> Maybe.withDefault (dummyCredentialHash "ERROR")
+
+        -- Action being voted on
+        actionId =
+            { transactionId = dummyBytes 32 "actionTx-"
+            , govActionIndex = 0
+            }
+
+        -- Trivial native script drep that always succeed
+        drepScript =
+            ScriptAll []
+
+        drepScriptCbor =
+            E.encode (Script.encodeNativeScript drepScript)
+                |> Bytes.fromBytes
+
+        drepScriptHash =
+            blake2b224 Nothing (Bytes.toU8 drepScriptCbor)
+                |> Bytes.fromU8
+
+        -- Define different voters
+        withMyDrepCred =
+            WithDrepCred (WithKey myStakeKeyHash)
+
+        withMyPoolCred =
+            WithDrepCred (WithKey <| dummyCredentialHash "poolId-")
+
+        withMyDrepScript =
+            WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
+    in
+    [ Vote withMyDrepCred [ { actionId = actionId, vote = VoteYes } ]
+    , Vote withMyPoolCred [ { actionId = actionId, vote = VoteYes } ]
+    , Vote withMyDrepScript [ { actionId = actionId, vote = VoteYes } ]
+
+    -- Round trip Ada just to help the Tx builder figuring out who is paying the Tx fee
+    , Spend <| FromWallet exAddr.me ada.one
+    , SendTo exAddr.me ada.one
+    ]
+        |> finalize globalStateUtxos []
 
 
 
