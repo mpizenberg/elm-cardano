@@ -119,23 +119,23 @@ And the Credential definition uses ScriptHash first, instead of VKeyHash first.
 <https://github.com/IntersectMBO/cardano-ledger/blob/2f199b94716350b5fbd6c07505eb333d89cffa90/libs/cardano-ledger-core/src/Cardano/Ledger/Credential.hs#L85>
 
 -}
-voterLedgerOrder : Voter -> Int
+voterLedgerOrder : Voter -> ( Int, String )
 voterLedgerOrder voter =
     case voter of
-        VoterCommitteeHotCred (ScriptHash _) ->
-            0
+        VoterCommitteeHotCred (ScriptHash hash) ->
+            ( 0, Bytes.toHex hash )
 
-        VoterCommitteeHotCred (VKeyHash _) ->
-            1
+        VoterCommitteeHotCred (VKeyHash hash) ->
+            ( 1, Bytes.toHex hash )
 
-        VoterDrepCred (ScriptHash _) ->
-            2
+        VoterDrepCred (ScriptHash hash) ->
+            ( 2, Bytes.toHex hash )
 
-        VoterDrepCred (VKeyHash _) ->
-            3
+        VoterDrepCred (VKeyHash hash) ->
+            ( 3, Bytes.toHex hash )
 
-        VoterPoolId _ ->
-            4
+        VoterPoolId hash ->
+            ( 4, Bytes.toHex hash )
 
 
 {-| Decoder for Voter type.

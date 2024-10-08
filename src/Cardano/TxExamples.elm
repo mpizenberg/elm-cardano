@@ -18,7 +18,7 @@ import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWi
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
-import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, Vote(..), noParamUpdate)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, Vote(..), Voter(..), VotingProcedure, noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits)
@@ -368,14 +368,14 @@ example6 _ =
             WithDrepCred (WithKey myStakeKeyHash)
 
         withMyPoolCred =
-            WithDrepCred (WithKey <| dummyCredentialHash "poolId-")
+            WithPoolCred (dummyCredentialHash "poolId-")
 
         withMyDrepScript =
             WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
     in
     [ Vote withMyDrepCred [ { actionId = actionId, vote = VoteYes } ]
-    , Vote withMyPoolCred [ { actionId = actionId, vote = VoteYes } ]
-    , Vote withMyDrepScript [ { actionId = actionId, vote = VoteYes } ]
+    , Vote withMyPoolCred [ { actionId = actionId, vote = VoteNo } ]
+    , Vote withMyDrepScript [ { actionId = actionId, vote = VoteAbstain } ]
 
     -- Round trip Ada just to help the Tx builder figuring out who is paying the Tx fee
     , Spend <| FromWallet exAddr.me ada.one
@@ -537,6 +537,34 @@ prettyCert cert =
 
         UpdateDrepCert { drepCredential } ->
             "update-drep-cert of " ++ prettyCred drepCredential
+
+
+prettyVote : ( Voter, List ( ActionId, VotingProcedure ) ) -> List String
+prettyVote ( voter, votes ) =
+    let
+        voterStr =
+            case voter of
+                VoterCommitteeHotCred cred ->
+                    "Committee Hot Key: " ++ prettyCred cred
+
+                VoterDrepCred cred ->
+                    "DRep: " ++ prettyCred cred
+
+                VoterPoolId poolId ->
+                    "Pool: " ++ (Bytes.toText poolId |> Maybe.withDefault (Bytes.toHex poolId))
+
+        voteStr ( actionId, procedure ) =
+            case procedure.vote of
+                VoteNo ->
+                    "vote NO for: " ++ prettyActionId actionId
+
+                VoteYes ->
+                    "vote YET for: " ++ prettyActionId actionId
+
+                VoteAbstain ->
+                    "vote ABSTAIN for: " ++ prettyActionId actionId
+    in
+    voterStr :: List.map (indent 3 << voteStr) votes
 
 
 prettyProposal : ProposalProcedure -> List String
@@ -871,6 +899,9 @@ prettyTx tx =
                 , prettyList "Tx certificates:" prettyCert tx.body.certificates
                 , [ "Tx proposals:" ]
                 , List.concatMap prettyProposal tx.body.proposalProcedures
+                    |> List.map (indent 3)
+                , [ "Tx votes:" ]
+                , List.concatMap prettyVote tx.body.votingProcedures
                     |> List.map (indent 3)
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
