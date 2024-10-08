@@ -23,6 +23,7 @@
         "Cardano.Script",
         "Cardano.Transaction",
         "Cardano.Uplc",
+        "Cardano.Utils",
         "Cardano.Utxo",
         "Cardano.Value",
         "Cbor.Decode.Extra",

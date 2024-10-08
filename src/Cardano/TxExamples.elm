@@ -17,13 +17,14 @@ import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWi
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
-import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, ExUnitPrices, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, RationalNumber, noParamUpdate)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
-import Cardano.Redeemer exposing (ExUnits)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, Redeemer)
 import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
-import Cardano.Transaction exposing (Certificate(..), Transaction)
+import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction)
 import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
+import Cardano.Utils exposing (RationalNumber)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
 import Cbor.Encode as E
@@ -789,6 +790,7 @@ prettyRedeemer redeemer =
     String.join " "
         [ Debug.toString redeemer.tag
         , "index:" ++ String.fromInt redeemer.index
+        , "exPrice:₳" ++ Natural.toString (Redeemer.feeCost Transaction.defaultTxFeeParams.scriptExUnitPrice redeemer.exUnits)
         , "exUnits: mem " ++ String.fromInt redeemer.exUnits.mem ++ ", steps " ++ String.fromInt redeemer.exUnits.steps
         , "data:" ++ prettyCbor Data.toCbor redeemer.data
         ]

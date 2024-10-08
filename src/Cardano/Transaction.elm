@@ -47,10 +47,11 @@ import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (ActionId, Anchor, CostModels, Drep, ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
+import Cardano.Gov as Gov exposing (ActionId, Anchor, CostModels, Drep, ProposalProcedure, ProtocolParamUpdate, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
-import Cardano.Redeemer as Redeemer exposing (Redeemer)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
+import Cardano.Utils as Utils exposing (RationalNumber)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
@@ -798,7 +799,7 @@ encodeCertificate certificate =
                 , Bytes.toCbor poolParams.vrfKeyHash
                 , EE.natural poolParams.pledge
                 , EE.natural poolParams.cost
-                , Gov.encodeRationalNumber poolParams.margin
+                , Utils.encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
                 , E.list Bytes.toCbor poolParams.poolOwners
                 , E.list encodeRelay poolParams.relays
@@ -1430,7 +1431,7 @@ decodePoolParams =
         |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode vrfkeyhash" ])
         |> D.keep (D.oneOf [ D.natural, D.failWith "Failed to decode pledge" ])
         |> D.keep D.natural
-        |> D.keep (D.oneOf [ Gov.decodeRational, D.failWith "Failed to decode rational" ])
+        |> D.keep (D.oneOf [ Utils.decodeRational, D.failWith "Failed to decode rational" ])
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
         |> D.keep (D.set (D.map Bytes.fromBytes D.bytes))
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])

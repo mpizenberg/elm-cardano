@@ -9,8 +9,6 @@ module Cardano.Gov exposing
     , DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
     , CostModels, decodeCostModels, encodeCostModels
     , ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
-    , RationalNumber, decodeRational, encodeRationalNumber
-    , ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
     , Nonce(..), UnitInterval, PositiveInterval
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
@@ -40,10 +38,6 @@ module Cardano.Gov exposing
 
 @docs ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
 
-@docs RationalNumber, decodeRational, encodeRationalNumber
-
-@docs ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
-
 @docs Nonce, UnitInterval, PositiveInterval
 
 @docs VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
@@ -59,7 +53,8 @@ module Cardano.Gov exposing
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
 import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
 import Cardano.MultiAsset exposing (PolicyId)
-import Cardano.Redeemer as Redeemer exposing (ExUnits)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, decodeExUnitPrices, encodeExUnitPrices)
+import Cardano.Utils exposing (RationalNumber, decodeRational, encodeRationalNumber)
 import Cardano.Utxo exposing (TransactionId)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
@@ -601,14 +596,6 @@ type Nonce
     | RandomBytes (Bytes Any)
 
 
-{-| Represents execution unit prices.
--}
-type alias ExUnitPrices =
-    { memPrice : RationalNumber -- 0
-    , stepPrice : RationalNumber -- 1
-    }
-
-
 {-| Represents a protocol version.
 -}
 type alias ProtocolVersion =
@@ -629,17 +616,6 @@ type alias PositiveInterval =
 
 
 -- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
-
-
-{-| Represents a rational number.
--}
-type alias RationalNumber =
-    { numerator : Int
-    , denominator : Int
-    }
-
-
-
 -- ENCODERS
 
 
@@ -652,27 +628,6 @@ encodeCostModels =
             >> E.optionalField 0 (E.list E.int) .plutusV1
             >> E.optionalField 1 (E.list E.int) .plutusV2
             >> E.optionalField 2 (E.list E.int) .plutusV3
-
-
-{-| Encoder for ExUnitPrices type.
--}
-encodeExUnitPrices : ExUnitPrices -> E.Encoder
-encodeExUnitPrices =
-    E.tuple <|
-        E.elems
-            >> E.elem encodeRationalNumber .memPrice
-            >> E.elem encodeRationalNumber .stepPrice
-
-
-{-| Encoder for RationalNumber type.
--}
-encodeRationalNumber : RationalNumber -> E.Encoder
-encodeRationalNumber =
-    E.tagged (Tag.Unknown 30) <|
-        E.tuple <|
-            E.elems
-                >> E.elem E.int .numerator
-                >> E.elem E.int .denominator
 
 
 {-| Encoder for Drep type.
@@ -956,35 +911,6 @@ decodeProtocolVersion =
         D.elems
             >> D.elem D.int
             >> D.elem D.int
-
-
-{-| Decoder for ExUnitPrices type.
--}
-decodeExUnitPrices : D.Decoder ExUnitPrices
-decodeExUnitPrices =
-    D.tuple ExUnitPrices <|
-        D.elems
-            >> D.elem decodeRational
-            >> D.elem decodeRational
-
-
-{-| Decoder for RationalNumber type.
--}
-decodeRational : D.Decoder RationalNumber
-decodeRational =
-    D.tag
-        |> D.andThen
-            (\tag ->
-                case tag of
-                    Tag.Unknown 30 ->
-                        D.tuple RationalNumber <|
-                            D.elems
-                                >> D.elem D.int
-                                >> D.elem D.int
-
-                    _ ->
-                        D.fail
-            )
 
 
 {-| Decoder for Drep type.
