@@ -836,22 +836,20 @@ prettyOutput { address, amount, datumOption, referenceScript } =
            )
 
 
-prettyList sectionTitle prettify list =
-    if List.isEmpty list then
+ifNonEmpty emptyCheck collection nonEmptyContent =
+    if emptyCheck collection then
         []
 
     else
-        sectionTitle
-            :: List.map (indent 3 << prettify) list
+        nonEmptyContent
+
+
+prettyList sectionTitle prettify list =
+    ifNonEmpty List.isEmpty list (sectionTitle :: List.map (indent 3 << prettify) list)
 
 
 prettyMints sectionTitle multiAsset =
-    if MultiAsset.isEmpty multiAsset then
-        []
-
-    else
-        sectionTitle
-            :: List.map (indent 3) (prettyAssets Integer.toString multiAsset)
+    ifNonEmpty MultiAsset.isEmpty multiAsset (sectionTitle :: List.map (indent 3) (prettyAssets Integer.toString multiAsset))
 
 
 prettyVKeyWitness { vkey, signature } =
@@ -890,16 +888,16 @@ prettyTx tx =
                 [ [ "Tx fee: ₳ " ++ (tx.body.fee |> Natural.toString) ]
                 , prettyList "Tx ref inputs:" prettyInput tx.body.referenceInputs
                 , prettyList "Tx inputs:" prettyInput tx.body.inputs
-                , [ "Tx outputs:" ]
+                , ifNonEmpty List.isEmpty tx.body.outputs [ "Tx outputs:" ]
                 , List.concatMap prettyOutput tx.body.outputs
                     |> List.map (indent 3)
                 , prettyMints "Tx mints:" tx.body.mint
                 , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
                 , prettyList "Tx certificates:" prettyCert tx.body.certificates
-                , [ "Tx proposals:" ]
+                , ifNonEmpty List.isEmpty tx.body.proposalProcedures [ "Tx proposals:" ]
                 , List.concatMap prettyProposal tx.body.proposalProcedures
                     |> List.map (indent 3)
-                , [ "Tx votes:" ]
+                , ifNonEmpty List.isEmpty tx.body.votingProcedures [ "Tx votes:" ]
                 , List.concatMap prettyVote tx.body.votingProcedures
                     |> List.map (indent 3)
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
