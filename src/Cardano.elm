@@ -2174,6 +2174,8 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                     )
                 |> List.filterMap identity
 
+        -- The StakeDict used for the withdrawals field
+        -- uses the same ordering as Haskell (with script credentials first)
         sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
         sortedWithdrawals =
             Dict.Any.toList processedIntents.withdrawals
@@ -2214,7 +2216,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         -- Sort votes with the Voter order
         txVotes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
         txVotes =
-            List.sortBy (\{ voter } -> Gov.voterTag voter) processedIntents.votes
+            List.sortBy (\{ voter } -> Gov.voterLedgerOrder voter) processedIntents.votes
 
         -- Build the Vote redeemer with the same order as txVotes
         voteRedeemers : List Redeemer
@@ -2250,11 +2252,21 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             List.map Tuple.first processedIntents.certificates
                 |> List.concatMap extractCertificateCred
 
+        -- Look for credentials needed for votes
+        votesCreds : List (Bytes CredentialHash)
+        votesCreds =
+            List.filterMap (.voter >> Gov.voterKeyCred) txVotes
+
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
-            (walletCredsInInputs ++ processedIntents.requiredSigners ++ withdrawalsStakeCreds ++ certificatesCreds)
+            (processedIntents.requiredSigners
+                ++ walletCredsInInputs
+                ++ withdrawalsStakeCreds
+                ++ certificatesCreds
+                ++ votesCreds
+            )
                 |> List.map
                     (\cred ->
                         let

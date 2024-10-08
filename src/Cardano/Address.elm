@@ -86,6 +86,19 @@ type Credential
     | ScriptHash (Bytes CredentialHash)
 
 
+{-| Helper function to sort credentials in the same order
+than the one auto-derived by the Haskell codebase (script first).
+-}
+credentialToHaskellOrderComparable : Credential -> ( Int, String )
+credentialToHaskellOrderComparable cred =
+    case cred of
+        ScriptHash hash ->
+            ( 0, Bytes.toHex hash )
+
+        VKeyHash hash ->
+            ( 0, Bytes.toHex hash )
+
+
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
 
 A StakeCredential is either provided inline, or, by reference using an on-chain pointer.
@@ -276,29 +289,35 @@ WARNING: do not compare them with `==` since they contain functions.
 
 -}
 type alias StakeDict a =
-    AnyDict String StakeAddress a
+    AnyDict ( Int, String ) StakeAddress a
 
 
 {-| Initialize an empty stake address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+The keys order are derived from Haskell auto-derived credential order.
+Meaning Script first, then VKey.
 
 WARNING: do not compare them with `==` since they contain functions.
 
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
-    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
+    Dict.Any.empty (\s -> credentialToHaskellOrderComparable s.stakeCredential)
 
 
 {-| Create a stake address dictionary from a list.
 For other operations, use the `AnyDict` module directly.
+
+The keys order are derived from Haskell auto-derived credential order.
+Meaning Script first, then VKey.
 
 WARNING: do not compare them with `==` since they contain functions.
 
 -}
 stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
 stakeDictFromList =
-    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
+    Dict.Any.fromList (\s -> credentialToHaskellOrderComparable s.stakeCredential)
 
 
 {-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.

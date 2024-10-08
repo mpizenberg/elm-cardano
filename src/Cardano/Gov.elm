@@ -12,7 +12,7 @@ module Cardano.Gov exposing
     , Nonce(..), UnitInterval, PositiveInterval
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
-    , Voter(..), voterTag, voterFromCbor, encodeVoter
+    , Voter(..), voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
     , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
     )
 
@@ -44,14 +44,14 @@ module Cardano.Gov exposing
 
 @docs Vote, encodeVote
 
-@docs Voter, voterTag, voterFromCbor, encodeVoter
+@docs Voter, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
 
 @docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
-import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress)
+import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress, extractCredentialHash)
 import Cardano.MultiAsset exposing (PolicyId)
 import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, decodeExUnitPrices, encodeExUnitPrices)
 import Cardano.Utils exposing (RationalNumber, decodeRational, encodeRationalNumber)
@@ -79,21 +79,59 @@ type Voter
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
 
 
-{-| Helper function to help sort voters.
+{-| Extract the credential hash of a voter.
 -}
-voterTag : Voter -> Int
-voterTag voter =
+voterCredentialHash : Voter -> Bytes CredentialHash
+voterCredentialHash voter =
     case voter of
-        VoterCommitteeHotCred (VKeyHash _) ->
+        VoterCommitteeHotCred cred ->
+            extractCredentialHash cred
+
+        VoterDrepCred cred ->
+            extractCredentialHash cred
+
+        VoterPoolId hash ->
+            hash
+
+
+{-| Helper function to extract keys that would need signing.
+-}
+voterKeyCred : Voter -> Maybe (Bytes CredentialHash)
+voterKeyCred voter =
+    case voter of
+        VoterCommitteeHotCred (VKeyHash hash) ->
+            Just hash
+
+        VoterDrepCred (VKeyHash hash) ->
+            Just hash
+
+        VoterPoolId hash ->
+            Just hash
+
+        _ ->
+            Nothing
+
+
+{-| Helper function to help sort voters for redeemers in the same order as Haskell node.
+
+The problem is that the ledger code sort these maps with auto derived order.
+And the Credential definition uses ScriptHash first, instead of VKeyHash first.
+<https://github.com/IntersectMBO/cardano-ledger/blob/2f199b94716350b5fbd6c07505eb333d89cffa90/libs/cardano-ledger-core/src/Cardano/Ledger/Credential.hs#L85>
+
+-}
+voterLedgerOrder : Voter -> Int
+voterLedgerOrder voter =
+    case voter of
+        VoterCommitteeHotCred (ScriptHash _) ->
             0
 
-        VoterCommitteeHotCred (ScriptHash _) ->
+        VoterCommitteeHotCred (VKeyHash _) ->
             1
 
-        VoterDrepCred (VKeyHash _) ->
+        VoterDrepCred (ScriptHash _) ->
             2
 
-        VoterDrepCred (ScriptHash _) ->
+        VoterDrepCred (VKeyHash _) ->
             3
 
         VoterPoolId _ ->
