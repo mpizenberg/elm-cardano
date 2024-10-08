@@ -60,7 +60,6 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import Cbor.Tag as Tag
 import Natural exposing (Natural)
 
 

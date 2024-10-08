@@ -20,10 +20,10 @@ import Cardano.Data as Data
 import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
-import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, Redeemer)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits)
 import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction)
-import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
+import Cardano.Uplc as Uplc
 import Cardano.Utils exposing (RationalNumber)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
@@ -510,8 +510,7 @@ prettyAction action =
         Gov.ParameterChange { latestEnacted, protocolParamUpdate, guardrailsPolicy } ->
             ( "Parameter Change"
             , List.concat
-                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted) ]
-                , [ "Protocol Param Update:" ]
+                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted), "Protocol Param Update:" ]
                 , List.map (indent 3) (prettyProtocolParamUpdate protocolParamUpdate)
                 , [ "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy) ]
                 ]
@@ -549,8 +548,7 @@ prettyAction action =
         Gov.NewConstitution { latestEnacted, constitution } ->
             ( "New Constitution"
             , List.concat
-                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted) ]
-                , [ "Constitution:" ]
+                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted), "Constitution:" ]
                 , List.map (indent 3) (prettyConstitution constitution)
                 ]
             )
