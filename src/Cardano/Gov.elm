@@ -782,7 +782,7 @@ encodeAction action =
                 ]
 
         Info ->
-            E.int 6
+            E.list E.int [ 6 ]
 
 
 {-| Encoder for ActionId type.
@@ -803,7 +803,7 @@ encodeConstitution =
     E.tuple
         (E.elems
             >> E.elem encodeAnchor .anchor
-            >> E.optionalElem Bytes.toCbor .scripthash
+            >> E.elem (E.maybe Bytes.toCbor) .scripthash
         )
 
 
