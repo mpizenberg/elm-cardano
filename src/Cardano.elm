@@ -1049,7 +1049,6 @@ finalizeAdvanced { govState, localStateUtxos, coinSelectionAlgo, evalScriptsCost
                                     computeRefScriptBytesForTx tx
                             in
                             Transaction.computeFees Transaction.defaultTxFeeParams { refScriptBytes = refScriptBytes } tx
-                                |> Debug.log "computed Tx fee"
                                 |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
                                 |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
             in
@@ -1434,6 +1433,10 @@ type alias ProcessedIntents =
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List Certificate
+
+    -- TODO: actually, I probably need to keep track
+    -- of the cert and proposal redeemers indices!
+    -- Instead of having a separate list where I lost where these came from :facepalm:
     , certificatesRedeemers : List (InputsOutputs -> Data)
     , proposals : List ProposalProcedure
     , proposalsRedeemers : List Data
@@ -2306,7 +2309,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
             , votingProcedures = [] -- TODO votingProcedures
-            , proposalProcedures = [] -- TODO proposalProcedures
+            , proposalProcedures = processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation
             }
