@@ -377,9 +377,8 @@ example6 _ =
     , Vote withMyPoolCred [ { actionId = actionId, vote = VoteNo } ]
     , Vote withMyDrepScript [ { actionId = actionId, vote = VoteAbstain } ]
 
-    -- Round trip Ada just to help the Tx builder figuring out who is paying the Tx fee
-    , Spend <| FromWallet exAddr.me ada.one
-    , SendTo exAddr.me ada.one
+    -- Small trick just to help the Tx builder figuring out who is paying the Tx fee
+    , SendTo exAddr.me (Value.onlyLovelace Natural.zero)
     ]
         |> finalize globalStateUtxos []
 
