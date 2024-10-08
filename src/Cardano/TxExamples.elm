@@ -17,9 +17,10 @@ import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWi
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress, StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
-import Cardano.Gov exposing (Drep(..), noParamUpdate)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), DrepVotingThresholds, ExUnitPrices, PoolVotingThresholds, ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, RationalNumber, noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
+import Cardano.Redeemer exposing (ExUnits)
 import Cardano.Script as Script exposing (PlutusScript, PlutusVersion(..))
 import Cardano.Transaction exposing (Certificate(..), Transaction)
 import Cardano.Uplc as Uplc exposing (evalScriptsCosts)
@@ -487,6 +488,188 @@ prettyCert cert =
             "update-drep-cert of " ++ prettyCred drepCredential
 
 
+prettyProposal : ProposalProcedure -> String
+prettyProposal proposal =
+    String.join "\n"
+        [ "Proposal:"
+        , "  Deposit: ₳ " ++ Natural.toString proposal.deposit
+        , "  Deposit Return Account: " ++ prettyAddr (Address.Reward proposal.depositReturnAccount)
+        , "  Action: " ++ prettyAction proposal.govAction
+        , "  Anchor: " ++ prettyAnchor proposal.anchor
+        ]
+
+
+prettyAction : Action -> String
+prettyAction action =
+    case action of
+        Gov.ParameterChange { latestEnacted, protocolParamUpdate, guardrailsPolicy } ->
+            String.join "\n"
+                [ "Parameter Change"
+                , "  Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                , "  Protocol Param Update: " ++ prettyProtocolParamUpdate protocolParamUpdate
+                , "  Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy)
+                ]
+
+        Gov.HardForkInitiation { latestEnacted, protocolVersion } ->
+            String.join "\n"
+                [ "Hard Fork Initiation"
+                , "  Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                , "  Protocol Version: " ++ prettyProtocolVersion protocolVersion
+                ]
+
+        Gov.TreasuryWithdrawals { withdrawals, guardrailsPolicy } ->
+            String.join "\n"
+                [ "Treasury Withdrawals"
+                , "  Withdrawals: " ++ String.join ", " (List.map prettyWithdrawal withdrawals)
+                , "  Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy)
+                ]
+
+        Gov.NoConfidence { latestEnacted } ->
+            String.join "\n"
+                [ "No Confidence"
+                , "  Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                ]
+
+        Gov.UpdateCommittee { latestEnacted, removedMembers, addedMembers, quorumThreshold } ->
+            String.join "\n"
+                [ "Update Committee"
+                , "  Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                , "  Removed Members: " ++ String.join ", " (List.map prettyCred removedMembers)
+                , "  Added Members: " ++ String.join ", " (List.map prettyAddedMember addedMembers)
+                , "  Quorum Threshold: " ++ prettyRational quorumThreshold
+                ]
+
+        Gov.NewConstitution { latestEnacted, constitution } ->
+            String.join "\n"
+                [ "New Constitution"
+                , "  Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                , "  Constitution: " ++ prettyConstitution constitution
+                ]
+
+        Gov.Info ->
+            "Info"
+
+
+prettyActionId : ActionId -> String
+prettyActionId actionId =
+    String.join " "
+        [ "TxId:" ++ Bytes.toHex actionId.transactionId
+        , "#" ++ String.fromInt actionId.govActionIndex
+        ]
+
+
+prettyProtocolParamUpdate : ProtocolParamUpdate -> String
+prettyProtocolParamUpdate update =
+    String.join ", "
+        (List.filterMap identity
+            [ Maybe.map (\v -> "MinFeeA: " ++ Natural.toString v) update.minFeeA
+            , Maybe.map (\v -> "MinFeeB: " ++ Natural.toString v) update.minFeeB
+            , Maybe.map (\v -> "MaxBlockBodySize: " ++ String.fromInt v) update.maxBlockBodySize
+            , Maybe.map (\v -> "MaxTxSize: " ++ String.fromInt v) update.maxTransactionSize
+            , Maybe.map (\v -> "MaxBlockHeaderSize: " ++ String.fromInt v) update.maxBlockHeaderSize
+            , Maybe.map (\v -> "KeyDeposit: " ++ Natural.toString v) update.keyDeposit
+            , Maybe.map (\v -> "PoolDeposit: " ++ Natural.toString v) update.poolDeposit
+            , Maybe.map (\v -> "MaxEpoch: " ++ Natural.toString v) update.maximumEpoch
+            , Maybe.map (\v -> "DesiredNumberOfStakePools: " ++ String.fromInt v) update.desiredNumberOfStakePools
+            , Maybe.map (\v -> "PoolPledgeInfluence: " ++ prettyRational v) update.poolPledgeInfluence
+            , Maybe.map (\v -> "ExpansionRate: " ++ prettyRational v) update.expansionRate
+            , Maybe.map (\v -> "TreasuryGrowthRate: " ++ prettyRational v) update.treasuryGrowthRate
+            , Maybe.map (\v -> "MinPoolCost: " ++ Natural.toString v) update.minPoolCost
+            , Maybe.map (\v -> "AdaPerUtxoByte: " ++ Natural.toString v) update.adaPerUtxoByte
+            , Maybe.map (\v -> "CostModels: " ++ prettyCostModels v) update.costModelsForScriptLanguages
+            , Maybe.map (\v -> "ExUnitPrices: " ++ prettyExUnitPrices v) update.executionCosts
+            , Maybe.map (\v -> "MaxTxExUnits: " ++ prettyExUnits v) update.maxTxExUnits
+            , Maybe.map (\v -> "MaxBlockExUnits: " ++ prettyExUnits v) update.maxBlockExUnits
+            , Maybe.map (\v -> "MaxValueSize: " ++ String.fromInt v) update.maxValueSize
+            , Maybe.map (\v -> "CollateralPercentage: " ++ String.fromInt v) update.collateralPercentage
+            , Maybe.map (\v -> "MaxCollateralInputs: " ++ String.fromInt v) update.maxCollateralInputs
+            , Maybe.map (\v -> "PoolVotingThresholds: " ++ prettyPoolVotingThresholds v) update.poolVotingThresholds
+            , Maybe.map (\v -> "DrepVotingThresholds: " ++ prettyDrepVotingThresholds v) update.drepVotingThresholds
+            , Maybe.map (\v -> "MinCommitteeSize: " ++ String.fromInt v) update.minCommitteeSize
+            , Maybe.map (\v -> "CommitteeTermLimit: " ++ Natural.toString v) update.committeeTermLimit
+            , Maybe.map (\v -> "GovernanceActionValidityPeriod: " ++ Natural.toString v) update.governanceActionValidityPeriod
+            , Maybe.map (\v -> "GovernanceActionDeposit: " ++ Natural.toString v) update.governanceActionDeposit
+            , Maybe.map (\v -> "DrepDeposit: " ++ Natural.toString v) update.drepDeposit
+            , Maybe.map (\v -> "DrepInactivityPeriod: " ++ Natural.toString v) update.drepInactivityPeriod
+            , Maybe.map (\v -> "MinFeeRefScriptCostPerByte: " ++ String.fromInt v) update.minFeeRefScriptCostPerByte
+            ]
+        )
+
+
+prettyProtocolVersion : ProtocolVersion -> String
+prettyProtocolVersion ( major, minor ) =
+    String.fromInt major ++ "." ++ String.fromInt minor
+
+
+prettyAddedMember : { newMember : Credential, expirationEpoch : Natural } -> String
+prettyAddedMember { newMember, expirationEpoch } =
+    prettyCred newMember ++ " (expires: " ++ Natural.toString expirationEpoch ++ ")"
+
+
+prettyConstitution : Constitution -> String
+prettyConstitution constitution =
+    String.join ", "
+        [ "Anchor: " ++ prettyAnchor constitution.anchor
+        , "Script Hash: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex constitution.scripthash)
+        ]
+
+
+prettyAnchor : Anchor -> String
+prettyAnchor anchor =
+    "URL: " ++ anchor.url ++ ", Hash: " ++ Bytes.toHex anchor.dataHash
+
+
+prettyRational : RationalNumber -> String
+prettyRational { numerator, denominator } =
+    String.fromInt numerator ++ "/" ++ String.fromInt denominator
+
+
+prettyCostModels : CostModels -> String
+prettyCostModels costModels =
+    String.join ", "
+        [ "PlutusV1: " ++ Maybe.withDefault "None" (Maybe.map (String.join "," << List.map String.fromInt) costModels.plutusV1)
+        , "PlutusV2: " ++ Maybe.withDefault "None" (Maybe.map (String.join "," << List.map String.fromInt) costModels.plutusV2)
+        , "PlutusV3: " ++ Maybe.withDefault "None" (Maybe.map (String.join "," << List.map String.fromInt) costModels.plutusV3)
+        ]
+
+
+prettyExUnitPrices : ExUnitPrices -> String
+prettyExUnitPrices { memPrice, stepPrice } =
+    "Mem: " ++ prettyRational memPrice ++ ", Step: " ++ prettyRational stepPrice
+
+
+prettyExUnits : ExUnits -> String
+prettyExUnits { mem, steps } =
+    "Mem: " ++ String.fromInt mem ++ ", Steps: " ++ String.fromInt steps
+
+
+prettyPoolVotingThresholds : PoolVotingThresholds -> String
+prettyPoolVotingThresholds thresholds =
+    String.join ", "
+        [ "Motion No Confidence: " ++ prettyRational thresholds.motionNoConfidence
+        , "Committee Normal: " ++ prettyRational thresholds.committeeNormal
+        , "Committee No Confidence: " ++ prettyRational thresholds.committeeNoConfidence
+        , "Hard Fork Initiation: " ++ prettyRational thresholds.hardforkInitiation
+        , "Security Relevant Parameter: " ++ prettyRational thresholds.securityRelevantParameter
+        ]
+
+
+prettyDrepVotingThresholds : DrepVotingThresholds -> String
+prettyDrepVotingThresholds thresholds =
+    String.join ", "
+        [ "Motion No Confidence: " ++ prettyRational thresholds.motionNoConfidence
+        , "Committee Normal: " ++ prettyRational thresholds.committeeNormal
+        , "Committee No Confidence: " ++ prettyRational thresholds.committeeNoConfidence
+        , "Update Constitution: " ++ prettyRational thresholds.updateConstitution
+        , "Hard Fork Initiation: " ++ prettyRational thresholds.hardforkInitiation
+        , "PP Network Group: " ++ prettyRational thresholds.ppNetworkGroup
+        , "PP Economic Group: " ++ prettyRational thresholds.ppEconomicGroup
+        , "PP Technical Group: " ++ prettyRational thresholds.ppTechnicalGroup
+        , "PP Governance Group: " ++ prettyRational thresholds.ppGovernanceGroup
+        , "Treasury Withdrawal: " ++ prettyRational thresholds.treasuryWithdrawal
+        ]
+
+
 prettyDrep : Drep -> String
 prettyDrep drep =
     case drep of
@@ -628,6 +811,7 @@ prettyTx tx =
                 , prettyMints "Tx mints:" tx.body.mint
                 , prettyList "Tx withdrawals:" prettyWithdrawal tx.body.withdrawals
                 , prettyList "Tx certificates:" prettyCert tx.body.certificates
+                , prettyList "Tx proposals:" prettyProposal tx.body.proposalProcedures
                 , prettyList "Tx required signers:" prettyBytes tx.body.requiredSigners
                 , prettyList
                     ("Tx collateral (total: ₳ " ++ (Maybe.withDefault "not set" <| Maybe.map String.fromInt tx.body.totalCollateral) ++ "):")
