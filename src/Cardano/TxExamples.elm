@@ -573,12 +573,10 @@ prettyProposal proposal =
             prettyAction proposal.govAction
     in
     [ "Proposal: " ++ actionTitle
-    , "   Deposit: ₳ " ++ Natural.toString proposal.deposit
-    , "   Deposit Return Account: " ++ prettyAddr (Address.Reward proposal.depositReturnAccount)
+    , "   Deposit: ₳ " ++ Natural.toString proposal.deposit ++ ", Return Account: " ++ prettyAddr (Address.Reward proposal.depositReturnAccount)
     , "   Anchor: " ++ prettyAnchor proposal.anchor
-    , "   Action details:"
     ]
-        ++ List.map (indent 6) actionDetails
+        ++ List.map (indent 3) actionDetails
 
 
 prettyAction : Action -> ( String, List String )
@@ -588,8 +586,8 @@ prettyAction action =
             ( "Parameter Change"
             , List.concat
                 [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted), "Protocol Param Update:" ]
-                , List.map (indent 3) (prettyProtocolParamUpdate protocolParamUpdate)
                 , [ "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy) ]
+                , List.map (indent 3) (prettyProtocolParamUpdate protocolParamUpdate)
                 ]
             )
 
@@ -609,8 +607,7 @@ prettyAction action =
 
         Gov.NoConfidence { latestEnacted } ->
             ( "No Confidence"
-            , [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
-              ]
+            , [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted) ]
             )
 
         Gov.UpdateCommittee { latestEnacted, removedMembers, addedMembers, quorumThreshold } ->
