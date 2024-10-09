@@ -1,20 +1,22 @@
 module Cardano.TxBuilding exposing (suite)
 
+import Blake2b exposing (blake2b224)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWitness(..), Fee(..), GovernanceState, ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
+import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWitness(..), Fee(..), GovernanceState, ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), VoterWitness(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.Data as Data
-import Cardano.Gov as Gov exposing (Drep(..), noParamUpdate)
+import Cardano.Gov as Gov exposing (Drep(..), Vote(..), Voter(..), noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script as Script exposing (PlutusVersion(..))
+import Cardano.Script as Script exposing (NativeScript(..), PlutusVersion(..))
 import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction, newBody, newWitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
+import Cbor.Encode as E
 import Expect exposing (Expectation)
 import Integer
 import Natural exposing (Natural)
@@ -634,6 +636,97 @@ okTxBuilding =
                             , redeemer =
                                 Uplc.evalScriptsCosts Uplc.defaultVmConfig (Utxo.refDictFromList localStateUtxos) tx
                                     |> Result.toMaybe
+                        }
+                }
+            )
+
+        -- Test with multiple votes
+        , let
+            myStakeKeyHash =
+                Address.extractStakeKeyHash testAddr.me
+                    |> Maybe.withDefault (dummyCredentialHash "ERROR")
+
+            -- Action being voted on
+            actionId index =
+                { transactionId = dummyBytes 32 "actionTx"
+                , govActionIndex = index
+                }
+
+            -- Trivial native script drep that always succeeds
+            drepScript =
+                ScriptAll []
+
+            drepScriptCbor =
+                E.encode (Script.encodeNativeScript drepScript)
+                    |> Bytes.fromBytes
+
+            drepScriptHash =
+                blake2b224 Nothing (Bytes.toU8 drepScriptCbor)
+                    |> Bytes.fromU8
+
+            -- Define different voters
+            withMyDrepCred =
+                WithDrepCred (WithKey myStakeKeyHash)
+
+            withMyPoolCred =
+                WithPoolCred (dummyCredentialHash "poolId")
+
+            withMyDrepScript =
+                WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
+          in
+          okTxTest "Test with multiple votes"
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                ]
+            , evalScriptsCosts = \_ _ -> Ok []
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Vote withMyDrepCred
+                    [ { actionId = actionId 0, vote = VoteYes }
+                    , { actionId = actionId 1, vote = VoteYes }
+                    ]
+                , Vote withMyPoolCred
+                    [ { actionId = actionId 1, vote = VoteNo }
+                    , { actionId = actionId 0, vote = VoteNo }
+                    ]
+
+                -- action 1 will be overwritten by action 0, because same Voter
+                , Vote withMyDrepScript [ { actionId = actionId 1, vote = VoteAbstain } ]
+                , Vote withMyDrepScript [ { actionId = actionId 0, vote = VoteAbstain } ]
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = ada 2
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me (ada 3) ]
+                            , votingProcedures =
+                                [ ( VoterDrepCred (ScriptHash drepScriptHash), [ ( actionId 0, { vote = VoteAbstain, anchor = Nothing } ) ] )
+                                , ( VoterDrepCred (VKeyHash myStakeKeyHash)
+                                  , [ ( actionId 0, { vote = VoteYes, anchor = Nothing } )
+                                    , ( actionId 1, { vote = VoteYes, anchor = Nothing } )
+                                    ]
+                                  )
+                                , ( VoterPoolId (dummyCredentialHash "poolId")
+                                  , [ ( actionId 1, { vote = VoteNo, anchor = Nothing } )
+                                    , ( actionId 0, { vote = VoteNo, anchor = Nothing } )
+                                    ]
+                                  )
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness =
+                                Just
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYpoolId", signature = dummyBytes 64 "SIGNATUREpoolId" }
+                                    , { vkey = dummyBytes 32 "VKEYstk-me", signature = dummyBytes 64 "SIGNATUREstk-me" }
+                                    ]
+                            , nativeScripts = Just [ drepScript ]
                         }
                 }
             )

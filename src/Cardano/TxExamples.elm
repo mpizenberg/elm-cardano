@@ -346,9 +346,9 @@ example6 _ =
                 |> Maybe.withDefault (dummyCredentialHash "ERROR")
 
         -- Action being voted on
-        actionId =
+        actionId index =
             { transactionId = dummyBytes 32 "actionTx-"
-            , govActionIndex = 0
+            , govActionIndex = index
             }
 
         -- Trivial native script drep that always succeed
@@ -373,9 +373,18 @@ example6 _ =
         withMyDrepScript =
             WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
     in
-    [ Vote withMyDrepCred [ { actionId = actionId, vote = VoteYes } ]
-    , Vote withMyPoolCred [ { actionId = actionId, vote = VoteNo } ]
-    , Vote withMyDrepScript [ { actionId = actionId, vote = VoteAbstain } ]
+    [ Vote withMyDrepCred
+        [ { actionId = actionId 0, vote = VoteYes }
+        , { actionId = actionId 1, vote = VoteYes }
+        ]
+    , Vote withMyPoolCred
+        [ { actionId = actionId 1, vote = VoteNo }
+        , { actionId = actionId 0, vote = VoteNo }
+        ]
+
+    -- action 1 will be overwritten by action 0
+    , Vote withMyDrepScript [ { actionId = actionId 1, vote = VoteAbstain } ]
+    , Vote withMyDrepScript [ { actionId = actionId 0, vote = VoteAbstain } ]
 
     -- Small trick just to help the Tx builder figuring out who is paying the Tx fee
     , SendTo exAddr.me (Value.onlyLovelace Natural.zero)

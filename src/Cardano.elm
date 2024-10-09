@@ -1467,7 +1467,7 @@ type alias ProcessedIntents =
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposals : List ( ProposalProcedure, Maybe Data )
-    , votes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
+    , votes : Gov.VoterDict { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
     }
 
 
@@ -1478,6 +1478,13 @@ processIntents govState localStateUtxos txIntents =
     let
         preProcessedIntents =
             preProcessIntents txIntents
+
+        -- Put all votes into a VoterDict.
+        -- WARNING: if a voter is present multiple times, it will be overwritten.
+        voterDict =
+            preProcessedIntents.votes
+                |> List.map (\{ voter, votes, redeemer } -> ( voter, { votes = votes, redeemer = redeemer } ))
+                |> Gov.voterDictFromList
 
         -- Helper to check if a given proposal requires the guardrails script execution
         requiresGuardrails proposalIntent =
@@ -1638,7 +1645,7 @@ processIntents govState localStateUtxos txIntents =
                                     , proposalRedeemer govAction
                                     )
                                 )
-                    , votes = preProcessedIntents.votes
+                    , votes = voterDict
                     }
                 )
 
@@ -2214,16 +2221,16 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                 |> List.filterMap identity
 
         -- Sort votes with the Voter order
-        txVotes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
-        txVotes =
-            List.sortBy (\{ voter } -> Gov.voterLedgerOrder voter) processedIntents.votes
+        sortedVotes : List ( Voter, { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) } )
+        sortedVotes =
+            Dict.Any.toList processedIntents.votes
 
         -- Build the Vote redeemer with the same order as txVotes
         voteRedeemers : List Redeemer
         voteRedeemers =
-            txVotes
+            sortedVotes
                 |> List.indexedMap
-                    (\id { redeemer } ->
+                    (\id ( _, { redeemer } ) ->
                         Maybe.map
                             (\redeemerF -> makeRedeemer Redeemer.Vote id (redeemerF inputsOutputs))
                             redeemer
@@ -2255,7 +2262,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         -- Look for credentials needed for votes
         votesCreds : List (Bytes CredentialHash)
         votesCreds =
-            List.filterMap (.voter >> Gov.voterKeyCred) txVotes
+            List.filterMap (Tuple.first >> Gov.voterKeyCred) sortedVotes
 
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
@@ -2379,8 +2386,8 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
             , votingProcedures =
-                txVotes
-                    |> List.map (\{ voter, votes } -> ( voter, List.map (\{ actionId, vote } -> ( actionId, Gov.VotingProcedure vote Nothing )) votes ))
+                sortedVotes
+                    |> List.map (Tuple.mapSecond (\{ votes } -> List.map (\{ actionId, vote } -> ( actionId, Gov.VotingProcedure vote Nothing )) votes))
             , proposalProcedures = List.map Tuple.first processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation

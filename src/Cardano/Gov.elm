@@ -12,7 +12,7 @@ module Cardano.Gov exposing
     , Nonce(..), UnitInterval, PositiveInterval
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
-    , Voter(..), voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
+    , Voter(..), VoterDict, emptyVoterDict, voterDictFromList, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
     , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
     )
 
@@ -44,7 +44,7 @@ module Cardano.Gov exposing
 
 @docs Vote, encodeVote
 
-@docs Voter, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
+@docs Voter, VoterDict, emptyVoterDict, voterDictFromList, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
 
 @docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
@@ -60,6 +60,7 @@ import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
+import Dict.Any exposing (AnyDict)
 import Natural exposing (Natural)
 
 
@@ -77,6 +78,39 @@ type Voter
     = VoterCommitteeHotCred Credential -- 0, addr_keyhash // 1, scripthash
     | VoterDrepCred Credential -- 2, addr_keyhash // 3, scripthash
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
+
+
+{-| Convenient alias for a `Dict` with [Voter] keys.
+When converting to a `List`, its keys are sorted with the same order as the Haskell node.
+The order is determined by [voterLedgerOrder].
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+type alias VoterDict a =
+    AnyDict ( Int, String ) Voter a
+
+
+{-| Create a empty voter dictionary.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+emptyVoterDict : VoterDict a
+emptyVoterDict =
+    Dict.Any.empty voterLedgerOrder
+
+
+{-| Create a voter dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+voterDictFromList : List ( Voter, a ) -> VoterDict a
+voterDictFromList voters =
+    Dict.Any.fromList voterLedgerOrder voters
 
 
 {-| Extract the credential hash of a voter.
