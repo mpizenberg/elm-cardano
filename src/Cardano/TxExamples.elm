@@ -443,7 +443,7 @@ makeToken policyId name amount =
 prettyAddr address =
     case address of
         Byron b ->
-            (Bytes.toText >> Maybe.withDefault "") b
+            prettyBytes b
 
         Shelley { paymentCredential, stakeCredential } ->
             [ Just "Addr:", Just (prettyCred paymentCredential), Maybe.map prettyStakeCred stakeCredential ]
@@ -466,10 +466,27 @@ prettyStakeCred stakeCred =
 prettyCred cred =
     case cred of
         Address.VKeyHash b ->
-            "key:" ++ (Bytes.toText >> Maybe.withDefault "") b
+            "key:" ++ prettyBytes b
 
         Address.ScriptHash b ->
-            "script:" ++ (Bytes.toText >> Maybe.withDefault "") b
+            "script:" ++ prettyBytes b
+
+
+prettyBytes b =
+    case Bytes.toText b of
+        Nothing ->
+            Bytes.toHex b
+
+        Just text ->
+            let
+                isLikelyAscii char =
+                    Char.toCode char < 128
+            in
+            if String.all isLikelyAscii text then
+                text
+
+            else
+                Bytes.toHex b
 
 
 prettyWithdrawal : ( StakeAddress, Natural ) -> String
@@ -487,13 +504,13 @@ prettyCert cert =
             "stake-deregistration for " ++ prettyCred delegator
 
         StakeDelegationCert { delegator, poolId } ->
-            "stake-delegation for " ++ prettyCred delegator ++ " to pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId
+            "stake-delegation for " ++ prettyCred delegator ++ " to pool " ++ prettyBytes poolId
 
         PoolRegistrationCert _ ->
             "pool-registration"
 
         PoolRetirementCert { poolId, epoch } ->
-            "pool-retirement for pool " ++ (Bytes.toText >> Maybe.withDefault "") poolId ++ " at epoch " ++ Natural.toString epoch
+            "pool-retirement for pool " ++ prettyBytes poolId ++ " at epoch " ++ Natural.toString epoch
 
         GenesisKeyDelegationCert _ ->
             "genesis-key-delegation"
@@ -511,7 +528,7 @@ prettyCert cert =
             "vote-deleg-cert for " ++ prettyCred delegator ++ " to " ++ prettyDrep drep
 
         StakeVoteDelegCert { delegator, poolId, drep } ->
-            "stake-vote-deleg-cert for " ++ prettyCred delegator ++ " to " ++ prettyDrep drep ++ " and " ++ (Bytes.toText >> Maybe.withDefault "") poolId
+            "stake-vote-deleg-cert for " ++ prettyCred delegator ++ " to " ++ prettyDrep drep ++ " and " ++ prettyBytes poolId
 
         StakeRegDelegCert _ ->
             "stake-reg-deleg-cert TODO"
@@ -550,7 +567,7 @@ prettyVote ( voter, votes ) =
                     "DRep: " ++ prettyCred cred
 
                 VoterPoolId poolId ->
-                    "Pool: " ++ (Bytes.toText poolId |> Maybe.withDefault (Bytes.toHex poolId))
+                    "Pool: " ++ prettyBytes poolId
 
         voteStr ( actionId, procedure ) =
             case procedure.vote of
@@ -586,7 +603,7 @@ prettyAction action =
             ( "Parameter Change"
             , List.concat
                 [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted), "Protocol Param Update:" ]
-                , [ "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy) ]
+                , [ "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map prettyBytes guardrailsPolicy) ]
                 , List.map (indent 3) (prettyProtocolParamUpdate protocolParamUpdate)
                 ]
             )
@@ -601,7 +618,7 @@ prettyAction action =
         Gov.TreasuryWithdrawals { withdrawals, guardrailsPolicy } ->
             ( "Treasury Withdrawals"
             , [ "Withdrawals: " ++ String.join ", " (List.map prettyWithdrawal withdrawals)
-              , "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex guardrailsPolicy)
+              , "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map prettyBytes guardrailsPolicy)
               ]
             )
 
@@ -634,7 +651,7 @@ prettyAction action =
 prettyActionId : ActionId -> String
 prettyActionId actionId =
     String.join " "
-        [ "TxId:" ++ Bytes.toHex actionId.transactionId
+        [ "TxId:" ++ prettyBytes actionId.transactionId
         , "#" ++ String.fromInt actionId.govActionIndex
         ]
 
@@ -688,13 +705,13 @@ prettyAddedMember { newMember, expirationEpoch } =
 prettyConstitution : Constitution -> List String
 prettyConstitution constitution =
     [ "Anchor: " ++ prettyAnchor constitution.anchor
-    , "Script Hash: " ++ Maybe.withDefault "None" (Maybe.map Bytes.toHex constitution.scripthash)
+    , "Script Hash: " ++ Maybe.withDefault "None" (Maybe.map prettyBytes constitution.scripthash)
     ]
 
 
 prettyAnchor : Anchor -> String
 prettyAnchor anchor =
-    "URL: " ++ anchor.url ++ ", Hash: " ++ Bytes.toHex anchor.dataHash
+    "URL: " ++ anchor.url ++ ", Hash: " ++ prettyBytes anchor.dataHash
 
 
 prettyRational : RationalNumber -> String
@@ -783,8 +800,8 @@ prettyAssets toStr multiAsset =
                     |> List.map
                         (\( name, amount ) ->
                             String.join " "
-                                [ (Bytes.toText >> Maybe.withDefault "") policyId
-                                , (Bytes.toText >> Maybe.withDefault "") name
+                                [ prettyBytes policyId
+                                , prettyBytes name
                                 , toStr amount
                                 ]
                         )
@@ -794,7 +811,7 @@ prettyAssets toStr multiAsset =
 prettyDatum datumOption =
     case datumOption of
         Utxo.DatumHash h ->
-            "datumHash: " ++ Maybe.withDefault "" (Bytes.toText h)
+            "datumHash: " ++ prettyBytes h
 
         Utxo.DatumValue data ->
             "datum: " ++ prettyCbor Data.toCbor data
@@ -815,7 +832,7 @@ prettyScript script =
 
 prettyInput ref =
     String.join " "
-        [ "TxId:" ++ (Bytes.toText >> Maybe.withDefault "") ref.transactionId
+        [ "TxId:" ++ prettyBytes ref.transactionId
         , "#" ++ String.fromInt ref.outputIndex
         ]
 
@@ -851,8 +868,8 @@ prettyMints sectionTitle multiAsset =
 
 prettyVKeyWitness { vkey, signature } =
     String.join ", "
-        [ "vkey:" ++ (Bytes.toText vkey |> Maybe.withDefault "")
-        , "signature:" ++ (Bytes.toText signature |> Maybe.withDefault "")
+        [ "vkey:" ++ prettyBytes vkey
+        , "signature:" ++ prettyBytes signature
         ]
 
 
@@ -877,9 +894,6 @@ indent spaces str =
 prettyTx : Transaction -> String
 prettyTx tx =
     let
-        prettyBytes b =
-            Maybe.withDefault (Bytes.toHex b) (Bytes.toText b)
-
         body =
             List.concat
                 [ [ "Tx fee: ₳ " ++ (tx.body.fee |> Natural.toString) ]
