@@ -1,19 +1,22 @@
 module Cardano.TxBuilding exposing (suite)
 
+import Blake2b exposing (blake2b224)
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map
-import Cardano exposing (Fee(..), ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), WitnessSource(..), finalizeAdvanced)
+import Cardano exposing (ActionProposal(..), CertificateIntent(..), CredentialWitness(..), Fee(..), GovernanceState, ScriptWitness(..), SpendSource(..), TxFinalizationError(..), TxIntent(..), TxOtherInfo(..), VoterWitness(..), WitnessSource(..), finalizeAdvanced)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.Data as Data
+import Cardano.Gov as Gov exposing (Drep(..), Vote(..), Voter(..), noParamUpdate)
 import Cardano.Metadatum as Metadatum
 import Cardano.MultiAsset as MultiAsset
 import Cardano.Redeemer exposing (Redeemer)
-import Cardano.Script as Script exposing (PlutusVersion(..))
-import Cardano.Transaction as Transaction exposing (Transaction, newBody, newWitnessSet)
+import Cardano.Script as Script exposing (NativeScript(..), PlutusVersion(..))
+import Cardano.Transaction as Transaction exposing (Certificate(..), Transaction, newBody, newWitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference)
 import Cardano.Value as Value exposing (Value)
+import Cbor.Encode as E
 import Expect exposing (Expectation)
 import Integer
 import Natural exposing (Natural)
@@ -32,7 +35,8 @@ okTxBuilding : Test
 okTxBuilding =
     describe "Successfull"
         [ okTxTest "with just manual fees"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -47,12 +51,13 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
         , okTxTest "with just auto fees"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 2 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = autoFee
             , txOtherInfo = []
@@ -78,12 +83,13 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
         , okTxTest "with spending from, and sending to the same address"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -102,7 +108,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -119,7 +125,8 @@ okTxBuilding =
                 in
                 Expect.ok (Cardano.finalize localStateUtxos [] txIntents)
         , okTxTest "send 1 ada from me to you"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -141,12 +148,13 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
         , okTxTest "I pay the fees for your ada transfer to me"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAdaOutput 1 testAddr.you 7
                 ]
@@ -174,8 +182,8 @@ okTxBuilding =
                             | vkeywitness =
                                 Just
                                     -- Two keys since I pay the fee, and spend your utxo
-                                    [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" }
-                                    , { vkey = dummyBytes 32 "VKEYyou", signature = dummyBytes 64 "SIGNATUREyou" }
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYkey-you", signature = dummyBytes 64 "SIGNATUREkey-you" }
                                     ]
                         }
                 }
@@ -188,7 +196,8 @@ okTxBuilding =
                 { threeCat | lovelace = ada 2 }
           in
           okTxTest "send 3 cat with 2 ada from me to you"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
@@ -213,7 +222,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -228,7 +237,8 @@ okTxBuilding =
                 { threeCat | lovelace = minAda }
           in
           okTxTest "send 3 cat with minAda from me to you"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
                 , ( makeRef "1" 1, Utxo.simpleOutput testAddr.me threeCat )
                 ]
@@ -253,12 +263,13 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
         , okTxTest "mint 1 dog and burn 1 cat"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
                 , ( dog.scriptRef, dog.refOutput )
@@ -311,7 +322,7 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                         }
                 }
             )
@@ -375,7 +386,8 @@ okTxBuilding =
                 ]
           in
           okTxTest "spend 2 ada from a plutus script holding 4 ada"
-            { localStateUtxos = localStateUtxos
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = localStateUtxos
             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -419,11 +431,302 @@ okTxBuilding =
                         }
                     , witnessSet =
                         { newWitnessSet
-                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYme", signature = dummyBytes 64 "SIGNATUREme" } ]
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
                             , plutusV3Script = Just [ lock.scriptBytes ]
                             , redeemer =
                                 Uplc.evalScriptsCosts Uplc.defaultVmConfig (Utxo.refDictFromList localStateUtxos) tx
                                     |> Result.toMaybe
+                        }
+                }
+            )
+
+        -- Test with stake registration, pool delegation and drep delegation
+        , let
+            myStakeKeyHash =
+                Address.extractStakeKeyHash testAddr.me
+                    |> Maybe.withDefault (dummyCredentialHash "ERROR")
+          in
+          okTxTest "Test with stake registration, pool delegation and drep delegation"
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                ]
+            , evalScriptsCosts = \_ _ -> Ok []
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Spend <| FromWallet testAddr.me <| Value.onlyLovelace (ada 2) -- 2 ada for the registration deposit
+                , IssueCertificate <| RegisterStake { delegator = WithKey myStakeKeyHash, deposit = ada 2 }
+                , IssueCertificate <| DelegateStake { delegator = WithKey myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+                , IssueCertificate <| DelegateVotes { delegator = WithKey myStakeKeyHash, drep = VKeyHash <| dummyCredentialHash "drep" }
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = ada 2
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me (ada 1) ]
+                            , certificates =
+                                [ RegCert { delegator = VKeyHash myStakeKeyHash, deposit = Natural.fromSafeInt 2000000 }
+                                , StakeDelegationCert { delegator = VKeyHash myStakeKeyHash, poolId = dummyBytes 28 "poolId" }
+                                , VoteDelegCert { delegator = VKeyHash myStakeKeyHash, drep = DrepCredential <| VKeyHash <| dummyCredentialHash "drep" }
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness =
+                                Just
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYstk-me", signature = dummyBytes 64 "SIGNATUREstk-me" }
+                                    ]
+                        }
+                }
+            )
+
+        -- Test with 6 different proposals
+        , let
+            myStakeKeyHash =
+                Address.extractStakeKeyHash testAddr.me
+                    |> Maybe.withDefault (dummyCredentialHash "ERROR")
+
+            myStakeAddress =
+                { networkId = Mainnet
+                , stakeCredential = VKeyHash myStakeKeyHash
+                }
+
+            ada100K =
+                ada 100000
+
+            propose govAction offchainInfo =
+                Propose
+                    { govAction = govAction
+                    , offchainInfo = offchainInfo
+                    , deposit = ada100K
+                    , depositReturnAccount = myStakeAddress
+                    }
+
+            -- Current guardrails script info retrieved from the devs docs:
+            -- https://developers.cardano.org/docs/get-started/cardano-cli/governance/create%20governance%20actions/#the-guardrails-script
+            -- I removed one bytes wrapping of the script cbor so that it works
+            guardrailsScriptBytes =
+                Bytes.fromHexUnchecked "5908510101003232323232323232323232323232323232323232323232323232323232323232323232323232323232259323255333573466e1d20000011180098111bab357426ae88d55cf00104554ccd5cd19b87480100044600422c6aae74004dd51aba1357446ae88d55cf1baa3255333573466e1d200a35573a002226ae84d5d11aab9e00111637546ae84d5d11aba235573c6ea800642b26006003149a2c8a4c301f801c0052000c00e0070018016006901e4070c00e003000c00d20d00fc000c0003003800a4005801c00e003002c00d20c09a0c80e1801c006001801a4101b5881380018000600700148013003801c006005801a410100078001801c006001801a4101001f8001800060070014801b0038018096007001800600690404002600060001801c0052008c00e006025801c006001801a41209d8001800060070014802b003801c006005801a410112f501c3003800c00300348202b7881300030000c00e00290066007003800c00b003482032ad7b806038403060070014803b00380180960003003800a4021801c00e003002c00d20f40380e1801c006001801a41403f800100a0c00e0029009600f0030078040c00e002900a600f003800c00b003301a483403e01a600700180060066034904801e00060001801c0052016c01e00600f801c006001801980c2402900e30000c00e002901060070030128060c00e00290116007003800c00b003483c0ba03860070018006006906432e00040283003800a40498003003800a404d802c00e00f003800c00b003301a480cb0003003800c003003301a4802b00030001801c01e0070018016006603490605c0160006007001800600660349048276000600030000c00e0029014600b003801c00c04b003800c00300348203a2489b00030001801c00e006025801c006001801a4101b11dc2df80018000c0003003800a4055802c00e007003012c00e003000c00d2080b8b872c000c0006007003801809600700180060069040607e4155016000600030000c00e00290166007003012c00e003000c00d2080c001c000c0003003800a405d801c00e003002c00d20c80180e1801c006001801a412007800100a0c00e00290186007003013c0006007001480cb005801801e006003801800e00600500403003800a4069802c00c00f003001c00c007003803c00e003002c00c05300333023480692028c0004014c00c00b003003c00c00f003003c00e00f003800c00b00301480590052008003003800a406d801c00e003002c00d2000c00d2006c00060070018006006900a600060001801c0052038c00e007001801600690006006901260003003800c003003483281300020141801c005203ac00e006027801c006001801a403d800180006007001480f3003801804e00700180060069040404af3c4e302600060001801c005203ec00e006013801c006001801a4101416f0fd20b80018000600700148103003801c006005801a403501c3003800c0030034812b00030000c00e0029021600f003800c00a01ac00e003000c00ccc08d20d00f4800b00030000c0000000000803c00c016008401e006009801c006001801807e0060298000c000401e006007801c0060018018074020c000400e00f003800c00b003010c000802180020070018006006019801805e0003000400600580180760060138000800c00b00330134805200c400e00300080330004006005801a4001801a410112f58000801c00600901260008019806a40118002007001800600690404a75ee01e00060008018046000801801e000300c4832004c025201430094800a0030028052003002c00d2002c000300648010c0092002300748028c0312000300b48018c0292012300948008c0212066801a40018000c0192008300a2233335573e00250002801994004d55ce800cd55cf0008d5d08014c00cd5d10011263009222532900389800a4d2219002912c80344c01526910c80148964cc04cdd68010034564cc03801400626601800e0071801226601800e01518010096400a3000910c008600444002600244004a664600200244246466004460044460040064600444600200646a660080080066a00600224446600644b20051800484ccc02600244666ae68cdc3801000c00200500a91199ab9a33710004003000801488ccd5cd19b89002001800400a44666ae68cdc4801000c00a00122333573466e20008006005000912a999ab9a3371200400222002220052255333573466e2400800444008440040026eb400a42660080026eb000a4264666015001229002914801c8954ccd5cd19b8700400211333573466e1c00c006001002118011229002914801c88cc044cdc100200099b82002003245200522900391199ab9a3371066e08010004cdc1001001c002004403245200522900391199ab9a3371266e08010004cdc1001001c00a00048a400a45200722333573466e20cdc100200099b820020038014000912c99807001000c40062004912c99807001000c400a2002001199919ab9a357466ae880048cc028dd69aba1003375a6ae84008d5d1000934000dd60010a40064666ae68d5d1800c0020052225933006003357420031330050023574400318010600a444aa666ae68cdc3a400000222c22aa666ae68cdc4000a4000226600666e05200000233702900000088994004cdc2001800ccdc20010008cc010008004c01088954ccd5cd19b87480000044400844cc00c004cdc300100091119803112c800c60012219002911919806912c800c4c02401a442b26600a004019130040018c008002590028c804c8888888800d1900991111111002a244b267201722222222008001000c600518000001112a999ab9a3370e004002230001155333573466e240080044600823002229002914801c88ccd5cd19b893370400800266e0800800e00100208c8c0040048c0088cc008008005"
+
+            -- Add a 600K ada utxo to the local state
+            -- for the 6 x 100K deposits + 10 for fees etc.
+            localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 600010) ) ]
+          in
+          okTxTest "Test with 6 different proposals"
+            { govState =
+                { guardrailsScript =
+                    Just
+                        { policyId = Bytes.fromHexUnchecked "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
+                        , plutusVersion = PlutusV3
+                        , scriptWitness = WitnessValue guardrailsScriptBytes
+                        }
+                , lastEnactedCommitteeAction = Nothing
+                , lastEnactedConstitutionAction = Nothing
+                , lastEnactedHardForkAction = Nothing
+                , lastEnactedProtocolParamUpdateAction = Nothing
+                }
+            , localStateUtxos = localStateUtxos
+            , evalScriptsCosts =
+                Uplc.evalScriptsCosts
+                    { budget = Uplc.conwayDefaultBudget
+                    , slotConfig = Uplc.slotConfigMainnet
+                    , costModels = Uplc.conwayDefaultCostModels
+                    }
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ -- 600K deposit for all the gov actions
+                  Spend <| FromWallet testAddr.me <| Value.onlyLovelace (Natural.mul Natural.six ada100K)
+
+                -- Change minPoolCost to 0
+                , propose
+                    (ParameterChange { noParamUpdate | minPoolCost = Just Natural.zero })
+                    { url = "param-url", dataHash = dummyBytes 32 "param-hash-" }
+
+                -- Withdraw 1M ada from the treasury
+                , propose
+                    (TreasuryWithdrawals [ { destination = myStakeAddress, amount = ada 1000000 } ])
+                    { url = "withdraw-url", dataHash = dummyBytes 32 "withdraw-hash-" }
+
+                -- Change the constitution to not have a guardrails script anymore
+                , propose
+                    (NewConstitution
+                        { anchor = { url = "constitution-url", dataHash = dummyBytes 32 "const-hash-" }
+                        , scripthash = Nothing
+                        }
+                    )
+                    { url = "new-const-url", dataHash = dummyBytes 32 "new-const-hash-" }
+
+                -- Change to a state of No Confidence
+                , propose NoConfidence
+                    { url = "no-conf-url", dataHash = dummyBytes 32 "no-conf-hash-" }
+
+                -- Ask an info poll about pineapple pizza
+                , propose Info
+                    { url = "info-url", dataHash = dummyBytes 32 "info-hash-" }
+
+                -- Finally, suggest a hard fork
+                , propose (HardForkInitiation ( 14, 0 ))
+                    { url = "hf-url", dataHash = dummyBytes 32 "hf-hash-" }
+                ]
+            }
+            (\tx ->
+                let
+                    makeProposalProcedure shortname govAction =
+                        { deposit = ada100K
+                        , depositReturnAccount = myStakeAddress
+                        , anchor = { url = shortname ++ "-url", dataHash = dummyBytes 32 (shortname ++ "-hash-") }
+                        , govAction = govAction
+                        }
+                in
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = ada 2
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me (ada 8) ]
+
+                            -- proposals
+                            , proposalProcedures =
+                                [ makeProposalProcedure "param"
+                                    (Gov.ParameterChange
+                                        { latestEnacted = Nothing
+                                        , guardrailsPolicy = Just <| Bytes.fromHexUnchecked "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
+                                        , protocolParamUpdate = { noParamUpdate | minPoolCost = Just Natural.zero }
+                                        }
+                                    )
+                                , makeProposalProcedure "withdraw"
+                                    (Gov.TreasuryWithdrawals
+                                        { withdrawals = [ ( myStakeAddress, ada 1000000 ) ]
+                                        , guardrailsPolicy = Just <| Bytes.fromHexUnchecked "fa24fb305126805cf2164c161d852a0e7330cf988f1fe558cf7d4a64"
+                                        }
+                                    )
+                                , makeProposalProcedure "new-const"
+                                    (Gov.NewConstitution
+                                        { latestEnacted = Nothing
+                                        , constitution =
+                                            { anchor = { url = "constitution-url", dataHash = dummyBytes 32 "const-hash-" }
+                                            , scripthash = Nothing
+                                            }
+                                        }
+                                    )
+                                , makeProposalProcedure "no-conf" (Gov.NoConfidence { latestEnacted = Nothing })
+                                , makeProposalProcedure "info" Gov.Info
+                                , makeProposalProcedure "hf" (Gov.HardForkInitiation { latestEnacted = Nothing, protocolVersion = ( 14, 0 ) })
+                                ]
+
+                            -- script stuff
+                            , scriptDataHash = tx.body.scriptDataHash
+
+                            -- collateral would cost 3 ada for 2 ada fees, so return 600010-3=600007 ada
+                            , collateral = [ makeRef "0" 0 ]
+                            , totalCollateral = Just 3000000
+                            , collateralReturn = Just (Utxo.fromLovelace testAddr.me (ada 600007))
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness = Just [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" } ]
+                            , plutusV3Script = Just [ guardrailsScriptBytes ]
+                            , redeemer =
+                                Uplc.evalScriptsCosts Uplc.defaultVmConfig (Utxo.refDictFromList localStateUtxos) tx
+                                    |> Result.toMaybe
+                        }
+                }
+            )
+
+        -- Test with multiple votes
+        , let
+            myStakeKeyHash =
+                Address.extractStakeKeyHash testAddr.me
+                    |> Maybe.withDefault (dummyCredentialHash "ERROR")
+
+            -- Action being voted on
+            actionId index =
+                { transactionId = dummyBytes 32 "actionTx"
+                , govActionIndex = index
+                }
+
+            -- Trivial native script drep that always succeeds
+            drepScript =
+                ScriptAll []
+
+            drepScriptCbor =
+                E.encode (Script.encodeNativeScript drepScript)
+                    |> Bytes.fromBytes
+
+            drepScriptHash =
+                blake2b224 Nothing (Bytes.toU8 drepScriptCbor)
+                    |> Bytes.fromU8
+
+            -- Define different voters
+            withMyDrepCred =
+                WithDrepCred (WithKey myStakeKeyHash)
+
+            withMyPoolCred =
+                WithPoolCred (dummyCredentialHash "poolId")
+
+            withMyDrepScript =
+                WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
+          in
+          okTxTest "Test with multiple votes"
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
+                [ ( makeRef "0" 0, Utxo.fromLovelace testAddr.me (ada 5) )
+                ]
+            , evalScriptsCosts = \_ _ -> Ok []
+            , fee = twoAdaFee
+            , txOtherInfo = []
+            , txIntents =
+                [ Vote withMyDrepCred
+                    [ { actionId = actionId 0, vote = VoteYes }
+                    , { actionId = actionId 1, vote = VoteYes }
+                    ]
+                , Vote withMyPoolCred
+                    [ { actionId = actionId 1, vote = VoteNo }
+                    , { actionId = actionId 0, vote = VoteNo }
+                    ]
+
+                -- action 1 will be overwritten by action 0, because same Voter
+                , Vote withMyDrepScript [ { actionId = actionId 1, vote = VoteAbstain } ]
+                , Vote withMyDrepScript [ { actionId = actionId 0, vote = VoteAbstain } ]
+                ]
+            }
+            (\_ ->
+                { newTx
+                    | body =
+                        { newBody
+                            | fee = ada 2
+                            , inputs = [ makeRef "0" 0 ]
+                            , outputs = [ Utxo.fromLovelace testAddr.me (ada 3) ]
+                            , votingProcedures =
+                                [ ( VoterDrepCred (ScriptHash drepScriptHash), [ ( actionId 0, { vote = VoteAbstain, anchor = Nothing } ) ] )
+                                , ( VoterDrepCred (VKeyHash myStakeKeyHash)
+                                  , [ ( actionId 0, { vote = VoteYes, anchor = Nothing } )
+                                    , ( actionId 1, { vote = VoteYes, anchor = Nothing } )
+                                    ]
+                                  )
+                                , ( VoterPoolId (dummyCredentialHash "poolId")
+                                  , [ ( actionId 1, { vote = VoteNo, anchor = Nothing } )
+                                    , ( actionId 0, { vote = VoteNo, anchor = Nothing } )
+                                    ]
+                                  )
+                                ]
+                        }
+                    , witnessSet =
+                        { newWitnessSet
+                            | vkeywitness =
+                                Just
+                                    [ { vkey = dummyBytes 32 "VKEYkey-me", signature = dummyBytes 64 "SIGNATUREkey-me" }
+                                    , { vkey = dummyBytes 32 "VKEYpoolId", signature = dummyBytes 64 "SIGNATUREpoolId" }
+                                    , { vkey = dummyBytes 32 "VKEYstk-me", signature = dummyBytes 64 "SIGNATUREstk-me" }
+                                    ]
+                            , nativeScripts = Just [ drepScript ]
                         }
                 }
             )
@@ -433,7 +736,8 @@ okTxBuilding =
 okTxTest :
     String
     ->
-        { localStateUtxos : List ( OutputReference, Output )
+        { govState : GovernanceState
+        , localStateUtxos : List ( OutputReference, Output )
         , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
@@ -441,12 +745,13 @@ okTxTest :
         }
     -> (Transaction -> Transaction)
     -> Test
-okTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectTransaction =
+okTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectTransaction =
     test description <|
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { govState = govState
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }
@@ -470,7 +775,8 @@ failTxBuilding =
                 in
                 Expect.equal (Err UnableToGuessFeeSource) (Cardano.finalize localStateUtxos [] [])
         , failTxTest "when there is no utxo in local state"
-            { localStateUtxos = []
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -485,7 +791,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there is insufficient manual fee (0.1 ada here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = ManualFee [ { paymentSource = testAddr.me, exactFeeAmount = Natural.fromSafeInt 100000 } ]
             , txOtherInfo = []
@@ -500,7 +807,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when inputs are missing from local state"
-            { localStateUtxos = []
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = []
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -518,7 +826,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when Tx intents are unbalanced (too much spend here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -533,7 +842,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when Tx intents are unbalanced (too much send here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -548,7 +858,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there is not enough minAda in created output (100 lovelaces here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = []
@@ -566,7 +877,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when we send CNT without Ada"
-            { localStateUtxos =
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos =
                 [ makeAdaOutput 0 testAddr.me 5
                 , makeAsset 1 testAddr.me cat.policyIdStr cat.assetNameStr 3
                 ]
@@ -587,7 +899,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when there are duplicated metadata tags (tag 0 here)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo =
@@ -605,7 +918,8 @@ failTxBuilding =
                         Expect.fail ("I didn’t expect this failure: " ++ Debug.toString error)
             )
         , failTxTest "when validity range is incorrect (start > end)"
-            { localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
+            { govState = Cardano.emptyGovernanceState
+            , localStateUtxos = [ makeAdaOutput 0 testAddr.me 5 ]
             , evalScriptsCosts = \_ _ -> Ok []
             , fee = twoAdaFee
             , txOtherInfo = [ TxTimeValidityRange { start = 1, end = Natural.zero } ]
@@ -627,7 +941,8 @@ failTxBuilding =
 failTxTest :
     String
     ->
-        { localStateUtxos : List ( OutputReference, Output )
+        { govState : GovernanceState
+        , localStateUtxos : List ( OutputReference, Output )
         , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
         , fee : Fee
         , txOtherInfo : List TxOtherInfo
@@ -635,12 +950,13 @@ failTxTest :
         }
     -> (TxFinalizationError -> Expectation)
     -> Test
-failTxTest description { localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectedFailure =
+failTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOtherInfo, txIntents } expectedFailure =
     test description <|
         \_ ->
             let
                 buildingConfig =
-                    { localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
+                    { govState = govState
+                    , localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
                     }
@@ -734,8 +1050,8 @@ makeWalletAddress : String -> Address
 makeWalletAddress name =
     Address.Shelley
         { networkId = Mainnet
-        , paymentCredential = VKeyHash (dummyCredentialHash name)
-        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash name))
+        , paymentCredential = VKeyHash (dummyCredentialHash <| "key-" ++ name)
+        , stakeCredential = Just (InlineCredential (VKeyHash <| dummyCredentialHash <| "stk-" ++ name))
         }
 
 

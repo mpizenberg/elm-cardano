@@ -47,10 +47,11 @@ import Bytes.Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Credential, CredentialHash, NetworkId(..), StakeAddress, decodeCredential)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (ActionId, Anchor, CostModels, Drep, ExUnitPrices, ProposalProcedure, ProtocolParamUpdate, RationalNumber, UnitInterval, Voter, VotingProcedure)
+import Cardano.Gov as Gov exposing (ActionId, Anchor, CostModels, Drep, ProposalProcedure, ProtocolParamUpdate, UnitInterval, Voter, VotingProcedure)
 import Cardano.MultiAsset as MultiAsset exposing (MultiAsset, PolicyId)
-import Cardano.Redeemer as Redeemer exposing (Redeemer)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, Redeemer)
 import Cardano.Script as Script exposing (NativeScript, ScriptCbor)
+import Cardano.Utils as Utils exposing (RationalNumber)
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, encodeOutput, encodeOutputReference)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
@@ -267,12 +268,12 @@ Publishing certificates triggers different kind of rules.
 Most of the time, they require signatures from specific keys.
 -}
 type Certificate
-    = StakeRegistration { delegator : Credential } -- 0 (will be deprecated after Conway)
-    | StakeDeregistration { delegator : Credential } -- 1 (will be deprecated after Conway)
-    | StakeDelegation { delegator : Credential, poolId : Bytes PoolId } -- 2
-    | PoolRegistration PoolParams -- 3
-    | PoolRetirement { poolId : Bytes PoolId, epoch : Natural } -- 4
-    | GenesisKeyDelegation
+    = StakeRegistrationCert { delegator : Credential } -- 0 (will be deprecated after Conway)
+    | StakeDeregistrationCert { delegator : Credential } -- 1 (will be deprecated after Conway)
+    | StakeDelegationCert { delegator : Credential, poolId : Bytes PoolId } -- 2
+    | PoolRegistrationCert PoolParams -- 3
+    | PoolRetirementCert { poolId : Bytes PoolId, epoch : Natural } -- 4
+    | GenesisKeyDelegationCert
         -- 5 (deprecated in Conway)
         { genesisHash : Bytes GenesisHash
         , genesisDelegateHash : Bytes GenesisDelegateHash
@@ -287,8 +288,8 @@ type Certificate
     | StakeRegDelegCert { delegator : Credential, poolId : Bytes PoolId, deposit : Natural } -- 11 Registers stake credentials and delegates to a stake pool
     | VoteRegDelegCert { delegator : Credential, drep : Drep, deposit : Natural } -- 12 Registers stake credentials and delegates to a DRep
     | StakeVoteRegDelegCert { delegator : Credential, poolId : Bytes PoolId, drep : Drep, deposit : Natural } -- 13 Registers stake credentials, delegates to a pool, and to a DRep
-    | AuthCommitteeHotCert { commiteeColdCredential : Credential, comiteeHotCredential : Credential } -- 14 Authorizes the constitutional committee hot credential
-    | ResignCommitteeColdCert { commiteeColdCredential : Credential, anchor : Maybe Anchor } -- 15 Resigns the constitutional committee cold credential
+    | AuthCommitteeHotCert { committeeColdCredential : Credential, committeeHotCredential : Credential } -- 14 Authorizes the constitutional committee hot credential
+    | ResignCommitteeColdCert { committeeColdCredential : Credential, anchor : Maybe Anchor } -- 15 Resigns the constitutional committee cold credential
     | RegDrepCert { drepCredential : Credential, deposit : Natural, anchor : Maybe Anchor } -- 16 Registers DRep's credentials
     | UnregDrepCert { drepCredential : Credential, refund : Natural } -- 17 Unregisters (retires) DRep's credentials
     | UpdateDrepCert { drepCredential : Credential, anchor : Maybe Anchor } -- 18 Updates DRep's metadata anchor
@@ -300,8 +301,8 @@ This is a 28-bytes Blake2b-224 hash.
 -- TODO: Move Pool stuff into its own module
 
 -}
-type PoolId
-    = PoolId Never
+type alias PoolId =
+    CredentialHash
 
 
 {-| Phantom type for Genesis hash.
@@ -685,7 +686,7 @@ encodeProposalProcedure =
     E.tuple
         (E.elems
             >> E.elem EE.natural .deposit
-            >> E.elem Address.stakeAddressToCbor .rewardAccount
+            >> E.elem Address.stakeAddressToCbor .depositReturnAccount
             >> E.elem Gov.encodeAction .govAction
             >> E.elem Gov.encodeAnchor .anchor
         )
@@ -776,42 +777,42 @@ encodeCertificate : Certificate -> E.Encoder
 encodeCertificate certificate =
     E.list identity <|
         case certificate of
-            StakeRegistration { delegator } ->
+            StakeRegistrationCert { delegator } ->
                 [ E.int 0
                 , Address.credentialToCbor delegator
                 ]
 
-            StakeDeregistration { delegator } ->
+            StakeDeregistrationCert { delegator } ->
                 [ E.int 1
                 , Address.credentialToCbor delegator
                 ]
 
-            StakeDelegation { delegator, poolId } ->
+            StakeDelegationCert { delegator, poolId } ->
                 [ E.int 2
                 , Address.credentialToCbor delegator
                 , Bytes.toCbor poolId
                 ]
 
-            PoolRegistration poolParams ->
+            PoolRegistrationCert poolParams ->
                 [ E.int 3
                 , Bytes.toCbor poolParams.operator
                 , Bytes.toCbor poolParams.vrfKeyHash
                 , EE.natural poolParams.pledge
                 , EE.natural poolParams.cost
-                , Gov.encodeRationalNumber poolParams.margin
+                , Utils.encodeRationalNumber poolParams.margin
                 , Address.stakeAddressToCbor poolParams.rewardAccount
                 , E.list Bytes.toCbor poolParams.poolOwners
                 , E.list encodeRelay poolParams.relays
                 , E.maybe encodePoolMetadata poolParams.poolMetadata
                 ]
 
-            PoolRetirement { poolId, epoch } ->
+            PoolRetirementCert { poolId, epoch } ->
                 [ E.int 4
                 , Bytes.toCbor poolId
                 , EE.natural epoch
                 ]
 
-            GenesisKeyDelegation { genesisHash, genesisDelegateHash, vrfKeyHash } ->
+            GenesisKeyDelegationCert { genesisHash, genesisDelegateHash, vrfKeyHash } ->
                 [ E.int 5
                 , Bytes.toCbor genesisHash
                 , Bytes.toCbor genesisDelegateHash
@@ -878,16 +879,16 @@ encodeCertificate certificate =
                 ]
 
             -- 14 Authorizes the constitutional committee hot credential
-            AuthCommitteeHotCert { commiteeColdCredential, comiteeHotCredential } ->
+            AuthCommitteeHotCert { committeeColdCredential, committeeHotCredential } ->
                 [ E.int 14
-                , Address.credentialToCbor commiteeColdCredential
-                , Address.credentialToCbor comiteeHotCredential
+                , Address.credentialToCbor committeeColdCredential
+                , Address.credentialToCbor committeeHotCredential
                 ]
 
             -- 15 Resigns the constitutional committee cold credential
-            ResignCommitteeColdCert { commiteeColdCredential, anchor } ->
+            ResignCommitteeColdCert { committeeColdCredential, anchor } ->
                 [ E.int 15
-                , Address.credentialToCbor commiteeColdCredential
+                , Address.credentialToCbor committeeColdCredential
                 , E.maybe Gov.encodeAnchor anchor
                 ]
 
@@ -1282,27 +1283,27 @@ decodeCertificateHelper length id =
     case ( length, id ) of
         -- stake_registration = (0, stake_credential)
         ( 2, 0 ) ->
-            D.map (\cred -> StakeRegistration { delegator = cred }) decodeCredential
+            D.map (\cred -> StakeRegistrationCert { delegator = cred }) decodeCredential
 
         -- stake_deregistration = (1, stake_credential)
         ( 2, 1 ) ->
-            D.map (\cred -> StakeDeregistration { delegator = cred }) decodeCredential
+            D.map (\cred -> StakeDeregistrationCert { delegator = cred }) decodeCredential
 
         -- stake_delegation = (2, stake_credential, pool_keyhash)
         ( 3, 2 ) ->
             D.map2
-                (\cred poolId -> StakeDelegation { delegator = cred, poolId = poolId })
+                (\cred poolId -> StakeDelegationCert { delegator = cred, poolId = poolId })
                 decodeCredential
                 (D.map Bytes.fromBytes D.bytes)
 
         -- pool_registration = (3, pool_params)
         -- pool_params is of size 9
         ( 10, 3 ) ->
-            D.map PoolRegistration <| D.oneOf [ decodePoolParams, D.failWith "Failed to decode pool params" ]
+            D.map PoolRegistrationCert <| D.oneOf [ decodePoolParams, D.failWith "Failed to decode pool params" ]
 
         -- pool_retirement = (4, pool_keyhash, epoch)
         ( 3, 4 ) ->
-            D.map2 (\poolId epoch -> PoolRetirement { poolId = poolId, epoch = epoch })
+            D.map2 (\poolId epoch -> PoolRetirementCert { poolId = poolId, epoch = epoch })
                 (D.map Bytes.fromBytes D.bytes)
                 D.natural
 
@@ -1310,7 +1311,7 @@ decodeCertificateHelper length id =
         ( 4, 5 ) ->
             D.map3
                 (\genHash genDelHash vrfKeyHash ->
-                    GenesisKeyDelegation
+                    GenesisKeyDelegationCert
                         { genesisHash = genHash
                         , genesisDelegateHash = genDelHash
                         , vrfKeyHash = vrfKeyHash
@@ -1381,14 +1382,14 @@ decodeCertificateHelper length id =
         -- auth_committee_hot_cert = (14, committee_cold_credential, committee_hot_credential)
         ( 3, 14 ) ->
             D.map2
-                (\cold hot -> AuthCommitteeHotCert { commiteeColdCredential = cold, comiteeHotCredential = hot })
+                (\cold hot -> AuthCommitteeHotCert { committeeColdCredential = cold, committeeHotCredential = hot })
                 decodeCredential
                 decodeCredential
 
         -- resign_committee_cold_cert = (15, committee_cold_credential, anchor / nil)
         ( 3, 15 ) ->
             D.map2
-                (\cold anchor -> ResignCommitteeColdCert { commiteeColdCredential = cold, anchor = anchor })
+                (\cold anchor -> ResignCommitteeColdCert { committeeColdCredential = cold, anchor = anchor })
                 decodeCredential
                 (D.maybe Gov.decodeAnchor)
 
@@ -1430,7 +1431,7 @@ decodePoolParams =
         |> D.keep (D.oneOf [ D.map Bytes.fromBytes D.bytes, D.failWith "Failed to decode vrfkeyhash" ])
         |> D.keep (D.oneOf [ D.natural, D.failWith "Failed to decode pledge" ])
         |> D.keep D.natural
-        |> D.keep (D.oneOf [ Gov.decodeRational, D.failWith "Failed to decode rational" ])
+        |> D.keep (D.oneOf [ Utils.decodeRational, D.failWith "Failed to decode rational" ])
         |> D.keep (D.oneOf [ Address.decodeReward, D.failWith "Failed to decode reward" ])
         |> D.keep (D.set (D.map Bytes.fromBytes D.bytes))
         |> D.keep (D.list <| D.oneOf [ decodeRelay, D.failWith "Failed to decode Relay" ])

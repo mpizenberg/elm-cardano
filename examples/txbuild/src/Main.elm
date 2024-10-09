@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Bytes.Comparable as Bytes
 import Cardano.Transaction as Transaction
-import Cardano.TxExamples exposing (example1, example2, example3, prettyTx)
+import Cardano.TxExamples exposing (example1, example2, example3, example4, example5, example6, prettyTx)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo
 import Html exposing (Html, div, text)
@@ -120,6 +120,12 @@ view _ =
         , div [] [ text "Example transaction 3: spend 2 ada from a plutus script with 4 ada." ]
         , div [] [ text "Spent UTxO index is passed as argument in the redeemer." ]
         , Html.pre [] [ text <| example example3 ]
+        , div [] [ text "Example transaction 4: register stake, delegate to a pool and to a DRep." ]
+        , Html.pre [] [ text <| example example4 ]
+        , div [] [ text "Example transaction 5: Update parameters, withdraw from treasury, new constitution, no confidence, info, and hard fork." ]
+        , Html.pre [] [ text <| example example5 ]
+        , div [] [ text "Example transaction 6: Vote on some Gov action as a DRep, a Pool, and with a Native script DRep." ]
+        , Html.pre [] [ text <| example example6 ]
 
         -- , div [] [ text "SnekDotFun Tx:" ]
         -- , Html.pre [] [ text <| Cardano.prettyTx snekTx ]

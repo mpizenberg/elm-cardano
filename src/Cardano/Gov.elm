@@ -9,12 +9,10 @@ module Cardano.Gov exposing
     , DrepVotingThresholds, decodeDrepVotingThresholds, encodeDrepVotingThresholds
     , CostModels, decodeCostModels, encodeCostModels
     , ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
-    , RationalNumber, decodeRational, encodeRationalNumber
-    , ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
     , Nonce(..), UnitInterval, PositiveInterval
     , VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
     , Vote(..), encodeVote
-    , Voter(..), voterFromCbor, encodeVoter
+    , Voter(..), VoterDict, emptyVoterDict, voterDictFromList, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
     , Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
     )
 
@@ -40,32 +38,29 @@ module Cardano.Gov exposing
 
 @docs ProtocolVersion, decodeProtocolVersion, encodeProtocolVersion
 
-@docs RationalNumber, decodeRational, encodeRationalNumber
-
-@docs ExUnitPrices, decodeExUnitPrices, encodeExUnitPrices
-
 @docs Nonce, UnitInterval, PositiveInterval
 
 @docs VotingProcedure, votingProcedureFromCbor, encodeVotingProcedure
 
 @docs Vote, encodeVote
 
-@docs Voter, voterFromCbor, encodeVoter
+@docs Voter, VoterDict, emptyVoterDict, voterDictFromList, voterCredentialHash, voterKeyCred, voterLedgerOrder, voterFromCbor, encodeVoter
 
 @docs Anchor, AnchorDataHash, decodeAnchor, encodeAnchor
 
 -}
 
 import Bytes.Comparable as Bytes exposing (Any, Bytes)
-import Cardano.Address as Address exposing (Credential, CredentialHash, StakeAddress)
+import Cardano.Address as Address exposing (Credential(..), CredentialHash, StakeAddress, extractCredentialHash)
 import Cardano.MultiAsset exposing (PolicyId)
-import Cardano.Redeemer as Redeemer exposing (ExUnits)
+import Cardano.Redeemer as Redeemer exposing (ExUnitPrices, ExUnits, decodeExUnitPrices, encodeExUnitPrices)
+import Cardano.Utils exposing (RationalNumber, decodeRational, encodeRationalNumber)
 import Cardano.Utxo exposing (TransactionId)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
 import Cbor.Encode.Extra as EE
-import Cbor.Tag as Tag
+import Dict.Any exposing (AnyDict)
 import Natural exposing (Natural)
 
 
@@ -83,6 +78,98 @@ type Voter
     = VoterCommitteeHotCred Credential -- 0, addr_keyhash // 1, scripthash
     | VoterDrepCred Credential -- 2, addr_keyhash // 3, scripthash
     | VoterPoolId (Bytes CredentialHash) -- 4, addr_keyhash
+
+
+{-| Convenient alias for a `Dict` with [Voter] keys.
+When converting to a `List`, its keys are sorted with the same order as the Haskell node.
+The order is determined by [voterLedgerOrder].
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+type alias VoterDict a =
+    AnyDict ( Int, String ) Voter a
+
+
+{-| Create a empty voter dictionary.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+emptyVoterDict : VoterDict a
+emptyVoterDict =
+    Dict.Any.empty voterLedgerOrder
+
+
+{-| Create a voter dictionary from a list.
+For other operations, use the `AnyDict` module directly.
+
+WARNING: do not compare them with `==` since they contain functions.
+
+-}
+voterDictFromList : List ( Voter, a ) -> VoterDict a
+voterDictFromList voters =
+    Dict.Any.fromList voterLedgerOrder voters
+
+
+{-| Extract the credential hash of a voter.
+-}
+voterCredentialHash : Voter -> Bytes CredentialHash
+voterCredentialHash voter =
+    case voter of
+        VoterCommitteeHotCred cred ->
+            extractCredentialHash cred
+
+        VoterDrepCred cred ->
+            extractCredentialHash cred
+
+        VoterPoolId hash ->
+            hash
+
+
+{-| Helper function to extract keys that would need signing.
+-}
+voterKeyCred : Voter -> Maybe (Bytes CredentialHash)
+voterKeyCred voter =
+    case voter of
+        VoterCommitteeHotCred (VKeyHash hash) ->
+            Just hash
+
+        VoterDrepCred (VKeyHash hash) ->
+            Just hash
+
+        VoterPoolId hash ->
+            Just hash
+
+        _ ->
+            Nothing
+
+
+{-| Helper function to help sort voters for redeemers in the same order as Haskell node.
+
+The problem is that the ledger code sort these maps with auto derived order.
+And the Credential definition uses ScriptHash first, instead of VKeyHash first.
+<https://github.com/IntersectMBO/cardano-ledger/blob/2f199b94716350b5fbd6c07505eb333d89cffa90/libs/cardano-ledger-core/src/Cardano/Ledger/Credential.hs#L85>
+
+-}
+voterLedgerOrder : Voter -> ( Int, String )
+voterLedgerOrder voter =
+    case voter of
+        VoterCommitteeHotCred (ScriptHash hash) ->
+            ( 0, Bytes.toHex hash )
+
+        VoterCommitteeHotCred (VKeyHash hash) ->
+            ( 1, Bytes.toHex hash )
+
+        VoterDrepCred (ScriptHash hash) ->
+            ( 2, Bytes.toHex hash )
+
+        VoterDrepCred (VKeyHash hash) ->
+            ( 3, Bytes.toHex hash )
+
+        VoterPoolId hash ->
+            ( 4, Bytes.toHex hash )
 
 
 {-| Decoder for Voter type.
@@ -161,7 +248,7 @@ votingProcedureFromCbor =
 -}
 type alias ProposalProcedure =
     { deposit : Natural
-    , rewardAccount : StakeAddress
+    , depositReturnAccount : StakeAddress
     , govAction : Action
     , anchor : Anchor
     }
@@ -184,31 +271,36 @@ proposalProcedureFromCbor =
 -}
 type Action
     = ParameterChange
-        { govActionId : Maybe ActionId
+        --0
+        { latestEnacted : Maybe ActionId
         , protocolParamUpdate : ProtocolParamUpdate
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
+      -- 1
     | HardForkInitiation
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , protocolVersion : ProtocolVersion
         }
+      -- 2
     | TreasuryWithdrawals
         { withdrawals : List ( StakeAddress, Natural )
         , guardrailsPolicy : Maybe (Bytes PolicyId)
         }
-    | NoConfidence
-        { govActionId : Maybe ActionId
-        }
+      -- 3
+    | NoConfidence { latestEnacted : Maybe ActionId }
+      -- 4
     | UpdateCommittee
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , removedMembers : List Credential
         , addedMembers : List { newMember : Credential, expirationEpoch : Natural }
         , quorumThreshold : UnitInterval
         }
+      -- 5
     | NewConstitution
-        { govActionId : Maybe ActionId
+        { latestEnacted : Maybe ActionId
         , constitution : Constitution
         }
+      -- 6
     | Info
 
 
@@ -263,7 +355,7 @@ decodeAction =
                         D.map3
                             (\govActionId update policy ->
                                 ParameterChange
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , protocolParamUpdate = update
                                     , guardrailsPolicy = policy
                                     }
@@ -276,7 +368,7 @@ decodeAction =
                         D.map2
                             (\govActionId version ->
                                 HardForkInitiation
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , protocolVersion = version
                                     }
                             )
@@ -297,7 +389,7 @@ decodeAction =
                     3 ->
                         D.map
                             (\govActionId ->
-                                NoConfidence { govActionId = govActionId }
+                                NoConfidence { latestEnacted = govActionId }
                             )
                             (D.maybe actionIdFromCbor)
 
@@ -305,7 +397,7 @@ decodeAction =
                         D.map4
                             (\govActionId removed added threshold ->
                                 UpdateCommittee
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , removedMembers = removed
                                     , addedMembers = added
                                     , quorumThreshold = threshold
@@ -322,7 +414,7 @@ decodeAction =
                         D.map2
                             (\govActionId constitution ->
                                 NewConstitution
-                                    { govActionId = govActionId
+                                    { latestEnacted = govActionId
                                     , constitution = constitution
                                     }
                             )
@@ -596,14 +688,6 @@ type Nonce
     | RandomBytes (Bytes Any)
 
 
-{-| Represents execution unit prices.
--}
-type alias ExUnitPrices =
-    { memPrice : RationalNumber -- 0
-    , stepPrice : RationalNumber -- 1
-    }
-
-
 {-| Represents a protocol version.
 -}
 type alias ProtocolVersion =
@@ -624,17 +708,6 @@ type alias PositiveInterval =
 
 
 -- https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L379
-
-
-{-| Represents a rational number.
--}
-type alias RationalNumber =
-    { numerator : Int
-    , denominator : Int
-    }
-
-
-
 -- ENCODERS
 
 
@@ -647,27 +720,6 @@ encodeCostModels =
             >> E.optionalField 0 (E.list E.int) .plutusV1
             >> E.optionalField 1 (E.list E.int) .plutusV2
             >> E.optionalField 2 (E.list E.int) .plutusV3
-
-
-{-| Encoder for ExUnitPrices type.
--}
-encodeExUnitPrices : ExUnitPrices -> E.Encoder
-encodeExUnitPrices =
-    E.tuple <|
-        E.elems
-            >> E.elem encodeRationalNumber .memPrice
-            >> E.elem encodeRationalNumber .stepPrice
-
-
-{-| Encoder for RationalNumber type.
--}
-encodeRationalNumber : RationalNumber -> E.Encoder
-encodeRationalNumber =
-    E.tagged (Tag.Unknown 30) <|
-        E.tuple <|
-            E.elems
-                >> E.elem E.int .numerator
-                >> E.elem E.int .denominator
 
 
 {-| Encoder for Drep type.
@@ -732,18 +784,18 @@ encodeDrepVotingThresholds thresholds =
 encodeAction : Action -> E.Encoder
 encodeAction action =
     case action of
-        ParameterChange { govActionId, protocolParamUpdate, guardrailsPolicy } ->
+        ParameterChange { latestEnacted, protocolParamUpdate, guardrailsPolicy } ->
             E.list identity
                 [ E.int 0
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeProtocolParamUpdate protocolParamUpdate
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
-        HardForkInitiation { govActionId, protocolVersion } ->
+        HardForkInitiation { latestEnacted, protocolVersion } ->
             E.list identity
                 [ E.int 1
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeProtocolVersion protocolVersion
                 ]
 
@@ -754,30 +806,30 @@ encodeAction action =
                 , E.maybe Bytes.toCbor guardrailsPolicy
                 ]
 
-        NoConfidence { govActionId } ->
+        NoConfidence { latestEnacted } ->
             E.list identity
                 [ E.int 3
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 ]
 
-        UpdateCommittee { govActionId, removedMembers, addedMembers, quorumThreshold } ->
+        UpdateCommittee { latestEnacted, removedMembers, addedMembers, quorumThreshold } ->
             E.list identity
                 [ E.int 4
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , E.list Address.credentialToCbor removedMembers
                 , EE.associativeList Address.credentialToCbor EE.natural (List.map (\m -> ( m.newMember, m.expirationEpoch )) addedMembers)
                 , encodeRationalNumber quorumThreshold
                 ]
 
-        NewConstitution { govActionId, constitution } ->
+        NewConstitution { latestEnacted, constitution } ->
             E.list identity
                 [ E.int 5
-                , E.maybe encodeActionId govActionId
+                , E.maybe encodeActionId latestEnacted
                 , encodeConstitution constitution
                 ]
 
         Info ->
-            E.int 6
+            E.list E.int [ 6 ]
 
 
 {-| Encoder for ActionId type.
@@ -798,7 +850,7 @@ encodeConstitution =
     E.tuple
         (E.elems
             >> E.elem encodeAnchor .anchor
-            >> E.optionalElem Bytes.toCbor .scripthash
+            >> E.elem (E.maybe Bytes.toCbor) .scripthash
         )
 
 
@@ -951,35 +1003,6 @@ decodeProtocolVersion =
         D.elems
             >> D.elem D.int
             >> D.elem D.int
-
-
-{-| Decoder for ExUnitPrices type.
--}
-decodeExUnitPrices : D.Decoder ExUnitPrices
-decodeExUnitPrices =
-    D.tuple ExUnitPrices <|
-        D.elems
-            >> D.elem decodeRational
-            >> D.elem decodeRational
-
-
-{-| Decoder for RationalNumber type.
--}
-decodeRational : D.Decoder RationalNumber
-decodeRational =
-    D.tag
-        |> D.andThen
-            (\tag ->
-                case tag of
-                    Tag.Unknown 30 ->
-                        D.tuple RationalNumber <|
-                            D.elems
-                                >> D.elem D.int
-                                >> D.elem D.int
-
-                    _ ->
-                        D.fail
-            )
 
 
 {-| Decoder for Drep type.

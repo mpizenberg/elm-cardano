@@ -1,8 +1,11 @@
 module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
+    , CertificateIntent(..), CredentialWitness(..), VoterWitness(..)
+    , ProposalIntent, ActionProposal(..)
     , TxOtherInfo(..)
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
+    , GovernanceState, emptyGovernanceState
     , updateLocalState
     , dummyBytes
     )
@@ -359,9 +362,12 @@ We can embed it directly in the transaction witness.
 ## Code Documentation
 
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
+@docs CertificateIntent, CredentialWitness, VoterWitness
+@docs ProposalIntent, ActionProposal
 @docs TxOtherInfo
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
+@docs GovernanceState, emptyGovernanceState
 @docs updateLocalState
 @docs dummyBytes
 
@@ -370,15 +376,16 @@ We can embed it directly in the transaction witness.
 import Bytes as ElmBytes
 import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
-import Cardano.Address as Address exposing (Address(..), CredentialHash, NetworkId(..), StakeAddress)
+import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter(..))
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
 import Cardano.Script as Script exposing (NativeScript, PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Transaction exposing (Transaction, TransactionBody, VKeyWitness, WitnessSet)
+import Cardano.Transaction as Transaction exposing (Certificate(..), PoolId, PoolParams, Transaction, TransactionBody, VKeyWitness, WitnessSet)
 import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
@@ -405,7 +412,7 @@ type TxIntent
         , scriptWitness : ScriptWitness
         }
       -- Issuing certificates
-    | IssueCertificate -- TODO
+    | IssueCertificate CertificateIntent
       -- Withdrawing rewards
     | WithdrawRewards
         -- TODO: check that the addres type match the scriptWitness field
@@ -413,8 +420,8 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
-    | Vote -- TODO
-    | Propose -- TODO
+    | Vote VoterWitness (List { actionId : ActionId, vote : Vote })
+    | Propose ProposalIntent
 
 
 {-| Represents different sources for spending assets.
@@ -437,6 +444,57 @@ type SpendSource
         , datumWitness : Maybe (WitnessSource Data)
         , plutusScriptWitness : PlutusScriptWitness
         }
+
+
+{-| All intents requiring the on-chain publication of a certificate.
+
+These include stake registration and delegation,
+stake pool management, and voting or delegating your voting power.
+
+-}
+type CertificateIntent
+    = RegisterStake { delegator : CredentialWitness, deposit : Natural }
+    | UnregisterStake { delegator : CredentialWitness, refund : Natural }
+    | DelegateStake { delegator : CredentialWitness, poolId : Bytes PoolId }
+      -- Pool management
+    | RegisterPool { deposit : Natural } PoolParams
+    | RetirePool { poolId : Bytes PoolId, epoch : Natural }
+      -- Vote management
+    | RegisterDrep { drep : CredentialWitness, deposit : Natural, info : Maybe Anchor }
+    | UnregisterDrep { drep : CredentialWitness, refund : Natural }
+    | VoteAlwaysAbstain { delegator : CredentialWitness }
+    | VoteAlwaysNoConfidence { delegator : CredentialWitness }
+    | DelegateVotes { delegator : CredentialWitness, drep : Credential }
+
+
+{-| The type of credential to provide.
+
+It can either be a key, typically from a wallet,
+a native script, or a plutus script.
+
+-}
+type CredentialWitness
+    = WithKey (Bytes CredentialHash)
+    | WithScript (Bytes CredentialHash) ScriptWitness
+
+
+credentialIsPlutusScript : CredentialWitness -> Bool
+credentialIsPlutusScript cred =
+    case cred of
+        WithScript _ (PlutusWitness _) ->
+            True
+
+        _ ->
+            False
+
+
+{-| Voting credentials can either come from
+a DRep, a stake pool, or Constitutional Committee member.
+-}
+type VoterWitness
+    = WithCommitteeHotCred CredentialWitness
+    | WithDrepCred CredentialWitness
+    | WithPoolCred (Bytes CredentialHash)
 
 
 {-| Represents the inputs and outputs of a transaction.
@@ -491,6 +549,32 @@ extractWitnessRef witnessSource =
             Just ref
 
 
+{-| Governance action proposal.
+-}
+type alias ProposalIntent =
+    { govAction : ActionProposal
+    , offchainInfo : Anchor
+    , deposit : Natural
+    , depositReturnAccount : StakeAddress
+    }
+
+
+{-| The different kinds of proposals available for governance.
+-}
+type ActionProposal
+    = ParameterChange ProtocolParamUpdate
+    | HardForkInitiation ProtocolVersion
+    | TreasuryWithdrawals (List { destination : StakeAddress, amount : Natural })
+    | NoConfidence
+    | UpdateCommittee
+        { removeMembers : List Credential
+        , addMembers : List { newMember : Credential, expirationEpoch : Natural }
+        , quorumThreshold : UnitInterval
+        }
+    | NewConstitution Constitution
+    | Info
+
+
 {-| Represents additional information for a transaction.
 -}
 type TxOtherInfo
@@ -528,6 +612,7 @@ type TxFinalizationError
     | DuplicatedMetadataTags Int
     | IncorrectTimeValidityRange String
     | UplcVmError String
+    | GovProposalsNotSupportedInSimpleFinalize
     | FailurePleaseReportToElmCardano String
 
 
@@ -555,7 +640,8 @@ finalize :
     -> List TxIntent
     -> Result TxFinalizationError Transaction
 finalize localStateUtxos txOtherInfo txIntents =
-    guessFeeSource localStateUtxos txIntents
+    assertNoGovProposals txIntents
+        |> Result.andThen (\_ -> guessFeeSource localStateUtxos txIntents)
         |> Result.andThen
             (\feeSource ->
                 let
@@ -591,7 +677,8 @@ finalize localStateUtxos txOtherInfo txIntents =
                             \_ _ -> Ok []
                 in
                 finalizeAdvanced
-                    { localStateUtxos = localStateUtxos
+                    { govState = emptyGovernanceState -- proposals are forbidden in simple finalize anyway
+                    , localStateUtxos = localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = defaultEvalScriptsCosts
                     }
@@ -599,6 +686,24 @@ finalize localStateUtxos txOtherInfo txIntents =
                     txOtherInfo
                     txIntents
             )
+
+
+{-| Simple helper function needed to check that there isn’t any proposal
+in the Tx intents when using the simple [finalize] function.
+This is because finalization requires some governance state, not provided here,
+such as guardrails script hash, last enacted proposals, etc.
+-}
+assertNoGovProposals : List TxIntent -> Result TxFinalizationError ()
+assertNoGovProposals intents =
+    case intents of
+        [] ->
+            Ok ()
+
+        (Propose _) :: _ ->
+            Err GovProposalsNotSupportedInSimpleFinalize
+
+        _ :: otherIntents ->
+            assertNoGovProposals otherIntents
 
 
 {-| Attempt to guess the [Address] used to pay the fees from the list of intents.
@@ -714,8 +819,67 @@ containPlutusScripts txIntents =
                 PlutusWitness _ ->
                     True
 
-        IssueCertificate :: _ ->
-            Debug.todo "certificateHasScript?"
+        (IssueCertificate (RegisterStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (UnregisterStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (DelegateStake { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (RegisterPool _ _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (IssueCertificate (RetirePool _)) :: otherIntents ->
+            containPlutusScripts otherIntents
+
+        (IssueCertificate (RegisterDrep { drep })) :: otherIntents ->
+            if credentialIsPlutusScript drep then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (UnregisterDrep { drep })) :: otherIntents ->
+            if credentialIsPlutusScript drep then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (VoteAlwaysAbstain { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (VoteAlwaysNoConfidence { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
+
+        (IssueCertificate (DelegateVotes { delegator })) :: otherIntents ->
+            if credentialIsPlutusScript delegator then
+                True
+
+            else
+                containPlutusScripts otherIntents
 
         (WithdrawRewards { scriptWitness }) :: otherIntents ->
             case scriptWitness of
@@ -725,11 +889,55 @@ containPlutusScripts txIntents =
                 _ ->
                     containPlutusScripts otherIntents
 
-        Vote :: _ ->
-            Debug.todo "voteHasScript?"
+        (Vote voter _) :: otherIntents ->
+            case voter of
+                WithCommitteeHotCred (WithScript _ (PlutusWitness _)) ->
+                    True
 
-        Propose :: _ ->
-            Debug.todo "proposeHasScript?"
+                WithDrepCred (WithScript _ (PlutusWitness _)) ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
+
+        (Propose { govAction }) :: otherIntents ->
+            case govAction of
+                ParameterChange _ ->
+                    True
+
+                TreasuryWithdrawals _ ->
+                    True
+
+                _ ->
+                    containPlutusScripts otherIntents
+
+
+{-| Contains pointers to the latest enacted governance actions and to the constitution.
+-}
+type alias GovernanceState =
+    { guardrailsScript :
+        Maybe
+            { policyId : Bytes PolicyId
+            , plutusVersion : PlutusVersion
+            , scriptWitness : WitnessSource (Bytes ScriptCbor)
+            }
+    , lastEnactedCommitteeAction : Maybe ActionId
+    , lastEnactedConstitutionAction : Maybe ActionId
+    , lastEnactedHardForkAction : Maybe ActionId
+    , lastEnactedProtocolParamUpdateAction : Maybe ActionId
+    }
+
+
+{-| Just a helper initialization for when we don’t care about governance proposals.
+-}
+emptyGovernanceState : GovernanceState
+emptyGovernanceState =
+    { guardrailsScript = Nothing
+    , lastEnactedCommitteeAction = Nothing
+    , lastEnactedConstitutionAction = Nothing
+    , lastEnactedHardForkAction = Nothing
+    , lastEnactedProtocolParamUpdateAction = Nothing
+    }
 
 
 {-| Finalize a transaction before signing and sending it.
@@ -743,7 +951,8 @@ Analyze all intents and perform the following actions:
 
 -}
 finalizeAdvanced :
-    { localStateUtxos : Utxo.RefDict Output
+    { govState : GovernanceState
+    , localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
     }
@@ -751,8 +960,8 @@ finalizeAdvanced :
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
-    case ( processIntents localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
+finalizeAdvanced { govState, localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+    case ( processIntents govState localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
 
@@ -836,7 +1045,6 @@ finalizeAdvanced { localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee tx
                                     computeRefScriptBytesForTx tx
                             in
                             Transaction.computeFees Transaction.defaultTxFeeParams { refScriptBytes = refScriptBytes } tx
-                                |> Debug.log "computed Tx fee"
                                 |> (\{ txSizeFee, scriptExecFee, refScriptSizeFee } -> Natural.add txSizeFee scriptExecFee |> Natural.add refScriptSizeFee)
                                 |> (\computedFee -> ManualFee [ { paymentSource = paymentSource, exactFeeAmount = computedFee } ])
             in
@@ -933,6 +1141,11 @@ type alias PreProcessedIntents =
     , requiredSigners : List (List (Bytes CredentialHash))
     , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
+    , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
+    , proposalIntents : List ProposalIntent
+    , votes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
+    , totalDeposit : Natural
+    , totalRefund : Natural
     }
 
 
@@ -948,6 +1161,11 @@ noIntent =
     , requiredSigners = []
     , mints = []
     , withdrawals = []
+    , certificates = []
+    , proposalIntents = []
+    , votes = []
+    , totalDeposit = Natural.zero
+    , totalRefund = Natural.zero
     }
 
 
@@ -1069,18 +1287,170 @@ preProcessIntents txIntents =
                                 , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
                             }
 
-                -- TODO: Handle certificates
-                IssueCertificate ->
-                    Debug.todo "certificates"
+                IssueCertificate (RegisterStake { delegator, deposit }) ->
+                    preprocessCert
+                        (\keyCred -> RegCert { delegator = VKeyHash keyCred, deposit = deposit })
+                        (\scriptHash -> RegCert { delegator = ScriptHash scriptHash, deposit = deposit })
+                        { deposit = deposit, refund = Natural.zero }
+                        delegator
+                        preProcessedIntents
 
-                Vote ->
-                    Debug.todo "vote"
+                IssueCertificate (UnregisterStake { delegator, refund }) ->
+                    preprocessCert
+                        (\keyCred -> UnregCert { delegator = VKeyHash keyCred, refund = refund })
+                        (\scriptHash -> UnregCert { delegator = ScriptHash scriptHash, refund = refund })
+                        { deposit = Natural.zero, refund = refund }
+                        delegator
+                        preProcessedIntents
 
-                Propose ->
-                    Debug.todo "propose"
+                IssueCertificate (DelegateStake { delegator, poolId }) ->
+                    preprocessCert
+                        (\keyCred -> StakeDelegationCert { delegator = VKeyHash keyCred, poolId = poolId })
+                        (\scriptHash -> StakeDelegationCert { delegator = ScriptHash scriptHash, poolId = poolId })
+                        { deposit = Natural.zero, refund = Natural.zero }
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (RegisterDrep { drep, deposit, info }) ->
+                    preprocessCert
+                        (\keyCred -> RegDrepCert { drepCredential = VKeyHash keyCred, deposit = deposit, anchor = info })
+                        (\scriptHash -> RegDrepCert { drepCredential = ScriptHash scriptHash, deposit = deposit, anchor = info })
+                        { deposit = deposit, refund = Natural.zero }
+                        drep
+                        preProcessedIntents
+
+                IssueCertificate (UnregisterDrep { drep, refund }) ->
+                    preprocessCert
+                        (\keyCred -> UnregDrepCert { drepCredential = VKeyHash keyCred, refund = refund })
+                        (\scriptHash -> UnregDrepCert { drepCredential = ScriptHash scriptHash, refund = refund })
+                        { deposit = Natural.zero, refund = refund }
+                        drep
+                        preProcessedIntents
+
+                IssueCertificate (VoteAlwaysAbstain { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = AlwaysAbstain })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = AlwaysAbstain })
+                        { deposit = Natural.zero, refund = Natural.zero }
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (VoteAlwaysNoConfidence { delegator }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = AlwaysNoConfidence })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = AlwaysNoConfidence })
+                        { deposit = Natural.zero, refund = Natural.zero }
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (DelegateVotes { delegator, drep }) ->
+                    preprocessCert
+                        (\keyCred -> VoteDelegCert { delegator = VKeyHash keyCred, drep = DrepCredential drep })
+                        (\scriptHash -> VoteDelegCert { delegator = ScriptHash scriptHash, drep = DrepCredential drep })
+                        { deposit = Natural.zero, refund = Natural.zero }
+                        delegator
+                        preProcessedIntents
+
+                IssueCertificate (RegisterPool { deposit } poolParams) ->
+                    { preProcessedIntents
+                        | certificates = ( PoolRegistrationCert poolParams, Nothing ) :: preProcessedIntents.certificates
+                        , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
+                    }
+
+                IssueCertificate (RetirePool { poolId, epoch }) ->
+                    { preProcessedIntents
+                        | certificates = ( PoolRetirementCert { poolId = poolId, epoch = epoch }, Nothing ) :: preProcessedIntents.certificates
+                    }
+
+                Vote (WithCommitteeHotCred (WithKey cred)) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
+
+                Vote (WithCommitteeHotCred (WithScript cred (NativeWitness script))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                        , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                    }
+
+                Vote (WithCommitteeHotCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Just redeemerData } :: preProcessedIntents.votes
+                        , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                        , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                    }
+
+                Vote (WithDrepCred (WithKey cred)) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
+
+                Vote (WithDrepCred (WithScript cred (NativeWitness script))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                        , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                    }
+
+                Vote (WithDrepCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterDrepCred (ScriptHash cred), votes = votes, redeemer = Just redeemerData } :: preProcessedIntents.votes
+                        , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                        , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                    }
+
+                Vote (WithPoolCred cred) votes ->
+                    { preProcessedIntents
+                        | votes = { voter = VoterPoolId cred, votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
+                    }
+
+                -- For proposals, we accumulate the deposit,
+                -- then we keep intents as is, because to actually convert the action type,
+                -- we will need the GovernanceState, which isn’t available at the pre-processing step.
+                Propose ({ deposit } as proposal) ->
+                    { preProcessedIntents
+                        | proposalIntents = proposal :: preProcessedIntents.proposalIntents
+                        , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
+                    }
     in
     -- Use fold right so that the outputs list is in the correct order
     List.foldr stepIntent noIntent txIntents
+
+
+{-| Helper function to update preprocessed state with a new certificate.
+It also accumulates the total amount of deposits and refunds.
+-}
+preprocessCert :
+    (Bytes CredentialHash -> Certificate)
+    -> (Bytes CredentialHash -> Certificate)
+    -> { deposit : Natural, refund : Natural }
+    -> CredentialWitness
+    -> PreProcessedIntents
+    -> PreProcessedIntents
+preprocessCert certWithKeyF certWithScriptF { deposit, refund } cred preProcessedIntents =
+    case cred of
+        WithKey keyCred ->
+            { preProcessedIntents
+                | certificates = ( certWithKeyF keyCred, Nothing ) :: preProcessedIntents.certificates
+                , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
+                , totalRefund = Natural.add refund preProcessedIntents.totalRefund
+            }
+
+        WithScript scriptHash (NativeWitness script) ->
+            { preProcessedIntents
+                | certificates = ( certWithScriptF scriptHash, Nothing ) :: preProcessedIntents.certificates
+                , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
+                , totalRefund = Natural.add refund preProcessedIntents.totalRefund
+            }
+
+        WithScript scriptHash (PlutusWitness { script, redeemerData, requiredSigners }) ->
+            { preProcessedIntents
+                | certificates = ( certWithScriptF scriptHash, Just redeemerData ) :: preProcessedIntents.certificates
+                , plutusScriptSources = script :: preProcessedIntents.plutusScriptSources
+                , requiredSigners = requiredSigners :: preProcessedIntents.requiredSigners
+                , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
+                , totalRefund = Natural.add refund preProcessedIntents.totalRefund
+            }
 
 
 type alias ProcessedIntents =
@@ -1095,16 +1465,51 @@ type alias ProcessedIntents =
     , totalMinted : MultiAsset Integer
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
+    , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
+    , proposals : List ( ProposalProcedure, Maybe Data )
+    , votes : Gov.VoterDict { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
     }
 
 
 {-| Process already pre-processed intents and validate them all.
 -}
-processIntents : Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
-processIntents localStateUtxos txIntents =
+processIntents : GovernanceState -> Utxo.RefDict Output -> List TxIntent -> Result TxFinalizationError ProcessedIntents
+processIntents govState localStateUtxos txIntents =
     let
         preProcessedIntents =
             preProcessIntents txIntents
+
+        -- Put all votes into a VoterDict.
+        -- WARNING: if a voter is present multiple times, it will be overwritten.
+        voterDict =
+            preProcessedIntents.votes
+                |> List.map (\{ voter, votes, redeemer } -> ( voter, { votes = votes, redeemer = redeemer } ))
+                |> Gov.voterDictFromList
+
+        -- Helper to check if a given proposal requires the guardrails script execution
+        requiresGuardrails proposalIntent =
+            case proposalIntent.govAction of
+                ParameterChange _ ->
+                    True
+
+                TreasuryWithdrawals _ ->
+                    True
+
+                _ ->
+                    False
+
+        -- If there is any proposal requiring the guardrails script, update the plutus script sources
+        plutusScriptSources =
+            if List.any requiresGuardrails preProcessedIntents.proposalIntents then
+                case govState.guardrailsScript of
+                    Just { plutusVersion, scriptWitness } ->
+                        ( plutusVersion, scriptWitness ) :: preProcessedIntents.plutusScriptSources
+
+                    Nothing ->
+                        preProcessedIntents.plutusScriptSources
+
+            else
+                preProcessedIntents.plutusScriptSources
 
         -- Accumulate all output references from inputs and witnesses.
         allOutputReferencesInIntents : Utxo.RefDict ()
@@ -1112,7 +1517,7 @@ processIntents localStateUtxos txIntents =
             List.concat
                 [ List.map .input preProcessedIntents.preSelected
                 , List.filterMap extractWitnessRef preProcessedIntents.nativeScriptSources
-                , List.map (\( _, source ) -> source) preProcessedIntents.plutusScriptSources
+                , List.map (\( _, source ) -> source) plutusScriptSources
                     |> List.filterMap extractWitnessRef
                 , List.filterMap extractWitnessRef preProcessedIntents.datumSources
                 ]
@@ -1170,9 +1575,11 @@ processIntents localStateUtxos txIntents =
         -- Compute total inputs and outputs to check the Tx balance
         totalInput =
             Dict.Any.foldl (\_ -> Value.add) preSelected.sum preProcessedIntents.freeInputs
+                |> Value.add (Value.onlyLovelace preProcessedIntents.totalRefund)
 
         totalOutput =
             Dict.Any.foldl (\_ -> Value.add) preCreatedOutputs.sum preProcessedIntents.freeOutputs
+                |> Value.add (Value.onlyLovelace preProcessedIntents.totalDeposit)
     in
     if not <| Dict.Any.isEmpty absentOutputReferencesInLocalState then
         Err <| ReferenceOutputsMissingFromLocalState (Dict.Any.keys absentOutputReferencesInLocalState)
@@ -1215,7 +1622,7 @@ processIntents localStateUtxos txIntents =
                     -- TODO: an improvement would consist in fetching the referenced from the local state utxos,
                     -- and extract the script values, to even remove duplicates both in ref and values.
                     , nativeScriptSources = dedupWithCbor (encodeWitnessSource Script.encodeNativeScript) preProcessedIntents.nativeScriptSources
-                    , plutusScriptSources = dedupWithCbor (Tuple.second >> encodeWitnessSource Bytes.toCbor) preProcessedIntents.plutusScriptSources
+                    , plutusScriptSources = dedupWithCbor (Tuple.second >> encodeWitnessSource Bytes.toCbor) plutusScriptSources
                     , datumSources = dedupWithCbor (encodeWitnessSource Data.toCbor) preProcessedIntents.datumSources
                     , requiredSigners = requiredSigners
                     , totalMinted = totalMintedAndBurned
@@ -1225,8 +1632,84 @@ processIntents localStateUtxos txIntents =
                     , withdrawals =
                         List.map (\w -> ( w.stakeAddress, { amount = w.amount, redeemer = w.redeemer } )) preProcessedIntents.withdrawals
                             |> Address.stakeDictFromList
+                    , certificates = preProcessedIntents.certificates
+                    , proposals =
+                        preProcessedIntents.proposalIntents
+                            |> List.map
+                                (\{ govAction, offchainInfo, deposit, depositReturnAccount } ->
+                                    ( { deposit = deposit
+                                      , depositReturnAccount = depositReturnAccount
+                                      , anchor = offchainInfo
+                                      , govAction = actionFromIntent govState govAction
+                                      }
+                                    , proposalRedeemer govAction
+                                    )
+                                )
+                    , votes = voterDict
                     }
                 )
+
+
+{-| Helper function to convert an action proposal intent into an actual one.
+-}
+actionFromIntent : GovernanceState -> ActionProposal -> Action
+actionFromIntent govState actionIntent =
+    case actionIntent of
+        ParameterChange protocolParamUpdate ->
+            Gov.ParameterChange
+                { latestEnacted = govState.lastEnactedProtocolParamUpdateAction
+                , protocolParamUpdate = protocolParamUpdate
+                , guardrailsPolicy = Maybe.map .policyId govState.guardrailsScript
+                }
+
+        HardForkInitiation protocolVersion ->
+            Gov.HardForkInitiation
+                { latestEnacted = govState.lastEnactedHardForkAction
+                , protocolVersion = protocolVersion
+                }
+
+        TreasuryWithdrawals withdrawals ->
+            Gov.TreasuryWithdrawals
+                { withdrawals = List.map (\w -> ( w.destination, w.amount )) withdrawals
+                , guardrailsPolicy = Maybe.map .policyId govState.guardrailsScript
+                }
+
+        NoConfidence ->
+            Gov.NoConfidence
+                { latestEnacted = govState.lastEnactedCommitteeAction
+                }
+
+        UpdateCommittee updateInfo ->
+            Gov.UpdateCommittee
+                { latestEnacted = govState.lastEnactedCommitteeAction
+                , removedMembers = updateInfo.removeMembers
+                , addedMembers = updateInfo.addMembers
+                , quorumThreshold = updateInfo.quorumThreshold
+                }
+
+        NewConstitution constitution ->
+            Gov.NewConstitution
+                { latestEnacted = govState.lastEnactedConstitutionAction
+                , constitution = constitution
+                }
+
+        Info ->
+            Gov.Info
+
+
+{-| Helper function to generate the redeemers for potential guardrails script execution.
+-}
+proposalRedeemer : ActionProposal -> Maybe Data
+proposalRedeemer govAction =
+    case govAction of
+        ParameterChange _ ->
+            Just (Data.Int Integer.zero)
+
+        TreasuryWithdrawals _ ->
+            Just (Data.Int Integer.zero)
+
+        _ ->
+            Nothing
 
 
 {-| Helper function
@@ -1490,6 +1973,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
                     Dict.Any.insert addr { targetInputValue = Value.zero, freeOutput = v }
 
                 whenBoth addr input output =
+                    -- TODO: some optimization can be done here to reduce both sides
                     Dict.Any.insert addr { targetInputValue = input, freeOutput = output }
             in
             Dict.Any.merge whenInput
@@ -1501,6 +1985,7 @@ computeCoinSelection localStateUtxos fee processedIntents coinSelectionAlgo =
 
         -- Perform coin selection and output creation with the change
         -- for all address where there are target values (inputs and fees)
+        -- TODO: do it instead per credential, not per address???
         coinSelectionAndChangeOutputs : Result TxFinalizationError (Address.Dict ( CoinSelection.Selection, List Output ))
         coinSelectionAndChangeOutputs =
             targetValuesAndOutputs
@@ -1662,6 +2147,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         algoSelected =
             List.map (\ref -> ( ref, Nothing )) inputsOutputs.spentInputs
                 |> Utxo.refDictFromList
+                |> (\allSpent -> Dict.Any.diff allSpent preSelected)
 
         -- Helper
         makeRedeemer : RedeemerTag -> Int -> Data -> Redeemer
@@ -1669,17 +2155,13 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             { tag = tag
             , index = id
             , data = data
-            , exUnits = { mem = 0, steps = 0 } -- TODO: change or not?
+            , exUnits = { mem = 0, steps = 0 }
             }
 
         -- Build the spend redeemers while keeping the index of the sorted inputs.
         sortedSpendRedeemers : List Redeemer
         sortedSpendRedeemers =
-            Dict.Any.diff algoSelected preSelected
-                -- The diff then union is to make sure the order does not matter
-                -- since we want to keep the Just Data of preSelected
-                -- insteaf of the Nothings of algoSelected
-                |> Dict.Any.union preSelected
+            Dict.Any.union preSelected algoSelected
                 |> Dict.Any.toList
                 |> List.indexedMap
                     (\id ( _, maybeDatum ) ->
@@ -1699,6 +2181,8 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                     )
                 |> List.filterMap identity
 
+        -- The StakeDict used for the withdrawals field
+        -- uses the same ordering as Haskell (with script credentials first)
         sortedWithdrawals : List ( StakeAddress, Natural, Maybe Data )
         sortedWithdrawals =
             Dict.Any.toList processedIntents.withdrawals
@@ -1714,10 +2198,44 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                     )
                 |> List.filterMap identity
 
-        -- TODO
-        sortedCertRedeemers : List Redeemer
-        sortedCertRedeemers =
-            []
+        -- No need to sort certificates redeemers
+        certRedeemers : List Redeemer
+        certRedeemers =
+            processedIntents.certificates
+                |> List.indexedMap
+                    (\id ( _, maybeRedeemerF ) ->
+                        Maybe.map
+                            (\redeemerF -> makeRedeemer Redeemer.Cert id (redeemerF inputsOutputs))
+                            maybeRedeemerF
+                    )
+                |> List.filterMap identity
+
+        -- No need to sort proposals redeemers
+        proposalRedeemers : List Redeemer
+        proposalRedeemers =
+            processedIntents.proposals
+                |> List.indexedMap
+                    (\id ( _, maybeData ) ->
+                        Maybe.map (makeRedeemer Redeemer.Propose id) maybeData
+                    )
+                |> List.filterMap identity
+
+        -- Sort votes with the Voter order
+        sortedVotes : List ( Voter, { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) } )
+        sortedVotes =
+            Dict.Any.toList processedIntents.votes
+
+        -- Build the Vote redeemer with the same order as txVotes
+        voteRedeemers : List Redeemer
+        voteRedeemers =
+            sortedVotes
+                |> List.indexedMap
+                    (\id ( _, { redeemer } ) ->
+                        Maybe.map
+                            (\redeemerF -> makeRedeemer Redeemer.Vote id (redeemerF inputsOutputs))
+                            redeemer
+                    )
+                |> List.filterMap identity
 
         -- Look for inputs at addresses that will need signatures
         walletCredsInInputs : List (Bytes CredentialHash)
@@ -1729,11 +2247,33 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                             |> Maybe.andThen (Address.extractPubKeyHash << .address)
                     )
 
+        -- Look for stake credentials needed for withdrawals
+        withdrawalsStakeCreds : List (Bytes CredentialHash)
+        withdrawalsStakeCreds =
+            Dict.Any.keys processedIntents.withdrawals
+                |> List.filterMap (\stakeAddress -> Address.extractCredentialKeyHash stakeAddress.stakeCredential)
+
+        -- Look for stake credentials needed for certificates
+        certificatesCreds : List (Bytes CredentialHash)
+        certificatesCreds =
+            List.map Tuple.first processedIntents.certificates
+                |> List.concatMap extractCertificateCred
+
+        -- Look for credentials needed for votes
+        votesCreds : List (Bytes CredentialHash)
+        votesCreds =
+            List.filterMap (Tuple.first >> Gov.voterKeyCred) sortedVotes
+
         -- Create a dummy VKey Witness for each input wallet address or required signer
         -- so that fees are correctly estimated.
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
-            (walletCredsInInputs ++ processedIntents.requiredSigners)
+            (processedIntents.requiredSigners
+                ++ walletCredsInInputs
+                ++ withdrawalsStakeCreds
+                ++ certificatesCreds
+                ++ votesCreds
+            )
                 |> List.map
                     (\cred ->
                         let
@@ -1763,7 +2303,9 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                         [ sortedSpendRedeemers
                         , sortedMintRedeemers
                         , sortedWithdrawalsRedeemers
-                        , sortedCertRedeemers
+                        , certRedeemers
+                        , proposalRedeemers
+                        , voteRedeemers
                         ]
             }
 
@@ -1820,7 +2362,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , outputs = inputsOutputs.createdOutputs
             , fee = feeAmount
             , ttl = Maybe.map .end otherInfo.timeValidityRange
-            , certificates = [] -- TODO
+            , certificates = List.map Tuple.first processedIntents.certificates
             , withdrawals = List.map (\( addr, amount, _ ) -> ( addr, amount )) sortedWithdrawals
             , update = Nothing
             , auxiliaryDataHash =
@@ -1843,8 +2385,10 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , collateralReturn = collateralReturn
             , totalCollateral = totalCollateral
             , referenceInputs = allReferenceInputs
-            , votingProcedures = [] -- TODO votingProcedures
-            , proposalProcedures = [] -- TODO proposalProcedures
+            , votingProcedures =
+                sortedVotes
+                    |> List.map (Tuple.mapSecond (\{ votes } -> List.map (\{ actionId, vote } -> ( actionId, Gov.VotingProcedure vote Nothing )) votes))
+            , proposalProcedures = List.map Tuple.first processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation
             }
@@ -1854,6 +2398,72 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
     , isValid = True
     , auxiliaryData = txAuxData
     }
+
+
+{-| Helper to extract the credential associated with a certificate.
+-}
+extractCertificateCred : Certificate -> List (Bytes CredentialHash)
+extractCertificateCred cert =
+    case cert of
+        StakeRegistrationCert _ ->
+            -- not needed, but this will be deprecated anyway
+            []
+
+        StakeDeregistrationCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeDelegationCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        PoolRegistrationCert { operator, poolOwners } ->
+            operator :: poolOwners
+
+        PoolRetirementCert { poolId } ->
+            [ poolId ]
+
+        -- Not handled, deprecated
+        GenesisKeyDelegationCert _ ->
+            []
+
+        -- Not handled, deprecated
+        MoveInstantaneousRewardsCert _ ->
+            []
+
+        RegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        UnregCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        VoteDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeVoteDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        VoteRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        StakeVoteRegDelegCert { delegator } ->
+            [ Address.extractCredentialHash delegator ]
+
+        AuthCommitteeHotCert _ ->
+            Debug.todo "How many signatures for AuthCommitteeHotCert?"
+
+        ResignCommitteeColdCert _ ->
+            Debug.todo "How many signatures for ResignCommitteeColdCert?"
+
+        RegDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
+
+        UnregDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
+
+        UpdateDrepCert { drepCredential } ->
+            [ Address.extractCredentialHash drepCredential ]
 
 
 {-| Update the known local state with the spent and created UTxOs of a given transaction.

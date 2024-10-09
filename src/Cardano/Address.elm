@@ -2,7 +2,7 @@ module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , fromBech32, fromBytes, enterprise, script, base, pointer
-    , isShelleyWallet, extractPubKeyHash, extractStakeCredential
+    , isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
     , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
     , networkIdFromInt
@@ -19,7 +19,7 @@ module Cardano.Address exposing
 
 @docs fromBech32, fromBytes, enterprise, script, base, pointer
 
-@docs isShelleyWallet, extractPubKeyHash, extractStakeCredential
+@docs isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
 
 @docs Dict, emptyDict, dictFromList
 
@@ -84,6 +84,19 @@ Credentials are always one of two kinds: a direct public/private key pair, or a 
 type Credential
     = VKeyHash (Bytes CredentialHash)
     | ScriptHash (Bytes CredentialHash)
+
+
+{-| Helper function to sort credentials in the same order
+than the one auto-derived by the Haskell codebase (script first).
+-}
+credentialToHaskellOrderComparable : Credential -> ( Int, String )
+credentialToHaskellOrderComparable cred =
+    case cred of
+        ScriptHash hash ->
+            ( 0, Bytes.toHex hash )
+
+        VKeyHash hash ->
+            ( 0, Bytes.toHex hash )
 
 
 {-| A StakeCredential represents the delegation and rewards withdrawal conditions associated with some stake address / account.
@@ -167,6 +180,30 @@ pointer networkId paymentCredential p =
         }
 
 
+{-| Extract the credential hash (either key hash or script hash).
+-}
+extractCredentialHash : Credential -> Bytes CredentialHash
+extractCredentialHash cred =
+    case cred of
+        VKeyHash hash ->
+            hash
+
+        ScriptHash hash ->
+            hash
+
+
+{-| Extract the credential key hash (Nothing if it’s a script).
+-}
+extractCredentialKeyHash : Credential -> Maybe (Bytes CredentialHash)
+extractCredentialKeyHash cred =
+    case cred of
+        VKeyHash hash ->
+            Just hash
+
+        ScriptHash _ ->
+            Nothing
+
+
 {-| Extract the pubkey hash of a Shelley wallet address.
 -}
 extractPubKeyHash : Address -> Maybe (Bytes CredentialHash)
@@ -191,6 +228,23 @@ extractStakeCredential address =
     case address of
         Shelley { stakeCredential } ->
             stakeCredential
+
+        _ ->
+            Nothing
+
+
+{-| Extract the stake key hash of a Shelley address.
+-}
+extractStakeKeyHash : Address -> Maybe (Bytes CredentialHash)
+extractStakeKeyHash address =
+    case address of
+        Shelley { stakeCredential } ->
+            case stakeCredential of
+                Just (InlineCredential (VKeyHash hash)) ->
+                    Just hash
+
+                _ ->
+                    Nothing
 
         _ ->
             Nothing
@@ -235,29 +289,35 @@ WARNING: do not compare them with `==` since they contain functions.
 
 -}
 type alias StakeDict a =
-    AnyDict String StakeAddress a
+    AnyDict ( Int, String ) StakeAddress a
 
 
 {-| Initialize an empty stake address dictionary.
 For other operations, use the `AnyDict` module directly.
+
+The keys order are derived from Haskell auto-derived credential order.
+Meaning Script first, then VKey.
 
 WARNING: do not compare them with `==` since they contain functions.
 
 -}
 emptyStakeDict : StakeDict a
 emptyStakeDict =
-    Dict.Any.empty (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
+    Dict.Any.empty (\s -> credentialToHaskellOrderComparable s.stakeCredential)
 
 
 {-| Create a stake address dictionary from a list.
 For other operations, use the `AnyDict` module directly.
+
+The keys order are derived from Haskell auto-derived credential order.
+Meaning Script first, then VKey.
 
 WARNING: do not compare them with `==` since they contain functions.
 
 -}
 stakeDictFromList : List ( StakeAddress, a ) -> StakeDict a
 stakeDictFromList =
-    Dict.Any.fromList (stakeAddressToCbor >> E.encode >> Bytes.fromBytes >> Bytes.toHex)
+    Dict.Any.fromList (\s -> credentialToHaskellOrderComparable s.stakeCredential)
 
 
 {-| Check if an [Address] is of the Shelley type, with a wallet payment key, not a script.

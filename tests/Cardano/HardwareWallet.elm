@@ -63,7 +63,7 @@ suite =
                         { auxiliaryData = Nothing
                         , body =
                             { newBody
-                                | certificates = [ StakeDeregistration { delegator = ScriptHash (Bytes.fromHexUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401") } ]
+                                | certificates = [ StakeDeregistrationCert { delegator = ScriptHash (Bytes.fromHexUnchecked "b494d35f236093e7caed75d2b99b1e523cde935a6f4a2d276b9fb401") } ]
                                 , fee = N.fromSafeInt 244305
                                 , inputs =
                                     [ { outputIndex = 0, transactionId = Bytes.fromHexUnchecked "169422f7193e3418318c2420590778e68619119403472f70c0bb9e9feb2b4571" }
