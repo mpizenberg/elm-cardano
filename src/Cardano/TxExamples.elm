@@ -584,7 +584,7 @@ prettyVote ( voter, votes ) =
                     "vote NO for: " ++ prettyActionId actionId
 
                 VoteYes ->
-                    "vote YET for: " ++ prettyActionId actionId
+                    "vote YES for: " ++ prettyActionId actionId
 
                 VoteAbstain ->
                     "vote ABSTAIN for: " ++ prettyActionId actionId
