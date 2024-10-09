@@ -602,8 +602,10 @@ prettyAction action =
         Gov.ParameterChange { latestEnacted, protocolParamUpdate, guardrailsPolicy } ->
             ( "Parameter Change"
             , List.concat
-                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted), "Protocol Param Update:" ]
-                , [ "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map prettyBytes guardrailsPolicy) ]
+                [ [ "Latest Enacted: " ++ Maybe.withDefault "None" (Maybe.map prettyActionId latestEnacted)
+                  , "Guardrails Policy: " ++ Maybe.withDefault "None" (Maybe.map prettyBytes guardrailsPolicy)
+                  , "Protocol Param Update:"
+                  ]
                 , List.map (indent 3) (prettyProtocolParamUpdate protocolParamUpdate)
                 ]
             )
