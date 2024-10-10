@@ -1,12 +1,12 @@
 module Cardano.Value exposing
-    ( Value, zero, onlyLovelace, onlyToken
+    ( Value, zero, onlyLovelace, onlyToken, fromTokenList
     , add, addTokens, substract, atLeast, sum, normalize, compare
     , encode, fromCbor
     )
 
 {-| Handling Cardano values.
 
-@docs Value, zero, onlyLovelace, onlyToken
+@docs Value, zero, onlyLovelace, onlyToken, fromTokenList
 
 @docs add, addTokens, substract, atLeast, sum, normalize, compare
 
@@ -57,6 +57,16 @@ onlyToken policy name amount =
     { lovelace = Natural.zero
     , assets = MultiAsset.onlyToken policy name amount
     }
+
+
+{-| Build a [Value] from its tokens components.
+-}
+fromTokenList : List { policyId : Bytes PolicyId, assetName : Bytes AssetName, amount : Natural } -> Value
+fromTokenList tokens =
+    List.foldl
+        (\{ policyId, assetName, amount } -> add (onlyToken policyId assetName amount))
+        zero
+        tokens
 
 
 {-| Add the values of two UTxOs together.
