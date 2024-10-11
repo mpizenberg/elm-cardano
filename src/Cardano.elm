@@ -6,7 +6,7 @@ module Cardano exposing
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
     , GovernanceState, emptyGovernanceState
-    , updateLocalState
+    , updateLocalState, addUtxosToLocalState
     , dummyBytes
     )
 
@@ -368,7 +368,7 @@ We can embed it directly in the transaction witness.
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
 @docs GovernanceState, emptyGovernanceState
-@docs updateLocalState
+@docs updateLocalState, addUtxosToLocalState
 @docs dummyBytes
 
 -}
@@ -378,7 +378,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Bytes.Map as Map exposing (BytesMap)
 import Cardano.Address as Address exposing (Address(..), Credential(..), CredentialHash, NetworkId(..), StakeAddress)
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
-import Cardano.CoinSelection as CoinSelection
+import Cardano.CoinSelection as CoinSelection exposing (Error(..))
 import Cardano.Data as Data exposing (Data)
 import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter(..))
 import Cardano.Metadatum exposing (Metadatum)
@@ -2485,11 +2485,17 @@ updateLocalState txId tx oldState =
         createdUtxos =
             List.indexedMap (\index output -> ( OutputReference txId index, output )) tx.body.outputs
     in
-    { updatedState =
-        List.foldl (\( ref, output ) state -> Dict.Any.insert ref output state) unspent createdUtxos
+    { updatedState = addUtxosToLocalState createdUtxos unspent
     , spent = List.filterMap (\ref -> Dict.Any.get ref oldState |> Maybe.map (Tuple.pair ref)) tx.body.inputs
     , created = createdUtxos
     }
+
+
+{-| Helper function to add UTxOs to some local state.
+-}
+addUtxosToLocalState : List ( OutputReference, Output ) -> Utxo.RefDict Output -> Utxo.RefDict Output
+addUtxosToLocalState utxos oldState =
+    List.foldl (\( ref, output ) state -> Dict.Any.insert ref output state) oldState utxos
 
 
 {-| Unsafe helper function to make up some bytes of a given length,

@@ -10,7 +10,7 @@ import Cardano.Data as Data exposing (Data)
 import Cardano.Gov as Gov exposing (ActionId, Drep, Vote(..), Voter)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Transaction as Tx exposing (PoolId, Transaction)
-import Cardano.Utxo as Utxo exposing (Output, OutputReference)
+import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
 import Dict exposing (Dict)
 import Dict.Any
@@ -62,6 +62,10 @@ type alias AppState =
     , tempTxElement : Maybe TxElementInProgress
     , errors : List String
     , localStateUtxos : Utxo.RefDict Output
+
+    -- Keeping a Tx history to be applied to wallet utxos
+    -- to be able to keep a consistent localStateUtxos.
+    , txHistory : List ( Bytes TransactionId, Transaction )
     }
 
 
@@ -74,7 +78,7 @@ type TxElement
     | WithdrawRewards { stakeAddress : StakeAddress, amount : Natural }
     | SpendFromContract { contractAddress : Address, utxo : OutputReference, redeemer : Data }
     | SendToContract { contractAddress : Address, value : Value, datum : Data }
-    | MintBurn { policyId : PolicyId, assets : MultiAsset Integer }
+    | MintBurn { policyId : Bytes PolicyId, assets : BytesMap AssetName Integer }
     | DelegateStakeToPool { delegator : StakeAddress, poolId : Bytes PoolId }
     | DelegateStakeToDRep { delegator : StakeAddress, dRep : Drep }
     | Vote { voter : Voter, proposalId : ActionId, vote : Vote }
@@ -97,6 +101,16 @@ type WalletStatus
     | WalletConnected { wallet : Cip30.Wallet, utxos : Utxo.RefDict Output, changeAddress : Address }
 
 
+walletUtxos : WalletStatus -> Utxo.RefDict Output
+walletUtxos walletStatus =
+    case walletStatus of
+        WalletConnected { utxos } ->
+            utxos
+
+        _ ->
+            Utxo.emptyRefDict
+
+
 type TxElementInProgress
     = TransferInProgress TransferWizardState
     | WithdrawRewardsInProgress WithdrawRewardsWizardState
@@ -109,8 +123,7 @@ type TxElementInProgress
 
 
 type alias TransferWizardState =
-    { step : Int
-    , from : Maybe Address
+    { from : Maybe Address
     , to : Maybe Address
     , selectedTokens : List SelectedToken
     }
@@ -173,6 +186,7 @@ init _ =
             , tempTxElement = Nothing
             , errors = []
             , localStateUtxos = Utxo.emptyRefDict
+            , txHistory = []
             }
       }
     , toWallet (Cip30.encodeRequest Cip30.discoverWallets)
@@ -187,7 +201,7 @@ type Msg
     = WalletMsg JD.Value
     | StartNewElement TxElementType
     | UpdateElementWizard TxElementWizardMsg
-    | FinishElementWizard
+    | AddElementToCart
     | CancelElementWizard
     | RemoveElementFromCart Int
     | ClearCart
@@ -220,8 +234,6 @@ type TransferWizardMsg
     | SetTransferTo String
     | SelectToken (Bytes PolicyId) (Bytes AssetName)
     | SetTokenAmount (Bytes PolicyId) (Bytes AssetName) String
-    | NextTransferStep
-    | PrevTransferStep
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -249,10 +261,10 @@ update msg ({ appState } as model) =
                 ( Nothing, _ ) ->
                     ( model, Cmd.none )
 
-        FinishElementWizard ->
+        AddElementToCart ->
             let
                 ( newAppState, cmd ) =
-                    finishElementWizard model.appState
+                    addElementToCart model.appState
             in
             ( { model | appState = newAppState }, cmd )
 
@@ -344,7 +356,10 @@ handleWalletMsg value ({ appState } as model) =
                         model.appState.wallets
 
                 updatedAppState =
-                    { appState | wallets = updatedWallets }
+                    { appState
+                        | wallets = updatedWallets
+                        , localStateUtxos = recomputeLocalStateUtxos updatedWallets appState.txHistory
+                    }
             in
             ( { model | appState = updatedAppState }, Cmd.none )
 
@@ -353,6 +368,23 @@ handleWalletMsg value ({ appState } as model) =
 
         _ ->
             ( model, Cmd.none )
+
+
+recomputeLocalStateUtxos : Dict String WalletStatus -> List ( Bytes TransactionId, Transaction ) -> Utxo.RefDict Output
+recomputeLocalStateUtxos wallets txHistory =
+    let
+        allWalletsUtxos =
+            Dict.foldl
+                (\_ w state -> Cardano.addUtxosToLocalState (Dict.Any.toList <| walletUtxos w) state)
+                Utxo.emptyRefDict
+                wallets
+
+        updateStateWithTx ( txId, tx ) state =
+            Cardano.updateLocalState txId tx state
+                |> (\{ updatedState } -> updatedState)
+    in
+    -- Walk through txHistory starting with oldest transactions (end of list)
+    List.foldr updateStateWithTx allWalletsUtxos txHistory
 
 
 startNewElement : TxElementType -> AppState -> AppState
@@ -364,11 +396,11 @@ initializeWizard : TxElementType -> TxElementInProgress
 initializeWizard elementType =
     case elementType of
         TransferType ->
-            TransferInProgress { step = 1, from = Nothing, to = Nothing, selectedTokens = [] }
+            TransferInProgress { from = Nothing, to = Nothing, selectedTokens = [] }
 
         -- TODO: Initialize other wizard types
         _ ->
-            TransferInProgress { step = 1, from = Nothing, to = Nothing, selectedTokens = [] }
+            TransferInProgress { from = Nothing, to = Nothing, selectedTokens = [] }
 
 
 updateElementWizard : TxElementWizardMsg -> AppState -> AppState
@@ -429,15 +461,9 @@ updateTransferWizard msg state =
             in
             { state | selectedTokens = newSelectedTokens }
 
-        NextTransferStep ->
-            { state | step = state.step + 1 }
 
-        PrevTransferStep ->
-            { state | step = max 1 (state.step - 1) }
-
-
-finishElementWizard : AppState -> ( AppState, Cmd Msg )
-finishElementWizard appState =
+addElementToCart : AppState -> ( AppState, Cmd Msg )
+addElementToCart appState =
     case appState.tempTxElement of
         Just element ->
             case wizardToTxElement element of
@@ -477,8 +503,12 @@ validateAndAddElement element appState =
     let
         newCart =
             element :: appState.cart
+
+        generatedIntents =
+            cartToTxIntents newCart
+                |> Debug.log "generatedIntents"
     in
-    case Cardano.finalize appState.localStateUtxos [] (cartToTxIntents newCart) of
+    case Cardano.finalize appState.localStateUtxos [] generatedIntents of
         Ok tx ->
             Ok { appState | cart = newCart, currentCost = computeCost tx }
 
@@ -488,8 +518,94 @@ validateAndAddElement element appState =
 
 cartToTxIntents : TxCart -> List TxIntent
 cartToTxIntents cart =
-    -- TODO: Implement conversion from TxCart to List TxIntent
-    []
+    List.concatMap elementToTxIntents cart
+
+
+elementToTxIntents : TxElement -> List TxIntent
+elementToTxIntents element =
+    case element of
+        Transfer { from, to, value } ->
+            [ Spend (FromWallet from value)
+            , SendTo to value
+            ]
+
+        WithdrawRewards { stakeAddress, amount } ->
+            [ Cardano.WithdrawRewards
+                { stakeCredential = stakeAddress
+                , amount = amount
+                , scriptWitness = Nothing
+                }
+            ]
+
+        SpendFromContract { contractAddress, utxo, redeemer } ->
+            [ Spend
+                (FromPlutusScript
+                    { spentInput = utxo
+                    , datumWitness = Nothing -- Assuming datum is inline, adjust if needed
+                    , plutusScriptWitness =
+                        { script = Debug.todo "Need to provide script version and source"
+                        , redeemerData = \_ -> redeemer
+                        , requiredSigners = [] -- Add required signers if needed
+                        }
+                    }
+                )
+            ]
+
+        SendToContract { contractAddress, value, datum } ->
+            [ SendToOutput
+                { address = contractAddress
+                , amount = value
+                , datumOption = Just (DatumValue datum)
+                , referenceScript = Nothing
+                }
+            ]
+
+        MintBurn { policyId, assets } ->
+            [ Cardano.MintBurn
+                { policyId = policyId
+                , assets = assets
+                , scriptWitness = Debug.todo "Need to provide script witness"
+                }
+            ]
+
+        DelegateStakeToPool { delegator, poolId } ->
+            [ IssueCertificate
+                (Cardano.DelegateStake
+                    { delegator = Cardano.WithKey (Address.extractCredentialHash delegator.stakeCredential)
+                    , poolId = poolId
+                    }
+                )
+            ]
+
+        DelegateStakeToDRep { delegator, dRep } ->
+            [ IssueCertificate
+                (Cardano.DelegateVotes
+                    { delegator = Cardano.WithKey (Address.extractCredentialHash delegator.stakeCredential)
+                    , drep = dRepToCredential dRep
+                    }
+                )
+            ]
+
+        Vote { voter, proposalId, vote } ->
+            [ Cardano.Vote (voterToVoterWitness voter) [ { actionId = proposalId, vote = vote } ] ]
+
+
+dRepToCredential : Drep -> Address.Credential
+dRepToCredential dRep =
+    case dRep of
+        Gov.DrepCredential cred ->
+            cred
+
+        Gov.AlwaysAbstain ->
+            Debug.todo "Handle AlwaysAbstain"
+
+        Gov.AlwaysNoConfidence ->
+            Debug.todo "Handle AlwaysNoConfidence"
+
+
+voterToVoterWitness : Voter -> Cardano.VoterWitness
+voterToVoterWitness _ =
+    Debug.todo "voterToVoterWitness"
 
 
 computeCost : Transaction -> TxCost
@@ -633,8 +749,8 @@ viewElementWizard appState maybeElement =
     case maybeElement of
         Just element ->
             div []
-                [ viewWizardStep appState element
-                , button [ onClick FinishElementWizard ] [ text "Finish" ]
+                [ viewWizard appState element
+                , button [ onClick AddElementToCart ] [ text "Add to cart" ]
                 , button [ onClick CancelElementWizard ] [ text "Cancel" ]
                 ]
 
@@ -646,8 +762,8 @@ viewElementWizard appState maybeElement =
                 ]
 
 
-viewWizardStep : AppState -> TxElementInProgress -> Html Msg
-viewWizardStep appState element =
+viewWizard : AppState -> TxElementInProgress -> Html Msg
+viewWizard appState element =
     case element of
         TransferInProgress state ->
             viewTransferWizard state appState
@@ -660,14 +776,9 @@ viewWizardStep appState element =
 viewTransferWizard : TransferWizardState -> AppState -> Html Msg
 viewTransferWizard state appState =
     div []
-        [ div [] [ text ("Step " ++ String.fromInt state.step) ]
-        , viewTransferFrom state
+        [ viewTransferFrom state
         , viewTransferTo state
         , viewTokenSelection state appState
-        , div []
-            [ button [ onClick (UpdateElementWizard (UpdateTransferWizard PrevTransferStep)) ] [ text "Previous" ]
-            , button [ onClick (UpdateElementWizard (UpdateTransferWizard NextTransferStep)) ] [ text "Next" ]
-            ]
         ]
 
 
@@ -702,24 +813,21 @@ viewTokenSelection state appState =
             text "Please enter a valid 'From' address to select tokens."
 
         Just fromAddress ->
-            case findWalletByChangeAddress fromAddress appState.wallets of
-                Nothing ->
-                    text "The 'From' address does not match any connected wallet's change address."
+            let
+                utxosAtAddress =
+                    Dict.Any.filter (\_ output -> output.address == fromAddress) appState.localStateUtxos
 
-                Just walletStatus ->
-                    case walletStatus of
-                        WalletConnected { utxos } ->
-                            let
-                                availableTokens =
-                                    getAvailableTokens utxos
-                            in
-                            div []
-                                [ text "Select Tokens:"
-                                , div [] (List.map (viewTokenOption state) availableTokens)
-                                ]
+                availableTokens =
+                    getAvailableTokens utxosAtAddress
+            in
+            if Dict.Any.isEmpty utxosAtAddress then
+                div [] [ text "There is nothing at this address, maybe you forgot to connect your wallet?" ]
 
-                        _ ->
-                            text "Wallet is not fully connected."
+            else
+                div []
+                    [ text "Select Tokens:"
+                    , div [] (List.map (viewTokenOption state) availableTokens)
+                    ]
 
 
 viewTokenOption : TransferWizardState -> ( Bytes PolicyId, Bytes AssetName ) -> Html Msg
@@ -755,25 +863,6 @@ checkbox msg isChecked =
 
 
 -- Helper functions
-
-
-findWalletByChangeAddress : Address -> Dict String WalletStatus -> Maybe WalletStatus
-findWalletByChangeAddress address wallets =
-    Dict.values wallets
-        |> List.filterMap
-            (\status ->
-                case status of
-                    WalletConnected { changeAddress } ->
-                        if changeAddress == address then
-                            Just status
-
-                        else
-                            Nothing
-
-                    _ ->
-                        Nothing
-            )
-        |> List.head
 
 
 getAvailableTokens : Utxo.RefDict Output -> List ( Bytes PolicyId, Bytes AssetName )
