@@ -462,22 +462,28 @@ updateTransferWizard msg state =
             { state | selectedTokens = newSelectedTokens }
 
 
+{-| Add to cart the current element being edited.
+-}
 addElementToCart : AppState -> ( AppState, Cmd Msg )
 addElementToCart appState =
     case appState.tempTxElement of
         Just element ->
             case wizardToTxElement element of
+                -- If the wizard is fully completed, it should yield a Tx element
                 Just txElement ->
-                    case validateAndAddElement txElement appState of
+                    -- Try to validate the Tx element and to add it to the cart if valid
+                    case validateAndAddTxElement txElement appState of
                         Ok newAppState ->
                             ( { newAppState | tempTxElement = Nothing, errors = [] }, Cmd.none )
 
                         Err error ->
                             ( { appState | errors = [ error ] }, Cmd.none )
 
+                -- If the wizard forms are incomplete, let the user know
                 Nothing ->
                     ( { appState | errors = [ "Incomplete element" ] }, Cmd.none )
 
+        -- Do nothing if we aren’t editing any new element currently
         Nothing ->
             ( appState, Cmd.none )
 
@@ -498,8 +504,8 @@ wizardToTxElement element =
             Nothing
 
 
-validateAndAddElement : TxElement -> AppState -> Result String AppState
-validateAndAddElement element appState =
+validateAndAddTxElement : TxElement -> AppState -> Result String AppState
+validateAndAddTxElement element appState =
     let
         newCart =
             element :: appState.cart
