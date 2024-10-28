@@ -63,6 +63,9 @@ type alias AppState =
     , errors : List String
     , localStateUtxos : Utxo.RefDict Output
 
+    -- Give short names to known things for pretty printing
+    , prettyConfig : PrettyConfig
+
     -- Keeping a Tx history to be applied to wallet utxos
     -- to be able to keep a consistent localStateUtxos.
     , txHistory : List ( Bytes TransactionId, Transaction )
@@ -209,6 +212,7 @@ init _ =
             , tempTxElement = Nothing
             , errors = []
             , localStateUtxos = Utxo.emptyRefDict
+            , prettyConfig = emptyPrettyConfig
             , txHistory = []
             }
       }
@@ -383,6 +387,7 @@ handleWalletMsg value ({ appState } as model) =
                     { appState
                         | wallets = updatedWallets
                         , localStateUtxos = recomputeLocalStateUtxos updatedWallets appState.txHistory
+                        , prettyConfig = addPrettyAddress address "Me" appState.prettyConfig
                     }
             in
             ( { model | appState = updatedAppState }, Cmd.none )
@@ -786,17 +791,55 @@ viewCart : AppState -> Html Msg
 viewCart appState =
     div []
         [ text "Transaction Cart:"
-        , div [] (List.indexedMap viewCartElement appState.cart)
+        , div [] (List.indexedMap (viewCartElement appState.prettyConfig) appState.cart)
         , button [ onClick ClearCart ] [ text "Clear Cart" ]
         ]
 
 
-viewCartElement : Int -> TxElement -> Html Msg
-viewCartElement index element =
+viewCartElement : PrettyConfig -> Int -> TxElement -> Html Msg
+viewCartElement prettyConfig index element =
     div []
-        [ text (Debug.toString element)
+        [ viewPrettyTxElement prettyConfig element
         , button [ onClick (RemoveElementFromCart index) ] [ text "Remove" ]
         ]
+
+
+viewPrettyTxElement : PrettyConfig -> TxElement -> Html msg
+viewPrettyTxElement config element =
+    case element of
+        Transfer { from, to, value } ->
+            let
+                prettyFromTo =
+                    prettyAddrWithConfig config from
+                        ++ " -> "
+                        ++ prettyAddrWithConfig config to
+                        ++ " : "
+            in
+            case prettyValue value of
+                [] ->
+                    Html.pre [] [ text <| prettyFromTo ++ "nothing" ]
+
+                [ singleLine ] ->
+                    Html.pre [] [ text <| prettyFromTo ++ singleLine ]
+
+                firstLine :: otherLines ->
+                    (prettyFromTo ++ firstLine)
+                        :: otherLines
+                        |> String.join "\n"
+                        |> (\s -> Html.pre [] [ text s ])
+
+        _ ->
+            Debug.todo "viewPrettyTxElement"
+
+
+prettyAddrWithConfig : PrettyConfig -> Address -> String
+prettyAddrWithConfig config addr =
+    case Dict.Any.get addr config.knownAddresses of
+        Just shortname ->
+            shortname
+
+        Nothing ->
+            Debug.todo "prettyAddrWithConfig"
 
 
 viewTxCost : TxCost -> Html Msg
@@ -946,6 +989,22 @@ checkbox msg isChecked =
 -- Helper functions
 
 
+type alias PrettyConfig =
+    { knownAddresses : Address.Dict String
+    }
+
+
+emptyPrettyConfig : PrettyConfig
+emptyPrettyConfig =
+    { knownAddresses = Address.emptyDict
+    }
+
+
+addPrettyAddress : Address -> String -> PrettyConfig -> PrettyConfig
+addPrettyAddress address shortname config =
+    { config | knownAddresses = Dict.Any.insert address shortname config.knownAddresses }
+
+
 prettyAddr : Address -> String
 prettyAddr address =
     case address of
@@ -980,6 +1039,66 @@ prettyCred cred =
             "script:" ++ prettyBytes b
 
 
+prettyValue : Value -> List String
+prettyValue { lovelace, assets } =
+    if MultiAsset.isEmpty assets then
+        [ "₳ " ++ Natural.toString lovelace ]
+
+    else
+        "with native assets:"
+            :: ("   ₳ " ++ Natural.toString lovelace)
+            :: List.map (indent 3) (prettyAssets Natural.toString assets)
+
+
+prettyAssets toStr multiAsset =
+    Map.toList multiAsset
+        |> List.concatMap
+            (\( policyId, assets ) ->
+                Map.toList assets
+                    |> List.map
+                        (\( name, amount ) ->
+                            String.join " "
+                                [ prettyBytes name
+                                , "(" ++ prettyShortBytes 8 policyId ++ ")"
+                                , toStr amount
+                                ]
+                        )
+            )
+
+
+prettyShortBytes length b =
+    case Bytes.toText b of
+        Nothing ->
+            Bytes.toHex b
+                |> shortenHex length
+
+        Just text ->
+            let
+                isLikelyAscii char =
+                    Char.toCode char < 128
+            in
+            if String.all isLikelyAscii text then
+                text
+
+            else
+                Bytes.toHex b
+                    |> shortenHex length
+
+
+shortenHex length hex =
+    if String.length hex <= length then
+        hex
+
+    else
+        let
+            halfLength =
+                length // 2
+        in
+        String.slice 0 halfLength hex
+            ++ ".."
+            ++ String.slice -halfLength (String.length hex) hex
+
+
 prettyBytes b =
     case Bytes.toText b of
         Nothing ->
@@ -995,3 +1114,7 @@ prettyBytes b =
 
             else
                 Bytes.toHex b
+
+
+indent spaces str =
+    String.repeat spaces " " ++ str
