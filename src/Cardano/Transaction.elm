@@ -7,7 +7,7 @@ module Cardano.Transaction exposing
     , Certificate(..), PoolId, GenesisHash, GenesisDelegateHash, VrfKeyHash, RewardSource(..), RewardTarget(..), MoveInstantaneousReward
     , Relay(..), IpV4, IpV6, PoolParams, PoolMetadata, PoolMetadataHash
     , VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
-    , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
+    , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, extractTotalExecCost, allInputs
     , updateSignatures, hashScriptData
     , deserialize, serialize, encodeToCbor
     , decodeWitnessSet
@@ -31,7 +31,7 @@ module Cardano.Transaction exposing
 
 @docs VKeyWitness, BootstrapWitness, Ed25519PublicKey, Ed25519Signature, BootstrapWitnessChainCode, BootstrapWitnessAttributes
 
-@docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
+@docs FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, extractTotalExecCost, allInputs
 
 @docs updateSignatures, hashScriptData
 
@@ -451,16 +451,8 @@ computeFees { baseFee, feePerByte, scriptExUnitPrice, refScriptFeeParams } { ref
         txSize =
             Bytes.width (serialize tx)
 
-        ( totalSteps, totalMem ) =
-            tx.witnessSet.redeemer
-                |> Maybe.withDefault []
-                |> List.foldl
-                    (\r ( steps, mem ) ->
-                        ( Natural.add steps <| Natural.fromSafeInt r.exUnits.steps
-                        , Natural.add mem <| Natural.fromSafeInt r.exUnits.mem
-                        )
-                    )
-                    ( Natural.zero, Natural.zero )
+        { totalSteps, totalMem } =
+            extractTotalExecCost tx
 
         totalStepsCost =
             Natural.mul totalSteps (Natural.fromSafeInt scriptExUnitPrice.stepPrice.numerator)
@@ -476,6 +468,21 @@ computeFees { baseFee, feePerByte, scriptExUnitPrice, refScriptFeeParams } { ref
     , scriptExecFee = Natural.add totalStepsCost totalMemCost
     , refScriptSizeFee = refScriptFee refScriptFeeParams refScriptBytes
     }
+
+
+{-| Compute total steps and mem of the scripts reported in the redeemer.
+-}
+extractTotalExecCost : Transaction -> { totalSteps : Natural, totalMem : Natural }
+extractTotalExecCost tx =
+    tx.witnessSet.redeemer
+        |> Maybe.withDefault []
+        |> List.foldl
+            (\r { totalSteps, totalMem } ->
+                { totalSteps = Natural.add totalSteps <| Natural.fromSafeInt r.exUnits.steps
+                , totalMem = Natural.add totalMem <| Natural.fromSafeInt r.exUnits.mem
+                }
+            )
+            { totalSteps = Natural.zero, totalMem = Natural.zero }
 
 
 {-| Helper function to compute the fees associated with reference script size.

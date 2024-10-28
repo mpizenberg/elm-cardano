@@ -9,7 +9,7 @@ import Cardano.Cip30 as Cip30
 import Cardano.Data as Data exposing (Data)
 import Cardano.Gov as Gov exposing (ActionId, Drep, Vote(..), Voter)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
-import Cardano.Transaction as Tx exposing (PoolId, Transaction)
+import Cardano.Transaction as Transaction exposing (FeeParameters, PoolId, Transaction)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, TransactionId)
 import Cardano.Value as Value exposing (Value)
 import Dict exposing (Dict)
@@ -86,11 +86,33 @@ type TxElement
 
 type alias TxCost =
     { ada : Natural
+    , feeBreakdown :
+        { txSizeFee : Natural
+        , scriptExecFee : Natural
+        , refScriptSizeFee : Natural
+        }
     , breakdown :
-        { txSize : Natural
+        { txSize : Int
+        , refContractSize : Int
         , mem : Natural
         , cpu : Natural
-        , refContractSize : Natural
+        }
+    }
+
+
+txCostInit : TxCost
+txCostInit =
+    { ada = Natural.zero
+    , feeBreakdown =
+        { txSizeFee = Natural.zero
+        , scriptExecFee = Natural.zero
+        , refScriptSizeFee = Natural.zero
+        }
+    , breakdown =
+        { txSize = 0
+        , refContractSize = 0
+        , mem = Natural.zero
+        , cpu = Natural.zero
         }
     }
 
@@ -125,6 +147,7 @@ type TxElementInProgress
 type alias TransferWizardState =
     { from : Maybe Address
     , to : Maybe Address
+    , adaAmount : Natural
     , selectedTokens : List SelectedToken
     }
 
@@ -181,7 +204,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     ( { appState =
             { cart = []
-            , currentCost = { ada = Natural.zero, breakdown = { txSize = Natural.zero, mem = Natural.zero, cpu = Natural.zero, refContractSize = Natural.zero } }
+            , currentCost = txCostInit
             , wallets = Dict.empty
             , tempTxElement = Nothing
             , errors = []
@@ -232,6 +255,7 @@ type TxElementWizardMsg
 type TransferWizardMsg
     = SetTransferFrom String
     | SetTransferTo String
+    | SetAdaAmount String
     | SelectToken (Bytes PolicyId) (Bytes AssetName)
     | SetTokenAmount (Bytes PolicyId) (Bytes AssetName) String
 
@@ -396,11 +420,11 @@ initializeWizard : TxElementType -> TxElementInProgress
 initializeWizard elementType =
     case elementType of
         TransferType ->
-            TransferInProgress { from = Nothing, to = Nothing, selectedTokens = [] }
+            TransferInProgress { from = Nothing, to = Nothing, adaAmount = Natural.zero, selectedTokens = [] }
 
         -- TODO: Initialize other wizard types
         _ ->
-            TransferInProgress { from = Nothing, to = Nothing, selectedTokens = [] }
+            TransferInProgress { from = Nothing, to = Nothing, adaAmount = Natural.zero, selectedTokens = [] }
 
 
 updateElementWizard : TxElementWizardMsg -> AppState -> AppState
@@ -432,6 +456,9 @@ updateTransferWizard msg state =
 
         SetTransferTo addressStr ->
             { state | to = Address.fromBytes <| Bytes.fromHexUnchecked addressStr }
+
+        SetAdaAmount adaStr ->
+            { state | adaAmount = Natural.fromString adaStr |> Maybe.withDefault Natural.zero }
 
         SelectToken policyId assetName ->
             let
@@ -491,10 +518,18 @@ addElementToCart appState =
 wizardToTxElement : TxElementInProgress -> Maybe TxElement
 wizardToTxElement element =
     case element of
-        TransferInProgress { from, to, selectedTokens } ->
+        TransferInProgress { from, to, adaAmount, selectedTokens } ->
             case ( from, to ) of
                 ( Just fromAddr, Just toAddr ) ->
-                    Just <| Transfer { from = fromAddr, to = toAddr, value = Value.fromTokenList selectedTokens }
+                    Just <|
+                        Transfer
+                            { from = fromAddr
+                            , to = toAddr
+                            , value =
+                                Value.add
+                                    (Value.onlyLovelace adaAmount)
+                                    (Value.fromTokenList selectedTokens)
+                            }
 
                 _ ->
                     Nothing
@@ -516,7 +551,11 @@ validateAndAddTxElement element appState =
     in
     case Cardano.finalize appState.localStateUtxos [] generatedIntents of
         Ok tx ->
-            Ok { appState | cart = newCart, currentCost = computeCost tx }
+            Ok
+                { appState
+                    | cart = newCart
+                    , currentCost = computeCost Transaction.defaultTxFeeParams tx
+                }
 
         Err error ->
             Err (Debug.toString error)
@@ -614,19 +653,6 @@ voterToVoterWitness _ =
     Debug.todo "voterToVoterWitness"
 
 
-computeCost : Transaction -> TxCost
-computeCost tx =
-    -- TODO: Implement cost computation from Transaction
-    { ada = Natural.zero
-    , breakdown =
-        { txSize = Natural.zero
-        , mem = Natural.zero
-        , cpu = Natural.zero
-        , refContractSize = Natural.zero
-        }
-    }
-
-
 cancelElementWizard : AppState -> AppState
 cancelElementWizard appState =
     { appState | tempTxElement = Nothing }
@@ -634,12 +660,51 @@ cancelElementWizard appState =
 
 removeElementFromCart : Int -> AppState -> AppState
 removeElementFromCart index appState =
-    { appState | cart = List.take index appState.cart ++ List.drop (index + 1) appState.cart }
+    let
+        newCart =
+            List.take index appState.cart ++ List.drop (index + 1) appState.cart
+
+        generatedIntents =
+            cartToTxIntents newCart
+    in
+    case Cardano.finalize appState.localStateUtxos [] generatedIntents of
+        Ok tx ->
+            { appState
+                | cart = newCart
+                , currentCost = computeCost Transaction.defaultTxFeeParams tx
+            }
+
+        Err err ->
+            { appState | errors = [ Debug.toString err ] }
+
+
+computeCost : FeeParameters -> Transaction -> TxCost
+computeCost feeParams tx =
+    let
+        refScriptBytes =
+            -- TODO: have actual value here
+            0
+
+        ({ txSizeFee, scriptExecFee, refScriptSizeFee } as feeBreakdown) =
+            Transaction.computeFees feeParams { refScriptBytes = refScriptBytes } tx
+
+        { totalSteps, totalMem } =
+            Transaction.extractTotalExecCost tx
+    in
+    { ada = Natural.add txSizeFee <| Natural.add scriptExecFee refScriptSizeFee
+    , feeBreakdown = feeBreakdown
+    , breakdown =
+        { txSize = Bytes.width (Transaction.serialize tx)
+        , refContractSize = refScriptBytes
+        , mem = totalMem
+        , cpu = totalSteps
+        }
+    }
 
 
 clearCart : AppState -> AppState
 clearCart appState =
-    { appState | cart = [] }
+    { appState | cart = [], currentCost = txCostInit }
 
 
 updateWallets : List Cip30.WalletDescriptor -> AppState -> AppState
@@ -738,10 +803,10 @@ viewTxCost : TxCost -> Html Msg
 viewTxCost cost =
     div []
         [ text ("Total Cost: " ++ Natural.toString cost.ada ++ " ADA")
-        , div [] [ text ("Tx Size: " ++ Natural.toString cost.breakdown.txSize) ]
-        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem) ]
-        , div [] [ text ("CPU: " ++ Natural.toString cost.breakdown.cpu) ]
-        , div [] [ text ("Ref Contract Size: " ++ Natural.toString cost.breakdown.refContractSize) ]
+        , div [] [ text ("Tx Size: " ++ String.fromInt cost.breakdown.txSize ++ " B") ]
+        , div [] [ text ("Ref Contract Size: " ++ String.fromInt cost.breakdown.refContractSize ++ " B") ]
+        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem ++ " B") ]
+        , div [] [ text ("CPU: " ++ Natural.toString cost.breakdown.cpu ++ " steps") ]
         ]
 
 
@@ -823,15 +888,25 @@ viewTokenSelection state appState =
                 utxosAtAddress =
                     Dict.Any.filter (\_ output -> output.address == fromAddress) appState.localStateUtxos
 
+                totalValue =
+                    List.foldl (\output -> Value.add output.amount) Value.zero (Dict.Any.values utxosAtAddress)
+
                 availableTokens =
-                    getAvailableTokens utxosAtAddress
+                    Map.toList totalValue.assets
+                        |> List.concatMap (\( p, assets ) -> List.map (Tuple.pair p) (Map.keys assets))
             in
             if Dict.Any.isEmpty utxosAtAddress then
                 div [] [ text "There is nothing at this address, maybe you forgot to connect your wallet?" ]
 
             else
                 div []
-                    [ text "Select Tokens:"
+                    [ text "Ada Lovelace: "
+                    , Html.input
+                        [ Html.Events.onInput (\s -> UpdateElementWizard (UpdateTransferWizard (SetAdaAmount s)))
+                        , Html.Attributes.value (Natural.toString state.adaAmount)
+                        ]
+                        []
+                    , div [] [ text "Select Tokens:" ]
                     , div [] (List.map (viewTokenOption state) availableTokens)
                     ]
 
@@ -869,13 +944,6 @@ checkbox msg isChecked =
 
 
 -- Helper functions
-
-
-getAvailableTokens : Utxo.RefDict Output -> List ( Bytes PolicyId, Bytes AssetName )
-getAvailableTokens utxos =
-    List.foldl (\output -> Value.add output.amount) Value.zero (Dict.Any.values utxos)
-        |> (.assets >> Map.toList)
-        |> List.concatMap (\( p, assets ) -> List.map (Tuple.pair p) (Map.keys assets))
 
 
 prettyAddr : Address -> String
