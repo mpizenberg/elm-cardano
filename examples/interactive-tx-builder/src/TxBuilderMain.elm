@@ -844,12 +844,26 @@ prettyAddrWithConfig config addr =
 
 viewTxCost : TxCost -> Html Msg
 viewTxCost cost =
+    let
+        adaStr amount =
+            "₳" ++ Natural.toString amount
+    in
     div []
-        [ text ("Total Cost: " ++ Natural.toString cost.ada ++ " ADA")
-        , div [] [ text ("Tx Size: " ++ String.fromInt cost.breakdown.txSize ++ " B") ]
+        [ text
+            ("Total Cost: "
+                ++ adaStr cost.ada
+                ++ " (Tx size: "
+                ++ adaStr cost.feeBreakdown.txSizeFee
+                ++ ", script size: "
+                ++ adaStr cost.feeBreakdown.refScriptSizeFee
+                ++ ", script exec: "
+                ++ adaStr cost.feeBreakdown.scriptExecFee
+                ++ ")"
+            )
+        , div [] [ text ("Tx Size: " ++ String.fromInt cost.breakdown.txSize ++ " B / (max) 16.384 kB") ]
         , div [] [ text ("Ref Contract Size: " ++ String.fromInt cost.breakdown.refContractSize ++ " B") ]
-        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem ++ " B") ]
-        , div [] [ text ("CPU: " ++ Natural.toString cost.breakdown.cpu ++ " steps") ]
+        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem ++ " B / (max) 14000 kB") ]
+        , div [] [ text ("CPU: " ++ Natural.toString cost.breakdown.cpu ++ " steps / (max) 10000 M steps") ]
         ]
 
 
