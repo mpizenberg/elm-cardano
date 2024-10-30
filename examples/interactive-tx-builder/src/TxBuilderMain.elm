@@ -62,6 +62,7 @@ type alias AppState =
     , tempTxElement : Maybe TxElementInProgress
     , errors : List String
     , localStateUtxos : Utxo.RefDict Output
+    , txSubmissionState : TxSubmissionState
 
     -- Give short names to known things for pretty printing
     , prettyConfig : PrettyConfig
@@ -118,6 +119,12 @@ txCostInit =
         , cpu = Natural.zero
         }
     }
+
+
+type TxSubmissionState
+    = NoTx
+    | TxSigning Cip30.Wallet Transaction
+    | TxSubmitting Cip30.Wallet Transaction
 
 
 type WalletStatus
@@ -212,6 +219,7 @@ init _ =
             , tempTxElement = Nothing
             , errors = []
             , localStateUtxos = Utxo.emptyRefDict
+            , txSubmissionState = NoTx
             , prettyConfig = emptyPrettyConfig
             , txHistory = []
             }
@@ -233,7 +241,7 @@ type Msg
     | RemoveElementFromCart Int
     | ClearCart
     | ConnectWallet Cip30.WalletDescriptor
-    | FinalizeTx
+    | SubmitTxClicked
     | TxFinalizationResult (Result Cardano.TxFinalizationError Transaction)
 
 
@@ -308,8 +316,12 @@ update msg ({ appState } as model) =
         ConnectWallet descriptor ->
             ( model, toWallet (Cip30.encodeRequest (Cip30.enableWallet { id = descriptor.id, extensions = [] })) )
 
-        FinalizeTx ->
-            ( model, finalizeTx model.appState )
+        SubmitTxClicked ->
+            let
+                ( newAppState, cmd ) =
+                    signAndSubmitTxInCart model.appState
+            in
+            ( { model | appState = newAppState }, cmd )
 
         TxFinalizationResult result ->
             handleTxFinalizationResult result model
@@ -717,16 +729,22 @@ updateWallets wallets appState =
     { appState | wallets = Dict.fromList (List.map (\w -> ( w.id, WalletJustDiscovered w )) wallets) }
 
 
-finalizeTx : AppState -> Cmd Msg
-finalizeTx appState =
+signAndSubmitTxInCart : AppState -> ( AppState, Cmd Msg )
+signAndSubmitTxInCart appState =
     case Cardano.finalize appState.localStateUtxos [] (cartToTxIntents appState.cart) of
         Ok tx ->
-            -- TODO: Sign and submit transaction
-            Cmd.none
+            let
+                -- TODO: figure out which wallet to sign this with
+                -- Remove all fake signatures before sending to wallet
+                cleanTx =
+                    Transaction.updateSignatures (\_ -> Nothing) tx
+            in
+            -- Sign and submit transaction
+            Debug.todo "sign"
 
         Err error ->
             -- TODO: Handle error
-            Cmd.none
+            Debug.todo "sign"
 
 
 handleTxFinalizationResult : Result Cardano.TxFinalizationError Transaction -> Model -> ( Model, Cmd Msg )
@@ -789,11 +807,16 @@ viewTxBuilder appState =
 
 viewCart : AppState -> Html Msg
 viewCart appState =
-    div []
-        [ text "Transaction Cart:"
-        , div [] (List.indexedMap (viewCartElement appState.prettyConfig) appState.cart)
-        , button [ onClick ClearCart ] [ text "Clear Cart" ]
-        ]
+    if List.isEmpty appState.cart then
+        text ""
+
+    else
+        div []
+            [ text "Transaction Cart:"
+            , div [] (List.indexedMap (viewCartElement appState.prettyConfig) appState.cart)
+            , button [ onClick ClearCart ] [ text "Clear Cart" ]
+            , button [ onClick SubmitTxClicked ] [ text "Submit Tx" ]
+            ]
 
 
 viewCartElement : PrettyConfig -> Int -> TxElement -> Html Msg
@@ -862,7 +885,7 @@ viewTxCost cost =
             )
         , div [] [ text ("Tx Size: " ++ String.fromInt cost.breakdown.txSize ++ " B / (max) 16.384 kB") ]
         , div [] [ text ("Ref Contract Size: " ++ String.fromInt cost.breakdown.refContractSize ++ " B") ]
-        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem ++ " B / (max) 14000 kB") ]
+        , div [] [ text ("Memory: " ++ Natural.toString cost.breakdown.mem ++ " units / (max) 14000 k units") ]
         , div [] [ text ("CPU: " ++ Natural.toString cost.breakdown.cpu ++ " steps / (max) 10000 M steps") ]
         ]
 

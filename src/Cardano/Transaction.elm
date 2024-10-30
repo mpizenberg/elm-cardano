@@ -552,7 +552,7 @@ allInputs tx =
         |> Utxo.refDictFromList
 
 
-{-| Clear all signatures from the witness set of the Tx.
+{-| Update signatures from the witness set of the Tx.
 -}
 updateSignatures : (Maybe (List VKeyWitness) -> Maybe (List VKeyWitness)) -> Transaction -> Transaction
 updateSignatures f ({ witnessSet } as tx) =
