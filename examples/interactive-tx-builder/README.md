@@ -12,7 +12,8 @@ Todo:
   - [ ] improve token selection (display max amounts, etc.)
 - [x] add costing of intents (size, mem, cpu)
 - [x] visualize transfer elements in the cart
-- [ ] create a Tx with all elements in the cart
+- [x] create a Tx with all elements in the cart
+- [ ] create a Tx with transfers between two wallets
 - [ ] update available amounts in wallets with elements already in the cart
 - create other intents:
   - [ ] create rewards withdrawal intents
