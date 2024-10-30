@@ -123,7 +123,7 @@ txCostInit =
 
 type TxSubmissionState
     = NoTx
-    | TxSigning Cip30.Wallet Transaction
+    | TxSigning Cip30.Wallet (List Cip30.Wallet) Transaction
     | TxSubmitting Cip30.Wallet Transaction
 
 
@@ -319,16 +319,12 @@ update msg ({ appState } as model) =
         SubmitTxClicked ->
             let
                 ( newAppState, cmd ) =
-                    signAndSubmitTxInCart model.appState
+                    prepSignTxInCart model.appState
             in
             ( { model | appState = newAppState }, cmd )
 
         TxFinalizationResult result ->
             handleTxFinalizationResult result model
-
-
-
---
 
 
 handleWalletMsg : JD.Value -> Model -> ( Model, Cmd Msg )
@@ -403,6 +399,68 @@ handleWalletMsg value ({ appState } as model) =
                     }
             in
             ( { model | appState = updatedAppState }, Cmd.none )
+
+        Ok (Cip30.ApiResponse { walletId } (Cip30.SignedTx vkeywitnesses)) ->
+            let
+                prependSignatures maybeWitnesses =
+                    Just <| vkeywitnesses ++ Maybe.withDefault [] maybeWitnesses
+            in
+            case appState.txSubmissionState of
+                TxSigning wallet otherWallets ({ witnessSet } as tx) ->
+                    let
+                        txWithSignatures =
+                            { tx | witnessSet = { witnessSet | vkeywitness = prependSignatures witnessSet.vkeywitness } }
+                    in
+                    if List.isEmpty otherWallets then
+                        ( { model | appState = { appState | txSubmissionState = TxSubmitting wallet txWithSignatures } }
+                        , toWallet <| Cip30.encodeRequest <| Cip30.submitTx wallet txWithSignatures
+                        )
+
+                    else
+                        signTx appState otherWallets txWithSignatures
+                            |> (\( newState, cmd ) -> ( { model | appState = newState }, cmd ))
+
+                _ ->
+                    ( model, Cmd.none )
+
+        Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)) ->
+            case appState.txSubmissionState of
+                TxSubmitting wallet tx ->
+                    let
+                        -- Update the known UTxOs set after the given Tx is processed
+                        { updatedState, spent, created } =
+                            Cardano.updateLocalState txId tx appState.localStateUtxos
+
+                        -- Also update specifically our wallet UTxOs knowledge
+                        -- This isn’t purely necessary, but just to keep a consistent wallet state
+                        -- TODO: update all connected wallets with spent and created utxos too
+                        -- unspentUtxos =
+                        --     List.foldl (\( ref, _ ) state -> Dict.Any.remove ref state) loadedWallet.utxos spent
+                        --
+                        -- updatedWalletUtxos =
+                        --     List.foldl
+                        --         (\( ref, output ) state ->
+                        --             if output.address == loadedWallet.changeAddress then
+                        --                 Dict.Any.insert ref output state
+                        --             else
+                        --                 state
+                        --         )
+                        --         unspentUtxos
+                        --         created
+                        updatedAppState =
+                            clearCart
+                                { appState
+                                    | localStateUtxos = updatedState
+
+                                    -- TODO: update wallets utxos
+                                    -- , loadedWallet = { loadedWallet | utxos = updatedWalletUtxos }
+                                    , txSubmissionState = NoTx
+                                }
+                    in
+                    ( { model | appState = updatedAppState }, Cmd.none )
+
+                _ ->
+                    Debug.todo ""
 
         Err error ->
             ( { model | appState = { appState | errors = Debug.toString error :: model.appState.errors } }, Cmd.none )
@@ -729,22 +787,64 @@ updateWallets wallets appState =
     { appState | wallets = Dict.fromList (List.map (\w -> ( w.id, WalletJustDiscovered w )) wallets) }
 
 
-signAndSubmitTxInCart : AppState -> ( AppState, Cmd Msg )
-signAndSubmitTxInCart appState =
+prepSignTxInCart : AppState -> ( AppState, Cmd Msg )
+prepSignTxInCart appState =
     case Cardano.finalize appState.localStateUtxos [] (cartToTxIntents appState.cart) of
         Ok tx ->
             let
-                -- TODO: figure out which wallet to sign this with
+                -- Figure out which wallet to sign this with.
+                connectedWallets =
+                    Dict.values appState.wallets
+                        |> List.filterMap
+                            (\walletStatus ->
+                                case walletStatus of
+                                    WalletConnected w ->
+                                        Just w
+
+                                    _ ->
+                                        Nothing
+                            )
+
+                findWallet wallets outputRef =
+                    case wallets of
+                        [] ->
+                            Nothing
+
+                        w :: otherWallets ->
+                            if Dict.Any.member outputRef w.utxos then
+                                Just ( (Cip30.walletDescriptor w.wallet).id, w.wallet )
+
+                            else
+                                findWallet otherWallets outputRef
+
+                -- Strategy: gather all Tx inputs and look them up in wallet utxos
+                requiredWalletSignatures =
+                    tx.body.inputs
+                        |> List.filterMap (findWallet connectedWallets)
+                        |> Dict.fromList
+                        |> Dict.values
+
                 -- Remove all fake signatures before sending to wallet
                 cleanTx =
                     Transaction.updateSignatures (\_ -> Nothing) tx
             in
             -- Sign and submit transaction
-            Debug.todo "sign"
+            signTx appState requiredWalletSignatures cleanTx
 
         Err error ->
-            -- TODO: Handle error
-            Debug.todo "sign"
+            ( { appState | errors = Debug.toString error :: appState.errors }, Cmd.none )
+
+
+signTx : AppState -> List Cip30.Wallet -> Transaction -> ( AppState, Cmd Msg )
+signTx appState wallets tx =
+    case wallets of
+        [] ->
+            ( appState, Cmd.none )
+
+        w :: otherWallets ->
+            ( { appState | txSubmissionState = TxSigning w otherWallets tx }
+            , toWallet <| Cip30.encodeRequest <| Cip30.signTx w { partialSign = True } tx
+            )
 
 
 handleTxFinalizationResult : Result Cardano.TxFinalizationError Transaction -> Model -> ( Model, Cmd Msg )
