@@ -32,8 +32,8 @@ struct InitSubCommand {}
 #[argh(subcommand, name = "make")]
 struct MakeSubCommand {
     #[argh(positional)]
-    /// the main Elm file to compile.
-    source: String,
+    /// the main Elm file(s) to compile.
+    source: Vec<String>,
 
     #[argh(option, default = "String::from(\"main.js\")")]
     /// specify the name of the resulting JS file.
@@ -132,7 +132,7 @@ fn make_subcommand(make_args: MakeSubCommand) -> anyhow::Result<()> {
     cmd.arg("make");
 
     // Add source file
-    cmd.arg(&make_args.source);
+    cmd.args(&make_args.source);
 
     // Add output option
     cmd.arg("--output").arg(&make_args.output);
