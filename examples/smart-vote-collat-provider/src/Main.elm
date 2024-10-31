@@ -72,7 +72,7 @@ type alias LockScript =
 type alias AppContext =
     { loadedWallet : LoadedWallet
     , myKeyCred : Bytes CredentialHash
-    , myStakeCred : Maybe Address.StakeCredential
+    , myStakeKeyHash : Maybe (Bytes CredentialHash)
     , localStateUtxos : Utxo.RefDict Output
     , lockScript : LockScript
     , scriptAddress : Address
@@ -81,6 +81,7 @@ type alias AppContext =
 
 type Action
     = Locking
+      -- TODO: when unlocking, try using the external wallet to pay the fees!
     | Unlocking
 
 
@@ -137,6 +138,9 @@ update msg model =
                         -- Update the signatures of the Tx with the wallet response
                         signedTx =
                             Tx.updateSignatures (\_ -> Just vkeywitnesses) tx
+
+                        _ =
+                            Debug.log "signedTx" (Tx.serialize signedTx)
                     in
                     ( Submitting ctx action { tx = signedTx, errors = "" }
                     , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
@@ -229,7 +233,7 @@ update msg model =
             lock
                 { localStateUtxos = w.utxos
                 , myKeyCred = myKeyCred
-                , myStakeCred = myStakeCred
+                , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
                 , scriptAddress = scriptAddress
                 , loadedWallet = w
                 , lockScript = lockScript
@@ -246,6 +250,10 @@ update msg model =
                 redeemer =
                     Data.Constr Natural.zero [ Data.Bytes (Bytes.fromText "Hello, World!") ]
 
+                unlockKey =
+                    ctx.myStakeKeyHash
+                        |> Maybe.withDefault ctx.myKeyCred
+
                 unlockTxAttempt =
                     [ Spend
                         (FromPlutusScript
@@ -255,7 +263,7 @@ update msg model =
                             , plutusScriptWitness =
                                 { script = ( PlutusV3, WitnessValue ctx.lockScript.compiledCode )
                                 , redeemerData = \_ -> redeemer
-                                , requiredSigners = [ ctx.myKeyCred ]
+                                , requiredSigners = [ unlockKey ]
                                 }
                             }
                         )
@@ -283,16 +291,21 @@ update msg model =
 
 
 lock : AppContext -> ( Model, Cmd Msg )
-lock ({ localStateUtxos, myKeyCred, myStakeCred, scriptAddress, loadedWallet, lockScript } as ctx) =
+lock ({ localStateUtxos, myKeyCred, myStakeKeyHash, scriptAddress, loadedWallet, lockScript } as ctx) =
     let
         -- 1 ada is 1 million lovelaces
         twoAda =
             Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
 
+        -- Use my stake key for the unlocking datum (default to spend key if unavailable)
+        unlockCred =
+            myStakeKeyHash
+                |> Maybe.withDefault myKeyCred
+
         -- Datum as specified by the blueprint of the lock script,
         -- containing our credentials for later verification when spending
         datum =
-            Data.Constr Natural.zero [ Data.Bytes (Bytes.toAny myKeyCred) ]
+            Data.Constr Natural.zero [ Data.Bytes (Bytes.toAny unlockCred) ]
 
         -- Transaction locking 2 ada at the script address
         lockTxAttempt =
