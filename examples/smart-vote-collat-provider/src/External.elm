@@ -10,12 +10,15 @@ import Cardano.Script exposing (PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Tx exposing (Transaction)
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, TransactionId)
 import Cardano.Value
+import Cbor.Encode
 import Dict.Any
+import Hex.Convert
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as JD exposing (Decoder, Value)
+import Json.Encode as JE
 import Natural
 
 
@@ -147,31 +150,50 @@ update msg model =
                     , Cmd.none
                     )
 
-                -- REMARK: block commented for now from an old version of this app.
-                -- This needs to be adapted to this app
-                --
-                -- ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), Submitting ctx action { tx } ) ->
-                --     let
-                --         -- Update the signatures of the Tx with the wallet response
-                --         signedTx =
-                --             Tx.updateSignatures (\_ -> Just vkeywitnesses) tx
-                --     in
-                --     ( Submitting ctx action { tx = signedTx, errors = "" }
-                --     , toExternalWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
-                --     )
+                ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), WalletLoaded loadedWallet { errors } ) ->
+                    let
+                        encodedSignatures =
+                            JE.object
+                                [ ( "responseType", JE.string "signature" )
+                                , ( "witnesses"
+                                  , JE.list (encodeCborHex << Tx.encodeVKeyWitness) vkeywitnesses
+                                  )
+                                ]
+                    in
+                    ( model, toMainApp encodedSignatures )
+
                 _ ->
                     ( model, Cmd.none )
 
         ( MainAppMsg value, _ ) ->
             case ( JD.decodeValue mainAppMsgDecoder value, model ) of
                 ( Ok MainAppAskUtxos, WalletLoaded loadedWallet { errors } ) ->
-                    -- TODO: send available utxos back with toMainApp port
-                    Debug.todo "ask utxos"
+                    -- Send available utxos back with toMainApp port
+                    let
+                        utxoCborEncoder =
+                            Cbor.Encode.tuple <|
+                                Cbor.Encode.elems
+                                    >> Cbor.Encode.elem Utxo.encodeOutputReference Tuple.first
+                                    >> Cbor.Encode.elem Utxo.encodeOutput Tuple.second
+
+                        encodedUtxos =
+                            JE.object
+                                [ ( "responseType", JE.string "utxos" )
+                                , ( "utxos"
+                                  , JE.list (encodeCborHex << utxoCborEncoder) (Dict.Any.toList loadedWallet.utxos)
+                                  )
+                                ]
+                    in
+                    ( model, toMainApp encodedUtxos )
 
                 ( Ok (MainAppAskSignature tx), WalletLoaded loadedWallet { errors } ) ->
-                    -- TODO: ask external wallet for partial signature with toExternalWallet port
-                    -- TODO: Then, send signature back with toMainApp port
-                    Debug.todo "ask signature"
+                    -- Ask external wallet for partial signature, then later, send signature back
+                    let
+                        signatureRequest =
+                            Cip30.signTx loadedWallet.wallet { partialSign = True } tx
+                                |> Cip30.encodeRequest
+                    in
+                    ( model, toExternalWallet signatureRequest )
 
                 _ ->
                     ( model, Cmd.none )
@@ -181,6 +203,17 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+
+-- Helper
+
+
+encodeCborHex : Cbor.Encode.Encoder -> Value
+encodeCborHex cborEncoder =
+    Cbor.Encode.encode cborEncoder
+        |> Hex.Convert.toString
+        |> JE.string
 
 
 

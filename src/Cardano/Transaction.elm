@@ -10,7 +10,7 @@ module Cardano.Transaction exposing
     , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
     , updateSignatures, hashScriptData
     , deserialize, serialize, encodeToCbor
-    , decodeWitnessSet
+    , decodeWitnessSet, decodeVKeyWitness, encodeVKeyWitness
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -37,7 +37,7 @@ module Cardano.Transaction exposing
 
 @docs deserialize, serialize, encodeToCbor
 
-@docs decodeWitnessSet
+@docs decodeWitnessSet, decodeVKeyWitness, encodeVKeyWitness
 
 -}
 
