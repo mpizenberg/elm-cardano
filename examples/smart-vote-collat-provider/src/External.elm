@@ -26,7 +26,7 @@ main =
     Browser.element
         { init = init
         , update = update
-        , subscriptions = \_ -> fromExternalWallet WalletMsg
+        , subscriptions = \_ -> Sub.batch [ fromExternalWallet WalletMsg, fromMainApp MainAppMsg ]
         , view = view
         }
 
@@ -35,6 +35,12 @@ port toExternalWallet : Value -> Cmd msg
 
 
 port fromExternalWallet : (Value -> msg) -> Sub msg
+
+
+port toMainApp : Value -> Cmd msg
+
+
+port fromMainApp : (Value -> msg) -> Sub msg
 
 
 
@@ -75,7 +81,44 @@ init _ =
 
 type Msg
     = WalletMsg Value
+    | MainAppMsg Value
     | ConnectButtonClicked { id : String }
+
+
+type MainAppMsg
+    = MainAppAskUtxos
+    | MainAppAskSignature Transaction
+
+
+mainAppMsgDecoder : Decoder MainAppMsg
+mainAppMsgDecoder =
+    JD.field "requestType" JD.string
+        |> JD.andThen
+            (\requestType ->
+                case requestType of
+                    "ask-utxos" ->
+                        JD.succeed MainAppAskUtxos
+
+                    "ask-signature" ->
+                        JD.field "tx" JD.string
+                            |> JD.andThen
+                                (\txStr ->
+                                    case Bytes.fromHex txStr of
+                                        Just txBytes ->
+                                            case Tx.deserialize txBytes of
+                                                Just tx ->
+                                                    JD.succeed (MainAppAskSignature tx)
+
+                                                Nothing ->
+                                                    JD.fail ("Tx decoding failed for: " ++ txStr)
+
+                                        Nothing ->
+                                            JD.fail ("Invalid hex: " ++ txStr)
+                                )
+
+                    _ ->
+                        JD.fail ("Unrecognized request: " ++ requestType)
+            )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -104,6 +147,9 @@ update msg model =
                     , Cmd.none
                     )
 
+                -- REMARK: block commented for now from an old version of this app.
+                -- This needs to be adapted to this app
+                --
                 -- ( Ok (Cip30.ApiResponse _ (Cip30.SignedTx vkeywitnesses)), Submitting ctx action { tx } ) ->
                 --     let
                 --         -- Update the signatures of the Tx with the wallet response
@@ -113,6 +159,20 @@ update msg model =
                 --     ( Submitting ctx action { tx = signedTx, errors = "" }
                 --     , toExternalWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
                 --     )
+                _ ->
+                    ( model, Cmd.none )
+
+        ( MainAppMsg value, _ ) ->
+            case ( JD.decodeValue mainAppMsgDecoder value, model ) of
+                ( Ok MainAppAskUtxos, WalletLoaded loadedWallet { errors } ) ->
+                    -- TODO: send available utxos back with toMainApp port
+                    Debug.todo "ask utxos"
+
+                ( Ok (MainAppAskSignature tx), WalletLoaded loadedWallet { errors } ) ->
+                    -- TODO: ask external wallet for partial signature with toExternalWallet port
+                    -- TODO: Then, send signature back with toMainApp port
+                    Debug.todo "ask signature"
+
                 _ ->
                     ( model, Cmd.none )
 
@@ -133,11 +193,11 @@ view : Model -> Html Msg
 view model =
     case model of
         Startup ->
-            div [] [ div [] [ text "Hello Cardano!" ] ]
+            div [] [ div [] [ text "This is the external wallet provider app" ] ]
 
         WalletDiscovered availableWallets ->
             div []
-                [ div [] [ text "Hello Cardano!" ]
+                [ div [] [ text "This is the external wallet provider app" ]
                 , div [] [ text "CIP-30 wallets detected:" ]
                 , viewAvailableWallets availableWallets
                 ]
@@ -164,7 +224,7 @@ displayErrors err =
 
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
-    [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
+    [ div [] [ text <| "External Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
     , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toHex) ]
     , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]
