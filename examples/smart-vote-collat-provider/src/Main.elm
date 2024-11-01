@@ -175,7 +175,7 @@ update msg model =
                     let
                         -- Update the signatures of the Tx with the wallet response
                         signedTx =
-                            Transaction.updateSignatures (\_ -> Just vkeywitnesses) tx
+                            Transaction.updateSignatures (Just << List.append vkeywitnesses << Maybe.withDefault []) tx
 
                         _ =
                             Debug.log "signedTx" (Transaction.serialize signedTx)
@@ -348,7 +348,9 @@ update msg model =
                     ]
                         |> Cardano.finalizeAdvanced
                             { govState = Cardano.emptyGovernanceState
-                            , localStateUtxos = ctx.localStateUtxos
+
+                            -- Combine local state utxos with those from FeeProvider
+                            , localStateUtxos = Dict.Any.union ctx.localStateUtxos ctx.feeProvider.utxos
                             , coinSelectionAlgo = CoinSelection.largestFirst
                             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
                             }
@@ -455,12 +457,12 @@ view : Model -> Html Msg
 view model =
     case model of
         Startup ->
-            div [] [ div [] [ text "Hello Cardano!" ] ]
+            div [] [ div [] [ text "Main wallet:" ] ]
 
         WalletDiscovered availableWallets ->
             div []
-                [ div [] [ text "Hello Cardano!" ]
-                , div [] [ text "CIP-30 wallets detected:" ]
+                [ div [] [ text "Main wallet:" ]
+                , div [] [ text "Potential CIP-30 wallets detected:" ]
                 , viewAvailableWallets availableWallets
                 ]
 
@@ -541,7 +543,7 @@ displayErrors err =
 
 viewLoadedWallet : LoadedWallet -> List (Html msg)
 viewLoadedWallet { wallet, utxos, changeAddress } =
-    [ div [] [ text <| "Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
+    [ div [] [ text <| "Main Wallet: " ++ (Cip30.walletDescriptor wallet).name ]
     , div [] [ text <| "Address: " ++ (Address.toBytes changeAddress |> Bytes.toHex) ]
     , div [] [ text <| "UTxO count: " ++ String.fromInt (Dict.Any.size utxos) ]
     ]

@@ -239,7 +239,7 @@ view model =
         WalletDiscovered availableWallets ->
             div []
                 [ div [] [ text "This is the external wallet provider app" ]
-                , div [] [ text "CIP-30 wallets detected:" ]
+                , div [] [ text "Potential CIP-30 wallets detected:" ]
                 , viewAvailableWallets availableWallets
                 ]
 
