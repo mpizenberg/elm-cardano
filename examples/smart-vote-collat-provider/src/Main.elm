@@ -184,7 +184,7 @@ update msg model =
                     , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
                     )
 
-                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting ({ loadedWallet } as ctx) action { tx } ) ->
+                ( Ok (Cip30.ApiResponse { walletId } (Cip30.SubmittedTx txId)), Submitting ({ loadedWallet, feeProvider } as ctx) action { tx } ) ->
                     let
                         -- Update the known UTxOs set after the given Tx is processed
                         { updatedState, spent, created } =
@@ -207,10 +207,28 @@ update msg model =
                                 unspentUtxos
                                 created
 
+                        -- Also update specifically our fee provider wallet UTxOs knowledge
+                        -- This isn’t purely necessary, but just to keep a consistent wallet state
+                        unspentProviderUtxos =
+                            List.foldl (\( ref, _ ) state -> Dict.Any.remove ref state) feeProvider.utxos spent
+
+                        updatedFeeProviderUtxos =
+                            List.foldl
+                                (\( ref, output ) state ->
+                                    if output.address == feeProvider.address then
+                                        Dict.Any.insert ref output state
+
+                                    else
+                                        state
+                                )
+                                unspentProviderUtxos
+                                created
+
                         updatedContext =
                             { ctx
                                 | localStateUtxos = updatedState
                                 , loadedWallet = { loadedWallet | utxos = updatedWalletUtxos }
+                                , feeProvider = { feeProvider | utxos = updatedFeeProviderUtxos }
                             }
                     in
                     ( TxSubmitted updatedContext action { txId = txId, errors = "" }
@@ -307,7 +325,8 @@ update msg model =
                         }
             in
             lock
-                { localStateUtxos = w.utxos
+                -- Combine local state utxos with those from FeeProvider
+                { localStateUtxos = Dict.Any.union w.utxos feeProvider.utxos
                 , myKeyCred = myKeyCred
                 , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
                 , feeProvider = feeProvider
@@ -348,9 +367,7 @@ update msg model =
                     ]
                         |> Cardano.finalizeAdvanced
                             { govState = Cardano.emptyGovernanceState
-
-                            -- Combine local state utxos with those from FeeProvider
-                            , localStateUtxos = Dict.Any.union ctx.localStateUtxos ctx.feeProvider.utxos
+                            , localStateUtxos = ctx.localStateUtxos
                             , coinSelectionAlgo = CoinSelection.largestFirst
                             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
                             }
