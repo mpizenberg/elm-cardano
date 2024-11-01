@@ -176,11 +176,18 @@ update msg model =
                                     >> Cbor.Encode.elem Utxo.encodeOutputReference Tuple.first
                                     >> Cbor.Encode.elem Utxo.encodeOutput Tuple.second
 
+                        -- Only keep utxos at the change address to simplify fee handling in the Main app
+                        utxoSelection =
+                            Dict.Any.filter (\_ output -> output.address == loadedWallet.changeAddress) loadedWallet.utxos
+
                         encodedUtxos =
                             JE.object
                                 [ ( "responseType", JE.string "utxos" )
+                                , ( "address"
+                                  , JE.string <| Bytes.toHex <| Address.toBytes loadedWallet.changeAddress
+                                  )
                                 , ( "utxos"
-                                  , JE.list (encodeCborHex << utxoCborEncoder) (Dict.Any.toList loadedWallet.utxos)
+                                  , JE.list (encodeCborHex << utxoCborEncoder) (Dict.Any.toList utxoSelection)
                                   )
                                 ]
                     in
@@ -188,6 +195,7 @@ update msg model =
 
                 ( Ok (MainAppAskSignature tx), WalletLoaded loadedWallet { errors } ) ->
                     -- Ask external wallet for partial signature, then later, send signature back
+                    -- TODO: Update the wallet utxos with the content of the Tx
                     let
                         signatureRequest =
                             Cip30.signTx loadedWallet.wallet { partialSign = True } tx

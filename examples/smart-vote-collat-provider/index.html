@@ -31,6 +31,14 @@
                 portFromElmToWallet: mainApp.ports.toWallet,
                 portFromWalletToElm: mainApp.ports.fromWallet,
             });
+
+            // Wire the ports between the two apps
+            mainApp.ports.toExternalApp.subscribe(function (msg) {
+                externalApp.ports.fromMainApp.send(msg);
+            });
+            externalApp.ports.toMainApp.subscribe(function (msg) {
+                mainApp.ports.fromExternalApp.send(msg);
+            });
         </script>
     </body>
 </html>

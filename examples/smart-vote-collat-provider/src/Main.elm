@@ -2,20 +2,25 @@ port module Main exposing (main)
 
 import Browser
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Cardano exposing (SpendSource(..), TxIntent(..), WitnessSource(..), dummyBytes)
+import Cardano exposing (Fee(..), SpendSource(..), TxIntent(..), WitnessSource(..), dummyBytes)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..))
 import Cardano.Cip30 as Cip30
+import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
 import Cardano.Script exposing (PlutusVersion(..), ScriptCbor)
-import Cardano.Transaction as Tx exposing (Transaction)
+import Cardano.Transaction as Transaction exposing (Transaction)
+import Cardano.Uplc as Uplc
 import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, TransactionId)
 import Cardano.Value
+import Cbor.Encode
 import Dict.Any
+import Hex.Convert
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (height, src)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as JD exposing (Decoder, Value)
+import Json.Encode as JE
 import Natural
 
 
@@ -26,7 +31,7 @@ main =
     Browser.element
         { init = init
         , update = update
-        , subscriptions = \_ -> fromWallet WalletMsg
+        , subscriptions = \_ -> Sub.batch [ fromWallet WalletMsg, fromExternalApp ExternalAppMsg ]
         , view = view
         }
 
@@ -37,6 +42,12 @@ port toWallet : Value -> Cmd msg
 port fromWallet : (Value -> msg) -> Sub msg
 
 
+port toExternalApp : Value -> Cmd msg
+
+
+port fromExternalApp : (Value -> msg) -> Sub msg
+
+
 
 -- #########################################################
 -- MODEL
@@ -45,6 +56,7 @@ port fromWallet : (Value -> msg) -> Sub msg
 
 type Model
     = Startup
+      -- TODO: Use koios to load protocol params instead of using default ones
     | WalletDiscovered (List Cip30.WalletDescriptor)
     | WalletLoading
         { wallet : Cip30.Wallet
@@ -52,8 +64,10 @@ type Model
         }
     | WalletLoaded LoadedWallet { errors : String }
     | BlueprintLoaded LoadedWallet LockScript { errors : String }
+    | FeeProviderLoaded LoadedWallet LockScript FeeProvider { errors : String }
     | Submitting AppContext Action { tx : Transaction, errors : String }
     | TxSubmitted AppContext Action { txId : Bytes TransactionId, errors : String }
+    | FeeProviderSigning AppContext { tx : Transaction, errors : String }
 
 
 type alias LoadedWallet =
@@ -69,10 +83,17 @@ type alias LockScript =
     }
 
 
+type alias FeeProvider =
+    { address : Address
+    , utxos : Utxo.RefDict Output
+    }
+
+
 type alias AppContext =
     { loadedWallet : LoadedWallet
     , myKeyCred : Bytes CredentialHash
     , myStakeKeyHash : Maybe (Bytes CredentialHash)
+    , feeProvider : FeeProvider
     , localStateUtxos : Utxo.RefDict Output
     , lockScript : LockScript
     , scriptAddress : Address
@@ -81,7 +102,6 @@ type alias AppContext =
 
 type Action
     = Locking
-      -- TODO: when unlocking, try using the external wallet to pay the fees!
     | Unlocking
 
 
@@ -92,6 +112,22 @@ init _ =
     )
 
 
+type ExternalAppResponse
+    = GotUtxos ( Address, List ( OutputReference, Output ) )
+    | GotSignature (List Transaction.VKeyWitness)
+
+
+
+-- Helper
+
+
+encodeCborHex : Cbor.Encode.Encoder -> Value
+encodeCborHex cborEncoder =
+    Cbor.Encode.encode cborEncoder
+        |> Hex.Convert.toString
+        |> JE.string
+
+
 
 -- #########################################################
 -- UPDATE
@@ -100,9 +136,11 @@ init _ =
 
 type Msg
     = WalletMsg Value
+    | ExternalAppMsg Value
     | ConnectButtonClicked { id : String }
     | LoadBlueprintButtonClicked
     | GotBlueprint (Result Http.Error LockScript)
+    | RequestExternalUtxosClicked
     | LockAdaButtonClicked
     | UnlockAdaButtonClicked
 
@@ -137,10 +175,10 @@ update msg model =
                     let
                         -- Update the signatures of the Tx with the wallet response
                         signedTx =
-                            Tx.updateSignatures (\_ -> Just vkeywitnesses) tx
+                            Transaction.updateSignatures (\_ -> Just vkeywitnesses) tx
 
                         _ =
-                            Debug.log "signedTx" (Tx.serialize signedTx)
+                            Debug.log "signedTx" (Transaction.serialize signedTx)
                     in
                     ( Submitting ctx action { tx = signedTx, errors = "" }
                     , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet signedTx))
@@ -213,7 +251,45 @@ update msg model =
                     -- Handle error as needed
                     ( WalletLoaded w { errors = Debug.toString err }, Cmd.none )
 
-        ( LockAdaButtonClicked, BlueprintLoaded w lockScript _ ) ->
+        ( RequestExternalUtxosClicked, BlueprintLoaded w lockScript _ ) ->
+            ( model
+            , toExternalApp (JE.object [ ( "requestType", JE.string "ask-utxos" ) ])
+            )
+
+        ( ExternalAppMsg value, _ ) ->
+            case ( JD.decodeValue externalAppResponseDecoder value, model ) of
+                ( Ok (GotUtxos ( addr, utxos )), BlueprintLoaded w lockScript _ ) ->
+                    let
+                        feeProvider =
+                            { address = addr
+                            , utxos = Utxo.refDictFromList utxos
+                            }
+                    in
+                    -- Update context with external UTxOs and proceed
+                    ( FeeProviderLoaded w lockScript feeProvider { errors = "" }
+                    , Cmd.none
+                    )
+
+                ( Ok (GotSignature witnesses), FeeProviderSigning ({ loadedWallet } as ctx) { tx, errors } ) ->
+                    let
+                        txWithFeeWitness =
+                            Transaction.updateSignatures (\_ -> Just witnesses) tx
+                    in
+                    ( Submitting ctx Unlocking { tx = txWithFeeWitness, errors = "" }
+                    , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = False } txWithFeeWitness))
+                    )
+
+                ( Err err, _ ) ->
+                    let
+                        _ =
+                            Debug.log "Error decoding external app response:" (Debug.toString err)
+                    in
+                    ( model, Cmd.none )
+
+                _ ->
+                    ( model, Cmd.none )
+
+        ( LockAdaButtonClicked, FeeProviderLoaded w lockScript feeProvider _ ) ->
             let
                 -- Extract both parts (payment/stake) from our wallet address
                 ( myKeyCred, myStakeCred ) =
@@ -234,6 +310,7 @@ update msg model =
                 { localStateUtxos = w.utxos
                 , myKeyCred = myKeyCred
                 , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
+                , feeProvider = feeProvider
                 , scriptAddress = scriptAddress
                 , loadedWallet = w
                 , lockScript = lockScript
@@ -269,16 +346,29 @@ update msg model =
                         )
                     , SendTo ctx.loadedWallet.changeAddress twoAda
                     ]
-                        |> Cardano.finalize ctx.localStateUtxos []
+                        |> Cardano.finalizeAdvanced
+                            { govState = Cardano.emptyGovernanceState
+                            , localStateUtxos = ctx.localStateUtxos
+                            , coinSelectionAlgo = CoinSelection.largestFirst
+                            , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
+                            }
+                            -- Use fee provider for fees
+                            (AutoFee { paymentSource = ctx.feeProvider.address })
+                            []
             in
             case unlockTxAttempt of
                 Ok unlockTx ->
                     let
                         cleanTx =
-                            Tx.updateSignatures (\_ -> Nothing) unlockTx
+                            Transaction.updateSignatures (\_ -> Nothing) unlockTx
                     in
-                    ( Submitting ctx Unlocking { tx = cleanTx, errors = "" }
-                    , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = False } cleanTx))
+                    ( FeeProviderSigning ctx { tx = cleanTx, errors = "" }
+                    , toExternalApp
+                        (JE.object
+                            [ ( "requestType", JE.string "ask-signature" )
+                            , ( "tx", JE.string <| Bytes.toHex <| Transaction.serialize cleanTx )
+                            ]
+                        )
                     )
 
                 Err err ->
@@ -323,7 +413,7 @@ lock ({ localStateUtxos, myKeyCred, myStakeKeyHash, scriptAddress, loadedWallet,
         Ok lockTx ->
             let
                 cleanTx =
-                    Tx.updateSignatures (\_ -> Nothing) lockTx
+                    Transaction.updateSignatures (\_ -> Nothing) lockTx
             in
             ( Submitting ctx Locking { tx = cleanTx, errors = "" }
             , toWallet (Cip30.encodeRequest (Cip30.signTx loadedWallet.wallet { partialSign = False } cleanTx))
@@ -332,6 +422,26 @@ lock ({ localStateUtxos, myKeyCred, myStakeKeyHash, scriptAddress, loadedWallet,
         Err err ->
             ( BlueprintLoaded loadedWallet lockScript { errors = Debug.toString err }
             , Cmd.none
+            )
+
+
+externalAppResponseDecoder : Decoder ExternalAppResponse
+externalAppResponseDecoder =
+    JD.field "responseType" JD.string
+        |> JD.andThen
+            (\responseType ->
+                case responseType of
+                    "utxos" ->
+                        JD.map2 (\addr utxos -> GotUtxos ( addr, utxos ))
+                            (JD.field "address" Cip30.addressDecoder)
+                            (JD.field "utxos" (JD.list Cip30.utxoDecoder))
+
+                    "signature" ->
+                        JD.field "witnesses" (JD.list (Cip30.hexCborDecoder Transaction.decodeVKeyWitness))
+                            |> JD.map GotSignature
+
+                    _ ->
+                        JD.fail "Unknown response type"
             )
 
 
@@ -370,6 +480,16 @@ view model =
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
                        , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
+                       , button [ onClick RequestExternalUtxosClicked ] [ text "Request External UTxOs" ]
+                       , displayErrors errors
+                       ]
+                )
+
+        FeeProviderLoaded loadedWallet lockScript _ { errors } ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
+                       , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
                        , button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
                        , displayErrors errors
                        ]
@@ -397,6 +517,14 @@ view model =
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Tx submitted! with ID: " ++ Bytes.toHex txId ]
                        , actionButton
+                       , displayErrors errors
+                       ]
+                )
+
+        FeeProviderSigning { loadedWallet, lockScript } { tx, errors } ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Signing transaction with the fee provider ..." ]
                        , displayErrors errors
                        ]
                 )
