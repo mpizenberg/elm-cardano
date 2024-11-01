@@ -1082,19 +1082,19 @@ replaceDummyScriptDataHash intents ({ body } as tx) =
         costModels =
             { plutusV1 =
                 if List.any (\( v, _ ) -> v == PlutusV1) intents.plutusScriptSources then
-                    Uplc.conwayDefaultCostModels.plutusV1
+                    Uplc.conwayNewDefaultCostModels.plutusV1
 
                 else
                     Nothing
             , plutusV2 =
                 if List.any (\( v, _ ) -> v == PlutusV2) intents.plutusScriptSources then
-                    Uplc.conwayDefaultCostModels.plutusV2
+                    Uplc.conwayNewDefaultCostModels.plutusV2
 
                 else
                     Nothing
             , plutusV3 =
                 if List.any (\( v, _ ) -> v == PlutusV3) intents.plutusScriptSources then
-                    Uplc.conwayDefaultCostModels.plutusV3
+                    Uplc.conwayNewDefaultCostModels.plutusV3
 
                 else
                     Nothing
