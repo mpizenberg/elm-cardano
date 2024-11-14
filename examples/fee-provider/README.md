@@ -1,23 +1,16 @@
-# Vote using Script with external fee and collateral provider
+# External fee and collateral provider
 
 This is an advanced example doing the following things:
 
-1. Change the stake part of some ada to the script credential
-2. Register the script as a DRep
-3. Vote with the script
-4. Ask another wallet to pay the fees and provide a collateral
-
-In theory, we could do all 4 actions in the same transaction.
-But we want to demonstrate clearly that another wallet is paying the fees and providing the collateral.
-Steps (1) and (2) require our key signature, both for changing the address and paying the registration deposit.
-So we will do steps (1) and (2) in a first transaction.
-Then we do steps (3) and (4) in a second transaction, where we ask a second wallet to pay for the fees and provide the collateral.
+1. Load the script blueprint
+2. Load cost models from an API provider (koios)
+3. Lock 2 ada into the script address
+4. Unlock the 2 ada while asking another wallet to pay the fees and provide a collateral
 
 ## The aiken script
 
 The aiken script is very minimalist.
-Basically any validation requires a signature from our main wallet stake credential.
-Not the key credential though, because we want to make sure that the fee and collateral come from an external provider, and not our UTxOs.
+Basically any validation requires a signature from the credential stored in the datum.
 
 ```sh
 # Build the script -> generate the plutus.json blueprint
@@ -37,7 +30,7 @@ They will communicate with each other via ports, at two occasions.
 2. When the main app asks the other one to sign the prepared transaction
 
 This communication via ports is a good simulation of how the main app would communicate to a backend server.
-But here the advantage is that all this all happens in the frontend so it’s easier to set up.
+But here the advantage is that all this happens in the frontend so it’s easier to set up.
 
 ```sh
 # Build the frontend and start a static server
