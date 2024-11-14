@@ -380,7 +380,7 @@ import Cardano.Address as Address exposing (Address(..), Credential(..), Credent
 import Cardano.AuxiliaryData as AuxiliaryData exposing (AuxiliaryData)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data exposing (Data)
-import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter(..))
+import Cardano.Gov as Gov exposing (Action, ActionId, Anchor, Constitution, CostModels, Drep(..), ProposalProcedure, ProtocolParamUpdate, ProtocolVersion, UnitInterval, Vote, Voter(..))
 import Cardano.Metadatum exposing (Metadatum)
 import Cardano.MultiAsset as MultiAsset exposing (AssetName, MultiAsset, PolicyId)
 import Cardano.Redeemer as Redeemer exposing (Redeemer, RedeemerTag)
@@ -681,6 +681,7 @@ finalize localStateUtxos txOtherInfo txIntents =
                     , localStateUtxos = localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = defaultEvalScriptsCosts
+                    , costModels = Uplc.conwayDefaultCostModels
                     }
                     (AutoFee { paymentSource = feeSource })
                     txOtherInfo
@@ -955,12 +956,13 @@ finalizeAdvanced :
     , localStateUtxos : Utxo.RefDict Output
     , coinSelectionAlgo : CoinSelection.Algorithm
     , evalScriptsCosts : Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
+    , costModels : CostModels
     }
     -> Fee
     -> List TxOtherInfo
     -> List TxIntent
     -> Result TxFinalizationError Transaction
-finalizeAdvanced { govState, localStateUtxos, coinSelectionAlgo, evalScriptsCosts } fee txOtherInfo txIntents =
+finalizeAdvanced { govState, localStateUtxos, coinSelectionAlgo, evalScriptsCosts, costModels } fee txOtherInfo txIntents =
     case ( processIntents govState localStateUtxos txIntents, processOtherInfo txOtherInfo ) of
         ( Err err, _ ) ->
             Err err
@@ -1062,7 +1064,7 @@ finalizeAdvanced { govState, localStateUtxos, coinSelectionAlgo, evalScriptsCost
                 |> Result.andThen (adjustExecutionCosts <| evalScriptsCosts localStateUtxos)
                 -- Potentially replace the dummy auxiliary data hash and script data hash
                 |> Result.map replaceDummyAuxiliaryDataHash
-                |> Result.map (replaceDummyScriptDataHash processedIntents)
+                |> Result.map (replaceDummyScriptDataHash costModels processedIntents)
                 -- Finally, check if final fees are correct
                 |> Result.andThen (\tx -> checkInsufficientFee { refScriptBytes = computeRefScriptBytesForTx tx } fee tx)
 
@@ -1076,31 +1078,31 @@ replaceDummyAuxiliaryDataHash ({ body, auxiliaryData } as tx) =
 
 {-| Helper function to update the script data hash.
 -}
-replaceDummyScriptDataHash : ProcessedIntents -> Transaction -> Transaction
-replaceDummyScriptDataHash intents ({ body } as tx) =
+replaceDummyScriptDataHash : CostModels -> ProcessedIntents -> Transaction -> Transaction
+replaceDummyScriptDataHash costModels intents ({ body } as tx) =
     let
-        costModels =
+        activeCostModels =
             { plutusV1 =
                 if List.any (\( v, _ ) -> v == PlutusV1) intents.plutusScriptSources then
-                    Uplc.conwayNewDefaultCostModels.plutusV1
+                    costModels.plutusV1
 
                 else
                     Nothing
             , plutusV2 =
                 if List.any (\( v, _ ) -> v == PlutusV2) intents.plutusScriptSources then
-                    Uplc.conwayNewDefaultCostModels.plutusV2
+                    costModels.plutusV2
 
                 else
                     Nothing
             , plutusV3 =
                 if List.any (\( v, _ ) -> v == PlutusV3) intents.plutusScriptSources then
-                    Uplc.conwayNewDefaultCostModels.plutusV3
+                    costModels.plutusV3
 
                 else
                     Nothing
             }
     in
-    { tx | body = { body | scriptDataHash = Maybe.map (\_ -> Transaction.hashScriptData costModels tx) body.scriptDataHash } }
+    { tx | body = { body | scriptDataHash = Maybe.map (\_ -> Transaction.hashScriptData activeCostModels tx) body.scriptDataHash } }
 
 
 {-| Helper function to compute the total size of reference scripts.

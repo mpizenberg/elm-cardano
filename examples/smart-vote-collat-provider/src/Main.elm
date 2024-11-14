@@ -370,6 +370,7 @@ update msg model =
                             , localStateUtxos = ctx.localStateUtxos
                             , coinSelectionAlgo = CoinSelection.largestFirst
                             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
+                            , costModels = Uplc.conwayNewDefaultCostModels
                             }
                             -- Use fee provider for fees
                             (AutoFee { paymentSource = ctx.feeProvider.address })
