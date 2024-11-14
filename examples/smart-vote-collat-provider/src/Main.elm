@@ -7,6 +7,7 @@ import Cardano.Address as Address exposing (Address, Credential(..), CredentialH
 import Cardano.Cip30 as Cip30
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
+import Cardano.Gov exposing (CostModels)
 import Cardano.Script exposing (PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Uplc as Uplc
@@ -56,7 +57,6 @@ port fromExternalApp : (Value -> msg) -> Sub msg
 
 type Model
     = Startup
-      -- TODO: Use koios to load protocol params instead of using default ones
     | WalletDiscovered (List Cip30.WalletDescriptor)
     | WalletLoading
         { wallet : Cip30.Wallet
@@ -65,6 +65,7 @@ type Model
     | WalletLoaded LoadedWallet { errors : String }
     | BlueprintLoaded LoadedWallet LockScript { errors : String }
     | FeeProviderLoaded LoadedWallet LockScript FeeProvider { errors : String }
+    | CostModelsLoaded LoadedWallet LockScript FeeProvider CostModels { errors : String }
     | Submitting AppContext Action { tx : Transaction, errors : String }
     | TxSubmitted AppContext Action { txId : Bytes TransactionId, errors : String }
     | FeeProviderSigning AppContext { tx : Transaction, errors : String }
@@ -97,6 +98,7 @@ type alias AppContext =
     , localStateUtxos : Utxo.RefDict Output
     , lockScript : LockScript
     , scriptAddress : Address
+    , costModels : CostModels
     }
 
 
@@ -141,8 +143,14 @@ type Msg
     | LoadBlueprintButtonClicked
     | GotBlueprint (Result Http.Error LockScript)
     | RequestExternalUtxosClicked
+    | LoadCostModelsButtonClicked
+    | GotProtocolParams (Result Http.Error ProtocolParams)
     | LockAdaButtonClicked
     | UnlockAdaButtonClicked
+
+
+type alias ProtocolParams =
+    { costModels : CostModels }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -307,7 +315,34 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        ( LockAdaButtonClicked, FeeProviderLoaded w lockScript feeProvider _ ) ->
+        ( LoadCostModelsButtonClicked, FeeProviderLoaded w lockScript feeProvider _ ) ->
+            ( model
+            , Http.post
+                { url = "https://preview.koios.rest/api/v1/ogmios"
+                , body =
+                    Http.jsonBody
+                        (JE.object
+                            [ ( "jsonrpc", JE.string "2.0" )
+                            , ( "method", JE.string "queryLedgerState/protocolParameters" )
+                            ]
+                        )
+                , expect = Http.expectJson GotProtocolParams protocolParamsDecoder
+                }
+            )
+
+        ( GotProtocolParams result, FeeProviderLoaded w lockScript feeProvider _ ) ->
+            case result of
+                Ok { costModels } ->
+                    ( CostModelsLoaded w lockScript feeProvider costModels { errors = "" }
+                    , Cmd.none
+                    )
+
+                Err err ->
+                    ( FeeProviderLoaded w lockScript feeProvider { errors = Debug.toString err }
+                    , Cmd.none
+                    )
+
+        ( LockAdaButtonClicked, CostModelsLoaded w lockScript feeProvider costModels _ ) ->
             let
                 -- Extract both parts (payment/stake) from our wallet address
                 ( myKeyCred, myStakeCred ) =
@@ -333,6 +368,7 @@ update msg model =
                 , scriptAddress = scriptAddress
                 , loadedWallet = w
                 , lockScript = lockScript
+                , costModels = costModels
                 }
 
         ( LockAdaButtonClicked, TxSubmitted ctx _ _ ) ->
@@ -370,7 +406,7 @@ update msg model =
                             , localStateUtxos = ctx.localStateUtxos
                             , coinSelectionAlgo = CoinSelection.largestFirst
                             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
-                            , costModels = Uplc.conwayNewDefaultCostModels
+                            , costModels = ctx.costModels
                             }
                             -- Use fee provider for fees
                             (AutoFee { paymentSource = ctx.feeProvider.address })
@@ -465,6 +501,14 @@ externalAppResponseDecoder =
             )
 
 
+protocolParamsDecoder : Decoder ProtocolParams
+protocolParamsDecoder =
+    JD.map3 (\v1 v2 v3 -> { costModels = CostModels (Just v1) (Just v2) (Just v3) })
+        (JD.at [ "result", "plutusCostModels", "plutus:v1" ] <| JD.list JD.int)
+        (JD.at [ "result", "plutusCostModels", "plutus:v2" ] <| JD.list JD.int)
+        (JD.at [ "result", "plutusCostModels", "plutus:v3" ] <| JD.list JD.int)
+
+
 
 -- #########################################################
 -- VIEW
@@ -506,6 +550,16 @@ view model =
                 )
 
         FeeProviderLoaded loadedWallet lockScript _ { errors } ->
+            div []
+                (viewLoadedWallet loadedWallet
+                    ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
+                       , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
+                       , button [ onClick LoadCostModelsButtonClicked ] [ text "Load cost models" ]
+                       , displayErrors errors
+                       ]
+                )
+
+        CostModelsLoaded loadedWallet lockScript _ _ { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
