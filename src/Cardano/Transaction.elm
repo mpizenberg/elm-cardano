@@ -10,7 +10,7 @@ module Cardano.Transaction exposing
     , FeeParameters, RefScriptFeeParameters, defaultTxFeeParams, computeFees, allInputs
     , updateSignatures, hashScriptData
     , deserialize, serialize, encodeToCbor
-    , decodeWitnessSet
+    , decodeWitnessSet, decodeVKeyWitness, encodeVKeyWitness
     )
 
 {-| Types and functions related to on-chain transactions.
@@ -37,7 +37,7 @@ module Cardano.Transaction exposing
 
 @docs deserialize, serialize, encodeToCbor
 
-@docs decodeWitnessSet
+@docs decodeWitnessSet, decodeVKeyWitness, encodeVKeyWitness
 
 -}
 
@@ -707,13 +707,15 @@ encodeWitnessSet =
             >> E.optionalField 7 (E.list Bytes.toCbor) .plutusV3Script
 
 
-{-| -}
+{-| Encode to CBOR the VKey signatures in the witness set.
+-}
 encodeVKeyWitnesses : List VKeyWitness -> E.Encoder
 encodeVKeyWitnesses v =
     E.list encodeVKeyWitness v
 
 
-{-| -}
+{-| Encode to CBOR one VKey signatures.
+-}
 encodeVKeyWitness : VKeyWitness -> E.Encoder
 encodeVKeyWitness =
     E.tuple <|
@@ -1568,6 +1570,8 @@ decodeWitnessSet =
             >> D.optionalField 7 (D.oneOf [ D.set (D.map Bytes.fromBytes D.bytes), D.failWith "Failed to decode plutus v3 script" ])
 
 
+{-| Decode from CBOR one VKey witness signature.
+-}
 decodeVKeyWitness : D.Decoder VKeyWitness
 decodeVKeyWitness =
     D.tuple

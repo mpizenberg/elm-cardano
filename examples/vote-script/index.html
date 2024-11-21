@@ -1,0 +1,45 @@
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>elm-cardano</title>
+    </head>
+
+    <body>
+        <div id="external-app"></div>
+        <div style="height: 2em"></div>
+        <div id="main-app"></div>
+        <script type="module">
+            import * as ElmCardano from "./elm-cardano.js";
+            // Load both the Main.elm and External.elm files compiled into the main.js bundle
+            await ElmCardano.loadMain("./main.js");
+
+            // Initialize the external Elm app
+            var externalApp = Elm.External.init({
+                node: document.getElementById("external-app"),
+                flags: null,
+            });
+            ElmCardano.init({
+                portFromElmToWallet: externalApp.ports.toExternalWallet,
+                portFromWalletToElm: externalApp.ports.fromExternalWallet,
+            });
+
+            // Initialize the main Elm app
+            var mainApp = Elm.Main.init({
+                node: document.getElementById("main-app"),
+                flags: null,
+            });
+            ElmCardano.init({
+                portFromElmToWallet: mainApp.ports.toWallet,
+                portFromWalletToElm: mainApp.ports.fromWallet,
+            });
+
+            // Wire the ports between the two apps
+            mainApp.ports.toExternalApp.subscribe(function (msg) {
+                externalApp.ports.fromMainApp.send(msg);
+            });
+            externalApp.ports.toMainApp.subscribe(function (msg) {
+                mainApp.ports.fromExternalApp.send(msg);
+            });
+        </script>
+    </body>
+</html>
