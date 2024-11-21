@@ -3,6 +3,7 @@ module Cardano.Address exposing
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
     , fromBech32, fromBytes, enterprise, script, base, pointer
     , isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
+    , setShelleyStakeCred
     , Dict, emptyDict, dictFromList
     , StakeDict, emptyStakeDict, stakeDictFromList
     , networkIdFromInt
@@ -20,6 +21,8 @@ module Cardano.Address exposing
 @docs fromBech32, fromBytes, enterprise, script, base, pointer
 
 @docs isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
+
+@docs setShelleyStakeCred
 
 @docs Dict, emptyDict, dictFromList
 
@@ -248,6 +251,19 @@ extractStakeKeyHash address =
 
         _ ->
             Nothing
+
+
+{-| Change the stake credential part of a Shelley address.
+Ignored if the address is anything else (Byron/Reward).
+-}
+setShelleyStakeCred : Maybe StakeCredential -> Address -> Address
+setShelleyStakeCred maybeCred address =
+    case address of
+        Shelley addr ->
+            Shelley { addr | stakeCredential = maybeCred }
+
+        _ ->
+            address
 
 
 {-| Convenient alias for a `Dict` with [Address] keys.

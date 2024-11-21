@@ -20,16 +20,20 @@ validator drep_voting {
   publish(_redeemer: Data, certificate: Certificate, self: Transaction) {
     when certificate is {
       RegisterDelegateRepresentative { delegate_representative, deposit } ->
-        todo @"register"
+        // todo @"register"
+        True
       UnregisterDelegateRepresentative { delegate_representative, refund } ->
-        todo @"unregister"
+        // todo @"unregister"
+        True
       _ -> fail
     }
   }
 
   vote(_redeemer: Data, voter: Voter, self: Transaction) {
     when voter is {
-      DelegateRepresentative(cred) -> todo @"drep"
+      DelegateRepresentative(cred) ->
+        // todo @"drep"
+        True
       _ -> fail
     }
   }

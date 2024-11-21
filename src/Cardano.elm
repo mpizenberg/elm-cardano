@@ -533,6 +533,7 @@ type alias PlutusScriptWitness =
 -}
 type WitnessSource a
     = WitnessValue a
+      -- TODO: rename WitnessByValue and WitnessByReference ???
     | WitnessReference OutputReference
 
 

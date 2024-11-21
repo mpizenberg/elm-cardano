@@ -2,12 +2,12 @@ port module Main exposing (main)
 
 import Browser
 import Bytes.Comparable as Bytes exposing (Bytes)
-import Cardano exposing (Fee(..), SpendSource(..), TxIntent(..), WitnessSource(..), dummyBytes)
-import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..))
+import Cardano exposing (CertificateIntent(..), CredentialWitness(..), Fee(..), ScriptWitness(..), SpendSource(..), TxIntent(..), VoterWitness(..), WitnessSource(..), dummyBytes)
+import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..), StakeCredential(..))
 import Cardano.Cip30 as Cip30
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
-import Cardano.Gov exposing (CostModels)
+import Cardano.Gov as Gov exposing (CostModels, Drep(..), Vote(..))
 import Cardano.Script exposing (PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Uplc as Uplc
@@ -23,7 +23,7 @@ import Http
 import Integer
 import Json.Decode as JD exposing (Decoder, Value)
 import Json.Encode as JE
-import Natural
+import Natural exposing (Natural)
 
 
 main =
@@ -66,7 +66,7 @@ type Model
     | WalletLoaded LoadedWallet { errors : String }
     | BlueprintLoaded LoadedWallet LockScript { errors : String }
     | FeeProviderLoaded LoadedWallet LockScript FeeProvider { errors : String }
-    | CostModelsLoaded LoadedWallet LockScript FeeProvider CostModels { errors : String }
+    | ProtocolParamsLoaded LoadedWallet LockScript FeeProvider ProtocolParams { errors : String }
     | Submitting AppContext Action { tx : Transaction, errors : String }
     | TxSubmitted AppContext Action { txId : Bytes TransactionId, errors : String }
     | FeeProviderSigning AppContext { tx : Transaction, errors : String }
@@ -98,14 +98,15 @@ type alias AppContext =
     , feeProvider : FeeProvider
     , localStateUtxos : Utxo.RefDict Output
     , lockScript : LockScript
-    , scriptAddress : Address
-    , costModels : CostModels
+    , govAddress : Address
+    , protocolParams : ProtocolParams
     }
 
 
 type Action
-    = Locking
-    | Unlocking
+    = RegisteringDRep
+    | Voting
+    | UnregisteringDRep
 
 
 init : () -> ( Model, Cmd Msg )
@@ -144,14 +145,18 @@ type Msg
     | LoadBlueprintButtonClicked
     | GotBlueprint (Result Http.Error LockScript)
     | RequestExternalUtxosClicked
-    | LoadCostModelsButtonClicked
+    | LoadProtocolParamsButtonClicked
     | GotProtocolParams (Result Http.Error ProtocolParams)
-    | LockAdaButtonClicked
-    | UnlockAdaButtonClicked
+    | RegisterDRepButtonClicked
+    | SkipRegisterButtonClicked
+    | VoteButtonClicked
+    | UnregisterDRepButtonClicked
 
 
 type alias ProtocolParams =
-    { costModels : CostModels }
+    { costModels : CostModels
+    , drepDeposit : Natural
+    }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -302,8 +307,14 @@ update msg model =
                         txWithFeeWitness =
                             Transaction.updateSignatures (\_ -> Just witnesses) tx
                     in
-                    ( Submitting ctx Unlocking { tx = txWithFeeWitness, errors = "" }
-                    , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = False } txWithFeeWitness))
+                    -- ( Submitting ctx Voting { tx = txWithFeeWitness, errors = "" }
+                    --   -- False partial sign
+                    -- , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = True } txWithFeeWitness))
+                    -- )
+                    -- TODO: check/add error messages when wallet says signature would do nothing
+                    -- TEMP: no main wallet signature needed
+                    ( Submitting ctx Voting { tx = txWithFeeWitness, errors = "" }
+                    , toWallet (Cip30.encodeRequest (Cip30.submitTx ctx.loadedWallet.wallet txWithFeeWitness))
                     )
 
                 ( Err err, _ ) ->
@@ -316,7 +327,7 @@ update msg model =
                 _ ->
                     ( model, Cmd.none )
 
-        ( LoadCostModelsButtonClicked, FeeProviderLoaded w lockScript feeProvider _ ) ->
+        ( LoadProtocolParamsButtonClicked, FeeProviderLoaded w lockScript feeProvider _ ) ->
             ( model
             , Http.post
                 { url = "https://preview.koios.rest/api/v1/ogmios"
@@ -333,8 +344,8 @@ update msg model =
 
         ( GotProtocolParams result, FeeProviderLoaded w lockScript feeProvider _ ) ->
             case result of
-                Ok { costModels } ->
-                    ( CostModelsLoaded w lockScript feeProvider costModels { errors = "" }
+                Ok params ->
+                    ( ProtocolParamsLoaded w lockScript feeProvider params { errors = "" }
                     , Cmd.none
                     )
 
@@ -343,81 +354,151 @@ update msg model =
                     , Cmd.none
                     )
 
-        ( LockAdaButtonClicked, CostModelsLoaded w lockScript feeProvider costModels _ ) ->
+        ( SkipRegisterButtonClicked, ProtocolParamsLoaded w lockScript feeProvider protocolParams _ ) ->
             let
-                -- Extract both parts (payment/stake) from our wallet address
+                -- Extract both parts from our wallet address
                 ( myKeyCred, myStakeCred ) =
                     ( Address.extractPubKeyHash w.changeAddress
                         |> Maybe.withDefault (dummyBytes 28 "ERROR")
                     , Address.extractStakeCredential w.changeAddress
                     )
 
-                -- Generate the script address while keeping it in our stake
-                scriptAddress =
-                    Address.Shelley
-                        { networkId = Testnet
-                        , paymentCredential = ScriptHash lockScript.hash
-                        , stakeCredential = myStakeCred
-                        }
+                -- Generate the address we will use for governance (with the gov script as stake cred)
+                govAddress =
+                    Address.setShelleyStakeCred
+                        (Just <| InlineCredential <| ScriptHash lockScript.hash)
+                        w.changeAddress
+
+                context =
+                    { loadedWallet = w
+                    , myKeyCred = myKeyCred
+                    , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
+                    , feeProvider = feeProvider
+                    , localStateUtxos = Dict.Any.union w.utxos feeProvider.utxos
+                    , lockScript = lockScript
+                    , govAddress = govAddress
+                    , protocolParams = protocolParams
+                    }
             in
-            lock
-                -- Combine local state utxos with those from FeeProvider
-                { localStateUtxos = Dict.Any.union w.utxos feeProvider.utxos
-                , myKeyCred = myKeyCred
-                , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
-                , feeProvider = feeProvider
-                , scriptAddress = scriptAddress
-                , loadedWallet = w
-                , lockScript = lockScript
-                , costModels = costModels
-                }
+            ( TxSubmitted context RegisteringDRep { txId = Cardano.dummyBytes 32 "", errors = "" }
+            , Cmd.none
+            )
 
-        ( LockAdaButtonClicked, TxSubmitted ctx _ _ ) ->
-            lock ctx
-
-        ( UnlockAdaButtonClicked, TxSubmitted ctx action { txId } ) ->
+        ( RegisterDRepButtonClicked, ProtocolParamsLoaded w lockScript feeProvider protocolParams _ ) ->
             let
-                twoAda =
-                    Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
+                -- Extract both parts from our wallet address
+                ( myKeyCred, myStakeCred ) =
+                    ( Address.extractPubKeyHash w.changeAddress
+                        |> Maybe.withDefault (dummyBytes 28 "ERROR")
+                    , Address.extractStakeCredential w.changeAddress
+                    )
 
-                redeemer =
-                    Data.Int Integer.zero
+                -- Generate the address we will use for governance (with the gov script as stake cred)
+                govAddress =
+                    Address.setShelleyStakeCred
+                        (Just <| InlineCredential <| ScriptHash lockScript.hash)
+                        w.changeAddress
 
-                unlockKey =
-                    ctx.myStakeKeyHash
-                        |> Maybe.withDefault ctx.myKeyCred
+                context =
+                    { loadedWallet = w
+                    , myKeyCred = myKeyCred
+                    , myStakeKeyHash = Address.extractStakeKeyHash w.changeAddress
+                    , feeProvider = feeProvider
+                    , localStateUtxos = Dict.Any.union w.utxos feeProvider.utxos
+                    , lockScript = lockScript
+                    , govAddress = govAddress
+                    , protocolParams = protocolParams
+                    }
 
-                unlockTxAttempt =
-                    [ Spend
-                        (FromPlutusScript
-                            -- The previously sent UTxO was the first output of the locking Tx
-                            { spentInput = OutputReference txId 0
-                            , datumWitness = Nothing
-                            , plutusScriptWitness =
-                                { script = ( PlutusV3, WitnessValue ctx.lockScript.compiledCode )
-                                , redeemerData = \_ -> redeemer
-                                , requiredSigners = [ unlockKey ]
-                                }
+                -- 2 ada transfer to Gov address
+                transferAmount =
+                    Natural.fromSafeInt 2000000
+
+                -- DRep deposit + transfer to govAddress
+                spendAmount =
+                    Natural.add protocolParams.drepDeposit transferAmount
+
+                -- Create registration certificate for the script address as DRep
+                regDRepTxAttempt =
+                    [ Spend <| FromWallet w.changeAddress <| Cardano.Value.onlyLovelace spendAmount
+                    , SendTo govAddress <| Cardano.Value.onlyLovelace transferAmount
+                    , IssueCertificate <|
+                        RegisterDrep
+                            { drep =
+                                WithScript lockScript.hash <|
+                                    PlutusWitness
+                                        { script = ( PlutusV3, WitnessValue lockScript.compiledCode )
+                                        , redeemerData = \_ -> Data.Int Integer.zero
+                                        , requiredSigners = []
+                                        }
+                            , deposit = protocolParams.drepDeposit
+                            , info = Nothing
                             }
+                    ]
+                        |> Cardano.finalizeAdvanced
+                            { govState = Cardano.emptyGovernanceState
+                            , localStateUtxos = context.localStateUtxos
+                            , coinSelectionAlgo = CoinSelection.largestFirst
+                            , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
+                            , costModels = context.protocolParams.costModels
+                            }
+                            (AutoFee { paymentSource = w.changeAddress })
+                            []
+            in
+            case regDRepTxAttempt of
+                Ok regTx ->
+                    let
+                        cleanTx =
+                            Transaction.updateSignatures (\_ -> Nothing) regTx
+                                |> Debug.log "cleanTx"
+                    in
+                    ( Submitting context RegisteringDRep { tx = cleanTx, errors = "" }
+                      -- partialSign = False -- Full sign failure with Eternl
+                    , toWallet (Cip30.encodeRequest (Cip30.signTx w.wallet { partialSign = True } cleanTx))
+                    )
+
+                Err err ->
+                    ( ProtocolParamsLoaded w lockScript feeProvider protocolParams { errors = Debug.toString err }
+                    , Cmd.none
+                    )
+
+        ( VoteButtonClicked, TxSubmitted ctx action { txId } ) ->
+            let
+                -- Create voting transaction using the script
+                voteTxAttempt =
+                    [ Vote
+                        (WithDrepCred <|
+                            WithScript ctx.lockScript.hash <|
+                                PlutusWitness
+                                    { script = ( PlutusV3, WitnessValue ctx.lockScript.compiledCode )
+                                    , redeemerData = \_ -> Data.Int Integer.zero
+                                    , requiredSigners = []
+                                    }
                         )
-                    , SendTo ctx.loadedWallet.changeAddress twoAda
+                        [ { actionId =
+                                -- gov_action1znhykasvdhspkk4hpaytcaausza6rva57gzrwxp9mtyazxap6t4sqsete65
+                                { transactionId = Bytes.fromHexUnchecked "14ee4b760c6de01b5ab70f48bc77bc80bba1b3b4f204371825dac9d11ba1d2eb"
+                                , govActionIndex = 0
+                                }
+                          , vote = VoteYes
+                          }
+                        ]
                     ]
                         |> Cardano.finalizeAdvanced
                             { govState = Cardano.emptyGovernanceState
                             , localStateUtxos = ctx.localStateUtxos
                             , coinSelectionAlgo = CoinSelection.largestFirst
                             , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
-                            , costModels = ctx.costModels
+                            , costModels = ctx.protocolParams.costModels
                             }
-                            -- Use fee provider for fees
                             (AutoFee { paymentSource = ctx.feeProvider.address })
                             []
             in
-            case unlockTxAttempt of
-                Ok unlockTx ->
+            case voteTxAttempt of
+                Ok voteTx ->
                     let
                         cleanTx =
-                            Transaction.updateSignatures (\_ -> Nothing) unlockTx
+                            Transaction.updateSignatures (\_ -> Nothing) voteTx
                     in
                     ( FeeProviderSigning ctx { tx = cleanTx, errors = "" }
                     , toExternalApp
@@ -433,53 +514,56 @@ update msg model =
                     , Cmd.none
                     )
 
+        ( UnregisterDRepButtonClicked, TxSubmitted ctx action { txId } ) ->
+            let
+                refund =
+                    -- MVP. In theory, we should check the amount in ledger
+                    ctx.protocolParams.drepDeposit
+
+                -- Create unregistration transaction
+                unregDRepTxAttempt =
+                    [ IssueCertificate <|
+                        UnregisterDrep
+                            { drep =
+                                WithScript ctx.lockScript.hash <|
+                                    PlutusWitness
+                                        { script = ( PlutusV3, WitnessValue ctx.lockScript.compiledCode )
+                                        , redeemerData = \_ -> Data.Int Integer.zero
+                                        , requiredSigners = []
+                                        }
+                            , refund = refund
+                            }
+                    , SendTo ctx.loadedWallet.changeAddress <|
+                        Cardano.Value.onlyLovelace refund
+                    ]
+                        |> Cardano.finalizeAdvanced
+                            { govState = Cardano.emptyGovernanceState
+                            , localStateUtxos = ctx.localStateUtxos
+                            , coinSelectionAlgo = CoinSelection.largestFirst
+                            , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
+                            , costModels = ctx.protocolParams.costModels
+                            }
+                            (AutoFee { paymentSource = ctx.loadedWallet.changeAddress })
+                            []
+            in
+            case unregDRepTxAttempt of
+                Ok unregTx ->
+                    let
+                        cleanTx =
+                            Transaction.updateSignatures (\_ -> Nothing) unregTx
+                    in
+                    ( Submitting ctx UnregisteringDRep { tx = cleanTx, errors = "" }
+                      -- partialSign = False -- Full sign error with eternl
+                    , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = True } cleanTx))
+                    )
+
+                Err err ->
+                    ( TxSubmitted ctx action { txId = txId, errors = Debug.toString err }
+                    , Cmd.none
+                    )
+
         _ ->
             ( model, Cmd.none )
-
-
-lock : AppContext -> ( Model, Cmd Msg )
-lock ({ localStateUtxos, myKeyCred, myStakeKeyHash, scriptAddress, loadedWallet, lockScript } as ctx) =
-    let
-        -- 1 ada is 1 million lovelaces
-        twoAda =
-            Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
-
-        -- Use my stake key for the unlocking datum (default to spend key if unavailable)
-        unlockCred =
-            myStakeKeyHash
-                |> Maybe.withDefault myKeyCred
-
-        -- Datum as specified by the blueprint of the lock script,
-        -- containing our credentials for later verification when spending
-        datum =
-            Data.Bytes (Bytes.toAny unlockCred)
-
-        -- Transaction locking 2 ada at the script address
-        lockTxAttempt =
-            [ Spend (FromWallet loadedWallet.changeAddress twoAda)
-            , SendToOutput
-                { address = scriptAddress
-                , amount = twoAda
-                , datumOption = Just (DatumValue datum)
-                , referenceScript = Nothing
-                }
-            ]
-                |> Cardano.finalize localStateUtxos []
-    in
-    case lockTxAttempt of
-        Ok lockTx ->
-            let
-                cleanTx =
-                    Transaction.updateSignatures (\_ -> Nothing) lockTx
-            in
-            ( Submitting ctx Locking { tx = cleanTx, errors = "" }
-            , toWallet (Cip30.encodeRequest (Cip30.signTx loadedWallet.wallet { partialSign = False } cleanTx))
-            )
-
-        Err err ->
-            ( BlueprintLoaded loadedWallet lockScript { errors = Debug.toString err }
-            , Cmd.none
-            )
 
 
 externalAppResponseDecoder : Decoder ExternalAppResponse
@@ -504,10 +588,16 @@ externalAppResponseDecoder =
 
 protocolParamsDecoder : Decoder ProtocolParams
 protocolParamsDecoder =
-    JD.map3 (\v1 v2 v3 -> { costModels = CostModels (Just v1) (Just v2) (Just v3) })
+    JD.map4
+        (\v1 v2 v3 drepDeposit ->
+            { costModels = CostModels (Just v1) (Just v2) (Just v3)
+            , drepDeposit = drepDeposit
+            }
+        )
         (JD.at [ "result", "plutusCostModels", "plutus:v1" ] <| JD.list JD.int)
         (JD.at [ "result", "plutusCostModels", "plutus:v2" ] <| JD.list JD.int)
         (JD.at [ "result", "plutusCostModels", "plutus:v3" ] <| JD.list JD.int)
+        (JD.at [ "result", "delegateRepresentativeDeposit", "ada", "lovelace" ] <| JD.map Natural.fromSafeInt JD.int)
 
 
 
@@ -555,17 +645,18 @@ view model =
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
                        , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
-                       , button [ onClick LoadCostModelsButtonClicked ] [ text "Load cost models" ]
+                       , button [ onClick LoadProtocolParamsButtonClicked ] [ text "Load cost models" ]
                        , displayErrors errors
                        ]
                 )
 
-        CostModelsLoaded loadedWallet lockScript _ _ { errors } ->
+        ProtocolParamsLoaded loadedWallet lockScript _ _ { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
                     ++ [ div [] [ text <| "Script hash: " ++ Bytes.toHex lockScript.hash ]
                        , div [] [ text <| "Script size (bytes): " ++ String.fromInt (Bytes.width lockScript.compiledCode) ]
-                       , button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
+                       , button [ onClick RegisterDRepButtonClicked ] [ text "Register Script as DRep" ]
+                       , button [ onClick SkipRegisterButtonClicked ] [ text "Skip registration" ]
                        , displayErrors errors
                        ]
                 )
@@ -582,11 +673,14 @@ view model =
             let
                 actionButton =
                     case action of
-                        Locking ->
-                            button [ onClick UnlockAdaButtonClicked ] [ text "Unlock 2 ADA" ]
+                        RegisteringDRep ->
+                            button [ onClick VoteButtonClicked ] [ text "Vote Yes" ]
 
-                        Unlocking ->
-                            button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
+                        Voting ->
+                            button [ onClick UnregisterDRepButtonClicked ] [ text "Unregister the script DRep" ]
+
+                        UnregisteringDRep ->
+                            div [] [ text "All done!" ]
             in
             div []
                 (viewLoadedWallet loadedWallet
