@@ -5,7 +5,7 @@ module Cardano.Cip30 exposing
     , getExtensions, getNetworkId, getUtxos, getCollateral, getBalance
     , getUsedAddresses, getUnusedAddresses, getChangeAddress, getRewardAddresses
     , signTx, signTxCbor, signData, submitTx, submitTxCbor
-    , Response(..), ApiResponse(..), Utxo, DataSignature, responseDecoder
+    , Response(..), ApiResponse(..), Utxo, DataSignature, responseDecoder, utxoDecoder, hexCborDecoder, addressDecoder
     )
 
 {-| CIP 30 support.
@@ -22,7 +22,7 @@ module Cardano.Cip30 exposing
 
 @docs signTx, signTxCbor, signData, submitTx, submitTxCbor
 
-@docs Response, ApiResponse, Utxo, DataSignature, responseDecoder
+@docs Response, ApiResponse, Utxo, DataSignature, responseDecoder, utxoDecoder, hexCborDecoder, addressDecoder
 
 -}
 
@@ -491,6 +491,8 @@ extensionDecoder =
     JDecode.field "cip" JDecode.int
 
 
+{-| Decode UTxO pairs encoded as CBOR in a hex JSON field.
+-}
 utxoDecoder : Decoder Utxo
 utxoDecoder =
     hexCborDecoder <|
@@ -529,6 +531,8 @@ dataSignatureDecoder =
         (JDecode.field "key" <| hexCborDecoder Cbor.Decode.any)
 
 
+{-| Helper function to decode CBOR as hex in JSON.
+-}
 hexCborDecoder : Cbor.Decode.Decoder a -> Decoder a
 hexCborDecoder decoder =
     JDecode.string

@@ -754,6 +754,7 @@ okTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOther
                     , localStateUtxos = Utxo.refDictFromList localStateUtxos
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
+                    , costModels = Uplc.conwayDefaultCostModels
                     }
             in
             case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of
@@ -959,6 +960,7 @@ failTxTest description { govState, localStateUtxos, evalScriptsCosts, fee, txOth
                     , localStateUtxos = Utxo.refDictFromList localStateUtxos --   2 ada at my address
                     , coinSelectionAlgo = CoinSelection.largestFirst
                     , evalScriptsCosts = evalScriptsCosts
+                    , costModels = Uplc.conwayDefaultCostModels
                     }
             in
             case finalizeAdvanced buildingConfig fee txOtherInfo txIntents of

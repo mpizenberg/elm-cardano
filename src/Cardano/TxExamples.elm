@@ -330,6 +330,7 @@ example5 _ =
             , localStateUtxos = localStateUtxos
             , coinSelectionAlgo = CoinSelection.largestFirst
             , evalScriptsCosts = evalScriptsCosts
+            , costModels = Uplc.conwayDefaultCostModels
             }
             (AutoFee { paymentSource = exAddr.me })
             []
