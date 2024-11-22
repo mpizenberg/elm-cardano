@@ -33,7 +33,7 @@ This also checks that the provided local state has all relevant UTxOs present.
 This function will call Aiken UPLC VM with some JavaScript and WebAssembly code.
 It requires customized Elm compilation and JS code patching,
 so you need to call the `elm-cardano` binary for compilation.
-More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/mpizenberg/elm-cardano).
+More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/elm-cardano/elm-cardano).
 
 -}
 evalScriptsCosts : VmConfig -> Utxo.RefDict Output -> Transaction -> Result String (List Redeemer)
@@ -66,7 +66,7 @@ evalScriptsCosts vmConfig localStateUtxos tx =
 This function will call Aiken UPLC VM with some JavaScript and WebAssembly code.
 It requires customized Elm compilation and JS code patching,
 so you need to call the `elm-cardano` binary for compilation.
-More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/mpizenberg/elm-cardano).
+More info on that in the `README` of the [elm-cardano GitHub repo](https://github.com/elm-cardano/elm-cardano).
 
 -}
 evalScriptsCostsRaw : VmConfig -> Utxo.RefDict Output -> Bytes any -> Result String (List Redeemer)

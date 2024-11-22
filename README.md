@@ -9,7 +9,7 @@ So you will find the docs either locally by running elm-doc-preview,
 or online at [its static preview page][docs-preview].
 
 [aiken]: https://aiken-lang.org/
-[docs-preview]: https://elm-doc-preview.netlify.app/Cardano?repo=mpizenberg%2Felm-cardano&version=elm-doc-preview
+[docs-preview]: https://elm-doc-preview.netlify.app/Cardano?repo=elm-cardano%2Felm-cardano&version=elm-doc-preview
 
 ## Why elm-cardano?
 
@@ -40,7 +40,7 @@ npm install -g elm @mattpiz/elm-cardano
 
 # (Temporary) clone the elm-cardano repo to expose its elm modules
 # This step won’t be necessary when the elm package will be published
-git clone --depth 1 --branch v0.1.5 https://github.com/mpizenberg/elm-cardano.git
+git clone --depth 1 --branch v0.1.5 https://github.com/elm-cardano/elm-cardano.git
 
 # Initialize a template project in the elm-cardano-starter/ folder
 mkdir elm-cardano-starter && cd elm-cardano-starter

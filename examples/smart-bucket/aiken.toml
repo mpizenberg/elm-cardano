@@ -6,7 +6,7 @@ license = "Apache-2.0"
 description = "Aiken contracts for project 'elm-cardano/smart-bucket'"
 
 [repository]
-user = "mpizenberg"
+user = "elm-cardano"
 project = "elm-cardano"
 platform = "github"
 

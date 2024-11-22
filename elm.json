@@ -1,6 +1,6 @@
 {
     "type": "package",
-    "name": "mpizenberg/elm-cardano",
+    "name": "elm-cardano/elm-cardano",
     "summary": "Elm offchain package for Cardano",
     "license": "BSD-3-Clause",
     "version": "1.0.0",

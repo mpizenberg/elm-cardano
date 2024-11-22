@@ -2,7 +2,7 @@
 name = "elm-cardano"
 version = "0.1.5"
 edition = "2021"
-repository = "https://github.com/mpizenberg/elm-cardano"
+repository = "https://github.com/elm-cardano/elm-cardano"
 
 [dependencies]
 anyhow = "1.0.86"

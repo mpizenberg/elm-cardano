@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mpizenberg/elm-cardano.git"
+    "url": "git+https://github.com/elm-cardano/elm-cardano.git"
   },
   "keywords": [
     "elm",
@@ -18,9 +18,9 @@
   "author": "Matthieu Pizenberg",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/mpizenberg/elm-cardano/issues"
+    "url": "https://github.com/elm-cardano/elm-cardano/issues"
   },
-  "homepage": "https://github.com/mpizenberg/elm-cardano",
+  "homepage": "https://github.com/elm-cardano/elm-cardano",
   "devDependencies": {
     "elm-review": "^2.12.0",
     "elm-test": "^0.19.1-revision12",
