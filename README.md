@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/0cd24e14-12e9-4274-bc16-a4ad8daa47e4" />
+</p>
+
+
 # Elm Cardano
 
 Elm offchain package for Cardano. This project aims to be the friendliest and
@@ -111,3 +116,8 @@ npx elm-review
 # run the Tx builder example
 cd examples/txbuild && npx elm-watch hot
 ```
+
+## Credits
+
+Many thanks to all people who contributed code and ideas to elm-cardano.
+Many thanks to the person (they know who they are) who contributed the logo.
