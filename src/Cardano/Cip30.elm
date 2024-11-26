@@ -314,6 +314,8 @@ type ApiResponse
     | UnusedAddresses (List Address)
     | ChangeAddress Address
     | RewardAddresses (List Address)
+      -- TODO: should we also return the txBeforeSignature?
+      -- It would make auto submitting easier
     | SignedTx (List VKeyWitness)
     | SignedData DataSignature
     | SubmittedTx (Bytes TransactionId)
