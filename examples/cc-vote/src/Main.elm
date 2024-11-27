@@ -122,16 +122,6 @@ completeStartup s =
                 govScript =
                     ScriptPubkey myStakeKeyHash
 
-                -- Generate the native script hash
-                scriptBytes =
-                    Script.encodeNativeScript govScript
-                        |> Cbor.Encode.encode
-                        |> Bytes.fromBytes
-
-                scriptHash =
-                    blake2b224 Nothing (Bytes.toU8 scriptBytes)
-                        |> Bytes.fromU8
-
                 walletUtxos =
                     Utxo.refDictFromList utxos
             in
@@ -142,7 +132,7 @@ completeStartup s =
                 , loadedWallet = LoadedWallet wallet walletUtxos changeAddress
                 , myKeyCred = myKeyCred
                 , myStakeKeyHash = myStakeKeyHash
-                , govNativeScript = { hash = scriptHash, script = govScript }
+                , govNativeScript = { hash = Script.hash (Script.Native govScript), script = govScript }
                 , proposals = List.map (\p -> { selected = False, proposal = p, vote = VoteAbstain }) proposals
                 }
 
@@ -482,7 +472,10 @@ update msg model =
                         RegisterDrep
                             { drep =
                                 WithScript ctx.govNativeScript.hash <|
-                                    NativeWitness (WitnessValue ctx.govNativeScript.script)
+                                    NativeWitness
+                                        { script = WitnessValue ctx.govNativeScript.script
+                                        , expectedSigners = [ ctx.myStakeKeyHash ]
+                                        }
                             , deposit = ctx.protocolParams.drepDeposit
                             , info = Nothing
                             }
@@ -555,7 +548,10 @@ update msg model =
                     [ Vote
                         (WithDrepCred <|
                             WithScript ctx.govNativeScript.hash <|
-                                NativeWitness (WitnessValue ctx.govNativeScript.script)
+                                NativeWitness
+                                    { script = WitnessValue ctx.govNativeScript.script
+                                    , expectedSigners = [ ctx.myStakeKeyHash ]
+                                    }
                         )
                         (ctx.proposals
                             |> List.filterMap
@@ -610,7 +606,10 @@ update msg model =
                         UnregisterDrep
                             { drep =
                                 WithScript ctx.govNativeScript.hash <|
-                                    NativeWitness (WitnessValue ctx.govNativeScript.script)
+                                    NativeWitness
+                                        { script = WitnessValue ctx.govNativeScript.script
+                                        , expectedSigners = [ ctx.myStakeKeyHash ]
+                                        }
                             , refund = refund
                             }
                     , SendTo ctx.loadedWallet.changeAddress <|
@@ -715,16 +714,25 @@ viewProposal { selected, proposal, vote } =
             ]
             []
         , text <| "Action: " ++ proposal.actionType ++ ", "
-        , text <| "ID: " ++ (proposal.id.transactionId |> Bytes.toHex)
-        , text <| " #" ++ String.fromInt proposal.id.govActionIndex ++ ", "
-        , text "Vote: "
+        , Html.a
+            [ Html.Attributes.href <|
+                "https://preview.cardanoscan.io/govAction/"
+                    ++ (proposal.id.transactionId |> Bytes.toHex)
+                    ++ (Bytes.toHex <| Bytes.fromBytes <| Cbor.Encode.encode (Cbor.Encode.int proposal.id.govActionIndex))
+            , Html.Attributes.target "_blank"
+            , Html.Attributes.rel "noopener noreferrer"
+            ]
+            [ text <| "ID: " ++ (proposal.id.transactionId |> Bytes.toHex)
+            , text <| " #" ++ String.fromInt proposal.id.govActionIndex
+            ]
+        , text ", Vote: "
         , Html.select
             [ Html.Attributes.value (voteToString vote)
             , Html.Events.onInput (ProposalVoteChanged proposal.id)
             ]
-            [ Html.option [ Html.Attributes.value "yes" ] [ text "Yes" ]
-            , Html.option [ Html.Attributes.value "no" ] [ text "No" ]
-            , Html.option [ Html.Attributes.value "abstain" ] [ text "Abstain" ]
+            [ Html.option [ Html.Attributes.value (voteToString VoteYes) ] [ text "Yes" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteNo) ] [ text "No" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteAbstain) ] [ text "Abstain" ]
             ]
         ]
 
@@ -785,9 +793,9 @@ view model =
                                     List.map viewProposal proposals
                             in
                             div []
-                                ([ div [] [ text "Active proposals:" ] ]
+                                ([ div [] [ text "Active proposals (oldest to newest):" ] ]
                                     ++ viewProposals
-                                    ++ [ button [ onClick VoteButtonClicked ] [ text "Vote Yes" ] ]
+                                    ++ [ button [ onClick VoteButtonClicked ] [ text "Vote" ] ]
                                 )
 
                         Voting ->
