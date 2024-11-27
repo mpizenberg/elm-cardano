@@ -8,6 +8,7 @@ These examples are the following:
   - smart-bucket: Aiken example where you define a "bucket" that any one can use to send you funds without minFee ada
   - fee-provider: Variant of the aiken-hello-world where the fee and the collateral for the unlocking Tx are provided by an external source
   - vote-script: Register/Vote/Deregister with a script DRep
+  - vote-native-script: Register/Vote/Deregister with a native script DRep
 - Examples for testing purposes:
   - wallet-cip30: tries all CIP30 endpoints to check the implementation against all wallets
   - ogmios: use Ogmios to walk through the whole chain and decode all transactions that exist

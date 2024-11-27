@@ -1,0 +1,13 @@
+{
+    "postprocess": ["elm-cardano", "postprocess"],
+    "serve": ".",
+    "targets": {
+        "main": {
+            "inputs": [
+                "src/Main.elm",
+                "src/External.elm"
+            ],
+            "output": "main.js"
+        }
+    }
+}

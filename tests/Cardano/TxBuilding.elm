@@ -283,7 +283,7 @@ okTxBuilding =
                 [ MintBurn
                     { policyId = dog.policyId
                     , assets = Map.singleton dog.assetName Integer.one
-                    , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
+                    , scriptWitness = NativeWitness { script = WitnessReference dog.scriptRef, expectedSigners = [] }
                     }
                 , SendTo testAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
@@ -292,7 +292,7 @@ okTxBuilding =
                 , MintBurn
                     { policyId = cat.policyId
                     , assets = Map.singleton cat.assetName Integer.negativeOne
-                    , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
+                    , scriptWitness = NativeWitness { script = WitnessReference cat.scriptRef, expectedSigners = [] }
                     }
                 ]
             }
@@ -672,7 +672,7 @@ okTxBuilding =
                 WithPoolCred (dummyCredentialHash "poolId")
 
             withMyDrepScript =
-                WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
+                WithDrepCred (WithScript drepScriptHash <| NativeWitness { script = WitnessValue drepScript, expectedSigners = [] })
           in
           okTxTest "Test with multiple votes"
             { govState = Cardano.emptyGovernanceState

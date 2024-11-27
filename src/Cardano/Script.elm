@@ -1,12 +1,12 @@
 module Cardano.Script exposing
-    ( Script(..), NativeScript(..), NativeScriptPubkeyHash, PlutusScript, PlutusVersion(..), ScriptCbor
+    ( Script(..), NativeScript(..), PlutusScript, PlutusVersion(..), ScriptCbor, hash
     , toCbor, encodeNativeScript, encodePlutusScript
     , fromCbor, decodeNativeScript
     )
 
 {-| Script
 
-@docs Script, NativeScript, NativeScriptPubkeyHash, PlutusScript, PlutusVersion, ScriptCbor
+@docs Script, NativeScript, PlutusScript, PlutusVersion, ScriptCbor, hash
 
 
 ## Encoders
@@ -20,7 +20,9 @@ module Cardano.Script exposing
 
 -}
 
+import Blake2b exposing (blake2b224)
 import Bytes.Comparable as Bytes exposing (Bytes)
+import Cardano.Address exposing (CredentialHash)
 import Cbor.Decode as D
 import Cbor.Decode.Extra as D
 import Cbor.Encode as E
@@ -46,19 +48,12 @@ type Script
 <https://github.com/txpipe/pallas/blob/d1ac0561427a1d6d1da05f7b4ea21414f139201e/pallas-primitives/src/alonzo/model.rs#L772>
 -}
 type NativeScript
-    = ScriptPubkey (Bytes NativeScriptPubkeyHash)
+    = ScriptPubkey (Bytes CredentialHash)
     | ScriptAll (List NativeScript)
     | ScriptAny (List NativeScript)
     | ScriptNofK Int (List NativeScript)
     | InvalidBefore Natural
     | InvalidHereafter Natural
-
-
-{-| Phantom type for 28-bytes native script public key hash.
-This is a Blake2b-224 hash.
--}
-type NativeScriptPubkeyHash
-    = NativeScriptPubkeyHash Never
 
 
 {-| A plutus script.
@@ -83,19 +78,45 @@ type ScriptCbor
     = ScriptCbor Never
 
 
+{-| Compute the script hash.
+
+The script type tag must be prepended before hashing,
+but not encapsulated as a list to make a valid CBOR struct.
+This is not valid CBOR, just concatenation of tag|scriptBytes.
+
+-}
+hash : Script -> Bytes CredentialHash
+hash script =
+    let
+        taggedScriptBytes =
+            taggedEncoder script
+                |> E.encode
+                |> Bytes.fromBytes
+    in
+    blake2b224 Nothing (Bytes.toU8 taggedScriptBytes)
+        |> Bytes.fromU8
+
+
 {-| Cbor Encoder for [Script]
 -}
 toCbor : Script -> E.Encoder
 toCbor script =
+    E.sequence [ E.length 2, taggedEncoder script ]
+
+
+{-| Helper encoder that prepends a tag (corresponding to language) to the script bytes.
+-}
+taggedEncoder : Script -> E.Encoder
+taggedEncoder script =
     case script of
         Native nativeScript ->
-            E.list identity
+            E.sequence
                 [ E.int 0
                 , encodeNativeScript nativeScript
                 ]
 
         Plutus plutusScript ->
-            E.list identity
+            E.sequence
                 [ encodePlutusVersion plutusScript.version
                 , encodePlutusScript plutusScript
                 ]
