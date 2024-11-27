@@ -25,3 +25,5 @@ But here the advantage is that all this all happens in the frontend so it’s ea
 # Build the frontend and start a static server
 npx elm-cardano make src/Main.elm src/External.elm --output main.js && python -m http.server
 ```
+
+https://github.com/user-attachments/assets/1340f4b1-06a1-4936-a076-2008094a8e9f
