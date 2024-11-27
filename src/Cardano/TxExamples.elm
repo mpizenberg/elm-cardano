@@ -116,7 +116,7 @@ example2 _ =
     [ MintBurn
         { policyId = dog.policyId
         , assets = Map.singleton dog.assetName Integer.one
-        , scriptWitness = NativeWitness (WitnessReference dog.scriptRef)
+        , scriptWitness = NativeWitness { script = WitnessReference dog.scriptRef, expectedSigners = [] }
         }
     , SendTo exAddr.me (Value.onlyToken dog.policyId dog.assetName Natural.one)
 
@@ -125,7 +125,7 @@ example2 _ =
     , MintBurn
         { policyId = cat.policyId
         , assets = Map.singleton cat.assetName Integer.negativeOne
-        , scriptWitness = NativeWitness (WitnessReference cat.scriptRef)
+        , scriptWitness = NativeWitness { script = WitnessReference cat.scriptRef, expectedSigners = [] }
         }
     ]
         |> finalize globalStateUtxos []
@@ -372,7 +372,7 @@ example6 _ =
             WithPoolCred (dummyCredentialHash "poolId-")
 
         withMyDrepScript =
-            WithDrepCred (WithScript drepScriptHash <| NativeWitness (WitnessValue drepScript))
+            WithDrepCred (WithScript drepScriptHash <| NativeWitness { script = WitnessValue drepScript, expectedSigners = [] })
     in
     [ Vote withMyDrepCred
         [ { actionId = actionId 0, vote = VoteYes }

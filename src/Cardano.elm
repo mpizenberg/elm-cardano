@@ -1,5 +1,5 @@
 module Cardano exposing
-    ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), PlutusScriptWitness, WitnessSource(..)
+    ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), NativeScriptWitness, PlutusScriptWitness, WitnessSource(..)
     , CertificateIntent(..), CredentialWitness(..), VoterWitness(..)
     , ProposalIntent, ActionProposal(..)
     , TxOtherInfo(..)
@@ -361,7 +361,7 @@ We can embed it directly in the transaction witness.
 
 ## Code Documentation
 
-@docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, PlutusScriptWitness, WitnessSource
+@docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, NativeScriptWitness, PlutusScriptWitness, WitnessSource
 @docs CertificateIntent, CredentialWitness, VoterWitness
 @docs ProposalIntent, ActionProposal
 @docs TxOtherInfo
@@ -516,8 +516,18 @@ noInputsOutputs =
 {-| Represents different types of script witnesses.
 -}
 type ScriptWitness
-    = NativeWitness (WitnessSource NativeScript)
+    = NativeWitness NativeScriptWitness
     | PlutusWitness PlutusScriptWitness
+
+
+{-| Represents a Native script witness.
+Expected signatures are not put in the "required\_signers" field of the Tx
+but are still used to estimate fees.
+-}
+type alias NativeScriptWitness =
+    { script : WitnessSource NativeScript
+    , expectedSigners : List (Bytes CredentialHash)
+    }
 
 
 {-| Represents a Plutus script witness.
@@ -1141,6 +1151,7 @@ type alias PreProcessedIntents =
     , nativeScriptSources : List (WitnessSource NativeScript)
     , plutusScriptSources : List ( PlutusVersion, WitnessSource (Bytes ScriptCbor) )
     , datumSources : List (WitnessSource Data)
+    , expectedSigners : List (List (Bytes CredentialHash)) -- like requiredSigners, but not to put in the required_signers field of the Tx
     , requiredSigners : List (List (Bytes CredentialHash))
     , mints : List { policyId : Bytes CredentialHash, assets : BytesMap AssetName Integer, redeemer : Maybe (InputsOutputs -> Data) }
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
@@ -1161,6 +1172,7 @@ noIntent =
     , nativeScriptSources = []
     , plutusScriptSources = []
     , datumSources = []
+    , expectedSigners = []
     , requiredSigners = []
     , mints = []
     , withdrawals = []
@@ -1257,9 +1269,10 @@ preProcessIntents txIntents =
 
                 MintBurn { policyId, assets, scriptWitness } ->
                     case scriptWitness of
-                        NativeWitness script ->
+                        NativeWitness { script, expectedSigners } ->
                             { preProcessedIntents
                                 | nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                                , expectedSigners = expectedSigners :: preProcessedIntents.expectedSigners
                                 , mints = { policyId = policyId, assets = assets, redeemer = Nothing } :: preProcessedIntents.mints
                             }
 
@@ -1277,10 +1290,11 @@ preProcessIntents txIntents =
                                 | withdrawals = { stakeAddress = stakeCredential, amount = amount, redeemer = Nothing } :: preProcessedIntents.withdrawals
                             }
 
-                        Just (NativeWitness script) ->
+                        Just (NativeWitness { script, expectedSigners }) ->
                             { preProcessedIntents
                                 | withdrawals = { stakeAddress = stakeCredential, amount = amount, redeemer = Nothing } :: preProcessedIntents.withdrawals
                                 , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                                , expectedSigners = expectedSigners :: preProcessedIntents.expectedSigners
                             }
 
                         Just (PlutusWitness { script, redeemerData, requiredSigners }) ->
@@ -1370,10 +1384,11 @@ preProcessIntents txIntents =
                         | votes = { voter = VoterCommitteeHotCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                     }
 
-                Vote (WithCommitteeHotCred (WithScript cred (NativeWitness script))) votes ->
+                Vote (WithCommitteeHotCred (WithScript cred (NativeWitness { script, expectedSigners }))) votes ->
                     { preProcessedIntents
                         | votes = { voter = VoterCommitteeHotCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                         , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                        , expectedSigners = expectedSigners :: preProcessedIntents.expectedSigners
                     }
 
                 Vote (WithCommitteeHotCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
@@ -1388,10 +1403,11 @@ preProcessIntents txIntents =
                         | votes = { voter = VoterDrepCred (VKeyHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                     }
 
-                Vote (WithDrepCred (WithScript cred (NativeWitness script))) votes ->
+                Vote (WithDrepCred (WithScript cred (NativeWitness { script, expectedSigners }))) votes ->
                     { preProcessedIntents
                         | votes = { voter = VoterDrepCred (ScriptHash cred), votes = votes, redeemer = Nothing } :: preProcessedIntents.votes
                         , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                        , expectedSigners = expectedSigners :: preProcessedIntents.expectedSigners
                     }
 
                 Vote (WithDrepCred (WithScript cred (PlutusWitness { script, redeemerData, requiredSigners }))) votes ->
@@ -1438,10 +1454,11 @@ preprocessCert certWithKeyF certWithScriptF { deposit, refund } cred preProcesse
                 , totalRefund = Natural.add refund preProcessedIntents.totalRefund
             }
 
-        WithScript scriptHash (NativeWitness script) ->
+        WithScript scriptHash (NativeWitness { script, expectedSigners }) ->
             { preProcessedIntents
                 | certificates = ( certWithScriptF scriptHash, Nothing ) :: preProcessedIntents.certificates
                 , nativeScriptSources = script :: preProcessedIntents.nativeScriptSources
+                , expectedSigners = expectedSigners :: preProcessedIntents.expectedSigners
                 , totalDeposit = Natural.add deposit preProcessedIntents.totalDeposit
                 , totalRefund = Natural.add refund preProcessedIntents.totalRefund
             }
@@ -1464,6 +1481,7 @@ type alias ProcessedIntents =
     , nativeScriptSources : List (WitnessSource NativeScript)
     , plutusScriptSources : List ( PlutusVersion, WitnessSource (Bytes ScriptCbor) )
     , datumSources : List (WitnessSource Data)
+    , expectedSigners : List (Bytes CredentialHash)
     , requiredSigners : List (Bytes CredentialHash)
     , totalMinted : MultiAsset Integer
     , mintRedeemers : BytesMap PolicyId (Maybe (InputsOutputs -> Data))
@@ -1616,6 +1634,13 @@ processIntents govState localStateUtxos txIntents =
                                 |> List.map (\signer -> ( signer, () ))
                                 |> Map.fromList
                                 |> Map.keys
+
+                        -- Dedup expected signers
+                        expectedSigners =
+                            List.concat preProcessedIntents.expectedSigners
+                                |> List.map (\signer -> ( signer, () ))
+                                |> Map.fromList
+                                |> Map.keys
                     in
                     { freeInputs = preProcessedIntents.freeInputs
                     , freeOutputs = preProcessedIntents.freeOutputs
@@ -1627,6 +1652,7 @@ processIntents govState localStateUtxos txIntents =
                     , nativeScriptSources = dedupWithCbor (encodeWitnessSource Script.encodeNativeScript) preProcessedIntents.nativeScriptSources
                     , plutusScriptSources = dedupWithCbor (Tuple.second >> encodeWitnessSource Bytes.toCbor) plutusScriptSources
                     , datumSources = dedupWithCbor (encodeWitnessSource Data.toCbor) preProcessedIntents.datumSources
+                    , expectedSigners = expectedSigners
                     , requiredSigners = requiredSigners
                     , totalMinted = totalMintedAndBurned
                     , mintRedeemers =
@@ -2272,6 +2298,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
         dummyVKeyWitness : List VKeyWitness
         dummyVKeyWitness =
             (processedIntents.requiredSigners
+                ++ processedIntents.expectedSigners
                 ++ walletCredsInInputs
                 ++ withdrawalsStakeCreds
                 ++ certificatesCreds
