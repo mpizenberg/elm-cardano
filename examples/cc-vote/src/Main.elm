@@ -902,9 +902,9 @@ viewProposal { selected, proposal, vote } =
             [ Html.Attributes.value (voteToString vote)
             , Html.Events.onInput (ProposalVoteChanged proposal.id)
             ]
-            [ Html.option [ Html.Attributes.value (voteToString VoteYes) ] [ text "Yes" ]
-            , Html.option [ Html.Attributes.value (voteToString VoteNo) ] [ text "No" ]
-            , Html.option [ Html.Attributes.value (voteToString VoteAbstain) ] [ text "Abstain" ]
+            [ Html.option [ Html.Attributes.value (voteToString VoteYes), Html.Attributes.selected (vote == VoteYes) ] [ text "Yes" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteNo), Html.Attributes.selected (vote == VoteNo) ] [ text "No" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteAbstain), Html.Attributes.selected (vote == VoteAbstain) ] [ text "Abstain" ]
             ]
         ]
 
