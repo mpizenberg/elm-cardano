@@ -704,56 +704,6 @@ stringToVote str =
 -- #########################################################
 
 
-viewProposal : { selected : Bool, proposal : ActiveProposal, vote : Vote } -> Html Msg
-viewProposal { selected, proposal, vote } =
-    div []
-        [ Html.input
-            [ Html.Attributes.type_ "checkbox"
-            , Html.Attributes.checked selected
-            , Html.Events.onCheck (ProposalSelectionChanged proposal.id)
-            ]
-            []
-        , text <| "Action: " ++ proposal.actionType ++ ", "
-        , Html.a
-            [ Html.Attributes.href <|
-                "https://preview.cardanoscan.io/govAction/"
-                    ++ (proposal.id.transactionId |> Bytes.toHex)
-                    ++ (Bytes.toHex <| Bytes.fromBytes <| Cbor.Encode.encode (Cbor.Encode.int proposal.id.govActionIndex))
-            , Html.Attributes.target "_blank"
-            , Html.Attributes.rel "noopener noreferrer"
-            ]
-            [ text <| "ID: " ++ (proposal.id.transactionId |> Bytes.toHex)
-            , text <| " #" ++ String.fromInt proposal.id.govActionIndex
-            ]
-        , text ", Vote: "
-        , Html.select
-            [ Html.Attributes.value (voteToString vote)
-            , Html.Events.onInput (ProposalVoteChanged proposal.id)
-            ]
-            [ Html.option [ Html.Attributes.value (voteToString VoteYes) ] [ text "Yes" ]
-            , Html.option [ Html.Attributes.value (voteToString VoteNo) ] [ text "No" ]
-            , Html.option [ Html.Attributes.value (voteToString VoteAbstain) ] [ text "Abstain" ]
-            ]
-        ]
-
-
-voteToString : Vote -> String
-voteToString vote =
-    case vote of
-        VoteYes ->
-            "yes"
-
-        VoteNo ->
-            "no"
-
-        VoteAbstain ->
-            "abstain"
-
-
-
---, proposals : List { selected : Bool, proposal : ActiveProposal, vote : Vote }
-
-
 view : Model -> Html Msg
 view model =
     case model of
@@ -924,3 +874,49 @@ viewAvailableWallets wallets =
             div [] [ walletIcon w, text (walletDescription w), connectButton w ]
     in
     div [] (List.map walletRow wallets)
+
+
+viewProposal : { selected : Bool, proposal : ActiveProposal, vote : Vote } -> Html Msg
+viewProposal { selected, proposal, vote } =
+    div []
+        [ Html.input
+            [ Html.Attributes.type_ "checkbox"
+            , Html.Attributes.checked selected
+            , Html.Events.onCheck (ProposalSelectionChanged proposal.id)
+            ]
+            []
+        , text <| "Action: " ++ proposal.actionType ++ ", "
+        , Html.a
+            [ Html.Attributes.href <|
+                "https://preview.cardanoscan.io/govAction/"
+                    ++ (proposal.id.transactionId |> Bytes.toHex)
+                    ++ (Bytes.toHex <| Bytes.fromBytes <| Cbor.Encode.encode (Cbor.Encode.int proposal.id.govActionIndex))
+            , Html.Attributes.target "_blank"
+            , Html.Attributes.rel "noopener noreferrer"
+            ]
+            [ text <| "ID: " ++ (proposal.id.transactionId |> Bytes.toHex)
+            , text <| " #" ++ String.fromInt proposal.id.govActionIndex
+            ]
+        , text ", Vote: "
+        , Html.select
+            [ Html.Attributes.value (voteToString vote)
+            , Html.Events.onInput (ProposalVoteChanged proposal.id)
+            ]
+            [ Html.option [ Html.Attributes.value (voteToString VoteYes) ] [ text "Yes" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteNo) ] [ text "No" ]
+            , Html.option [ Html.Attributes.value (voteToString VoteAbstain) ] [ text "Abstain" ]
+            ]
+        ]
+
+
+voteToString : Vote -> String
+voteToString vote =
+    case vote of
+        VoteYes ->
+            "yes"
+
+        VoteNo ->
+            "no"
+
+        VoteAbstain ->
+            "abstain"
