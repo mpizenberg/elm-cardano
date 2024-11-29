@@ -375,17 +375,17 @@ example6 _ =
             WithDrepCred (WithScript drepScriptHash <| NativeWitness { script = WitnessValue drepScript, expectedSigners = [] })
     in
     [ Vote withMyDrepCred
-        [ { actionId = actionId 0, vote = VoteYes }
-        , { actionId = actionId 1, vote = VoteYes }
+        [ { actionId = actionId 0, vote = VoteYes, rationale = Nothing }
+        , { actionId = actionId 1, vote = VoteYes, rationale = Nothing }
         ]
     , Vote withMyPoolCred
-        [ { actionId = actionId 1, vote = VoteNo }
-        , { actionId = actionId 0, vote = VoteNo }
+        [ { actionId = actionId 1, vote = VoteNo, rationale = Nothing }
+        , { actionId = actionId 0, vote = VoteNo, rationale = Nothing }
         ]
 
     -- action 1 will be overwritten by action 0
-    , Vote withMyDrepScript [ { actionId = actionId 1, vote = VoteAbstain } ]
-    , Vote withMyDrepScript [ { actionId = actionId 0, vote = VoteAbstain } ]
+    , Vote withMyDrepScript [ { actionId = actionId 1, vote = VoteAbstain, rationale = Nothing } ]
+    , Vote withMyDrepScript [ { actionId = actionId 0, vote = VoteAbstain, rationale = Nothing } ]
 
     -- Small trick just to help the Tx builder figuring out who is paying the Tx fee
     , SendTo exAddr.me (Value.onlyLovelace Natural.zero)

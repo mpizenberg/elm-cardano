@@ -481,6 +481,7 @@ update msg model =
                                 , govActionIndex = 0
                                 }
                           , vote = VoteYes
+                          , rationale = Nothing
                           }
                         ]
                     ]

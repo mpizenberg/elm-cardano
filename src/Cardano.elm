@@ -1,7 +1,7 @@
 module Cardano exposing
     ( TxIntent(..), SpendSource(..), InputsOutputs, ScriptWitness(..), NativeScriptWitness, PlutusScriptWitness, WitnessSource(..)
     , CertificateIntent(..), CredentialWitness(..), VoterWitness(..)
-    , ProposalIntent, ActionProposal(..)
+    , VoteIntent, ProposalIntent, ActionProposal(..)
     , TxOtherInfo(..)
     , Fee(..)
     , finalize, finalizeAdvanced, TxFinalizationError(..)
@@ -363,7 +363,7 @@ We can embed it directly in the transaction witness.
 
 @docs TxIntent, SpendSource, InputsOutputs, ScriptWitness, NativeScriptWitness, PlutusScriptWitness, WitnessSource
 @docs CertificateIntent, CredentialWitness, VoterWitness
-@docs ProposalIntent, ActionProposal
+@docs VoteIntent, ProposalIntent, ActionProposal
 @docs TxOtherInfo
 @docs Fee
 @docs finalize, finalizeAdvanced, TxFinalizationError
@@ -420,7 +420,7 @@ type TxIntent
         , amount : Natural
         , scriptWitness : Maybe ScriptWitness
         }
-    | Vote VoterWitness (List { actionId : ActionId, vote : Vote })
+    | Vote VoterWitness (List VoteIntent)
     | Propose ProposalIntent
 
 
@@ -558,6 +558,15 @@ extractWitnessRef witnessSource =
 
         WitnessReference ref ->
             Just ref
+
+
+{-| Governance vote.
+-}
+type alias VoteIntent =
+    { actionId : ActionId
+    , vote : Vote
+    , rationale : Maybe Anchor
+    }
 
 
 {-| Governance action proposal.
@@ -1157,7 +1166,7 @@ type alias PreProcessedIntents =
     , withdrawals : List { stakeAddress : StakeAddress, amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposalIntents : List ProposalIntent
-    , votes : List { voter : Voter, votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
+    , votes : List { voter : Voter, votes : List VoteIntent, redeemer : Maybe (InputsOutputs -> Data) }
     , totalDeposit : Natural
     , totalRefund : Natural
     }
@@ -1488,7 +1497,7 @@ type alias ProcessedIntents =
     , withdrawals : Address.StakeDict { amount : Natural, redeemer : Maybe (InputsOutputs -> Data) }
     , certificates : List ( Certificate, Maybe (InputsOutputs -> Data) )
     , proposals : List ( ProposalProcedure, Maybe Data )
-    , votes : Gov.VoterDict { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) }
+    , votes : Gov.VoterDict { votes : List VoteIntent, redeemer : Maybe (InputsOutputs -> Data) }
     }
 
 
@@ -2250,7 +2259,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
                 |> List.filterMap identity
 
         -- Sort votes with the Voter order
-        sortedVotes : List ( Voter, { votes : List { actionId : ActionId, vote : Vote }, redeemer : Maybe (InputsOutputs -> Data) } )
+        sortedVotes : List ( Voter, { votes : List VoteIntent, redeemer : Maybe (InputsOutputs -> Data) } )
         sortedVotes =
             Dict.Any.toList processedIntents.votes
 
@@ -2417,7 +2426,7 @@ buildTx localStateUtxos feeAmount collateralSelection processedIntents otherInfo
             , referenceInputs = allReferenceInputs
             , votingProcedures =
                 sortedVotes
-                    |> List.map (Tuple.mapSecond (\{ votes } -> List.map (\{ actionId, vote } -> ( actionId, Gov.VotingProcedure vote Nothing )) votes))
+                    |> List.map (Tuple.mapSecond (\{ votes } -> List.map (\{ actionId, vote, rationale } -> ( actionId, Gov.VotingProcedure vote rationale )) votes))
             , proposalProcedures = List.map Tuple.first processedIntents.proposals
             , currentTreasuryValue = Nothing -- TODO currentTreasuryValue
             , treasuryDonation = Nothing -- TODO treasuryDonation

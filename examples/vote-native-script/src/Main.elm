@@ -557,7 +557,7 @@ update msg model =
                             |> List.filterMap
                                 (\{ selected, proposal, vote } ->
                                     if selected then
-                                        Just { actionId = proposal.id, vote = vote }
+                                        Just { actionId = proposal.id, vote = vote, rationale = Nothing }
 
                                     else
                                         Nothing
