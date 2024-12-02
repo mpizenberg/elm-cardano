@@ -45,7 +45,7 @@ npm install -g elm @mattpiz/elm-cardano
 
 # (Temporary) clone the elm-cardano repo to expose its elm modules
 # This step won’t be necessary when the elm package will be published
-git clone --depth 1 --branch v0.1.5 https://github.com/elm-cardano/elm-cardano.git
+git clone --depth 1 --branch v0.1.6 https://github.com/elm-cardano/elm-cardano.git
 
 # Initialize a template project in the elm-cardano-starter/ folder
 mkdir elm-cardano-starter && cd elm-cardano-starter
