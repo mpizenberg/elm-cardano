@@ -41,7 +41,7 @@ Install the elm-cardano CLI and the Elm package.
 
 ```sh
 # Install the elm compiler and the elm-cardano CLI
-npm install -g elm @mattpiz/elm-cardano
+npm install -g elm elm-cardano
 
 # (Temporary) clone the elm-cardano repo to expose its elm modules
 # This step won’t be necessary when the elm package will be published
