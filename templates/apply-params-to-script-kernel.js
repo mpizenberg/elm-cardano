@@ -1,4 +1,3 @@
-let uplc_wasm_module;
 let applyParamsToScriptKernel = (elm_args) => {
   try {
     if (!uplc_wasm_module) {
