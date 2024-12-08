@@ -6,10 +6,10 @@ import Bytes.Map as BytesMap
 import Cardano exposing (ScriptWitness(..), SpendSource(..), TxIntent(..), WitnessSource(..), dummyBytes)
 import Cardano.Address as Address exposing (Address, Credential(..), CredentialHash, NetworkId(..))
 import Cardano.Cip30 as Cip30
-import Cardano.Cip67 exposing (AssetName)
 import Cardano.CoinSelection as CoinSelection
 import Cardano.Data as Data
 import Cardano.Gov exposing (CostModels)
+import Cardano.MultiAsset exposing (AssetName)
 import Cardano.Script as Script exposing (PlutusVersion(..), ScriptCbor)
 import Cardano.Transaction as Tx exposing (Transaction)
 import Cardano.Uplc as Uplc
@@ -17,9 +17,10 @@ import Cardano.Utxo as Utxo exposing (DatumOption(..), Output, OutputReference, 
 import Cardano.Value
 import Dict.Any
 import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (height, src)
-import Html.Events exposing (onClick)
+import Html.Attributes as HA exposing (height, src)
+import Html.Events as HE exposing (onClick)
 import Http
+import Integer
 import Json.Decode as JD exposing (Decoder, Value)
 import Json.Encode as JE
 import Natural
@@ -328,52 +329,37 @@ update msg model =
         ( LockAdaButtonClicked, ParametersSet ctx _ ) ->
             lock ctx
 
-        ( UnlockAdaButtonClicked, TxSubmitted ctx action { txId } ) ->
+        ( UnlockAdaButtonClicked, TxSubmitted ctx _ { txId } ) ->
             let
-                twoAda =
-                    Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000")
-
-                redeemer =
-                    Data.Constr Natural.zero [ Data.Bytes (Bytes.fromText "Hello, World!") ]
-
-                unlockTxAttempt =
+                intents =
                     [ Spend
                         (FromPlutusScript
-                            -- The previously sent UTxO was the first output of the locking Tx
+                            -- The gift UTxO was the first output of the locking tx
                             { spentInput = OutputReference txId 0
                             , datumWitness = Nothing
                             , plutusScriptWitness =
                                 { script = ( PlutusV3, WitnessValue ctx.lockScript.compiledCode )
-                                , redeemerData = \_ -> redeemer
-                                , requiredSigners = [ ctx.myKeyCred ]
+                                , redeemerData = \_ -> Data.Constr Natural.zero []
+                                , requiredSigners = []
                                 }
                             }
                         )
-                    , SendTo ctx.loadedWallet.changeAddress twoAda
+                    , Spend
+                        (FromWallet
+                            ctx.loadedWallet.changeAddress
+                            (Cardano.Value.onlyToken ctx.lockScript.hash ctx.tokenName Natural.one)
+                        )
+                    , makeMintBurnIntent ctx.lockScript ctx.tokenName False
                     ]
-                        |> Cardano.finalize ctx.localStateUtxos []
             in
-            case unlockTxAttempt of
-                Ok unlockTx ->
-                    let
-                        cleanTx =
-                            Tx.updateSignatures (\_ -> Nothing) unlockTx
-                    in
-                    ( Submitting ctx Unlocking { tx = cleanTx, errors = "" }
-                    , toWallet (Cip30.encodeRequest (Cip30.signTx ctx.loadedWallet.wallet { partialSign = False } cleanTx))
-                    )
-
-                Err err ->
-                    ( TxSubmitted ctx action { txId = txId, errors = Debug.toString err }
-                    , Cmd.none
-                    )
+            intents |> finalizeTx ctx (Just txId)
 
         _ ->
             ( model, Cmd.none )
 
 
 lock : AppContext -> ( Model, Cmd Msg )
-lock ({ localStateUtxos, scriptAddress, loadedWallet, lockScript, pickedUtxo, tokenName, costModels } as ctx) =
+lock ({ scriptAddress, lockScript, pickedUtxo, tokenName } as ctx) =
     let
         -- A valid UTxO must contain exactly one NFT with the script's policy
         -- and specified token name.
@@ -382,20 +368,13 @@ lock ({ localStateUtxos, scriptAddress, loadedWallet, lockScript, pickedUtxo, to
         --         (Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000"))
         --         (Cardano.Value.onlyToken lockScript.hash tokenName Natural.one)
         -- Transaction locking 2 ada, plust the minted NFT at connected wallet's
-        -- address, and locking 50 ada at the script address.
-        lockTxAttempt =
+        -- address, and locking 10 ada at the script address.
+        intents =
             [ Spend (FromWalletUtxo pickedUtxo)
-            , MintBurn
-                { policyId = lockScript.hash
-                , assets = BytesMap.singleton tokenName 1
-                , scriptWitness =
-                    PlutusWitness
-                        { script = ( PlutusV3, WitnessValue lockScript.compiledCode )
-                        , redeemerData = \_ -> Data.Constr Natural.zero []
-                        , requiredSigners = []
-                        }
-                }
+            , makeMintBurnIntent lockScript tokenName True
 
+            -- -- Commented out, relying on the finalization logic to send
+            -- -- the minted token along with change output
             -- , SendToOutput
             --     { address = loadedWallet.changeAddress
             --     , amount = twoAdaAndNFT
@@ -404,43 +383,96 @@ lock ({ localStateUtxos, scriptAddress, loadedWallet, lockScript, pickedUtxo, to
             --     }
             , SendToOutput
                 { address = scriptAddress
-                , amount = Cardano.Value.onlyLovelace (Natural.fromSafeString "50000000")
+                , amount = Cardano.Value.onlyLovelace (Natural.fromSafeString "10000000")
                 , datumOption = Nothing
                 , referenceScript = Nothing
                 }
             ]
-                |> (case costModels of
+    in
+    intents |> finalizeTx ctx Nothing
+
+
+finalizeTx : AppContext -> Maybe (Bytes TransactionId) -> List TxIntent -> ( Model, Cmd Msg )
+finalizeTx ctx mPrevTxId intents =
+    let
+        action =
+            case mPrevTxId of
+                Just _ ->
+                    Unlocking
+
+                Nothing ->
+                    Locking
+
+        txAttempt =
+            intents
+                |> (case ctx.costModels of
                         CostModelsLoaded protocolParams ->
                             Cardano.finalizeAdvanced
                                 { govState = Cardano.emptyGovernanceState
-                                , localStateUtxos = localStateUtxos
+                                , localStateUtxos = ctx.localStateUtxos
                                 , coinSelectionAlgo = CoinSelection.largestFirst
                                 , evalScriptsCosts = Uplc.evalScriptsCosts Uplc.defaultVmConfig
                                 , costModels = protocolParams.costModels
                                 }
-                                (Cardano.AutoFee { paymentSource = loadedWallet.changeAddress })
+                                (Cardano.AutoFee { paymentSource = ctx.loadedWallet.changeAddress })
                                 []
 
                         _ ->
-                            Cardano.finalize localStateUtxos []
+                            Cardano.finalize ctx.localStateUtxos []
                    )
     in
-    case lockTxAttempt of
+    case txAttempt of
         Ok lockTx ->
             let
                 cleanTx =
                     Tx.updateSignatures (\_ -> Nothing) lockTx
             in
-            ( Submitting ctx Locking { tx = cleanTx, errors = "" }
-            , Cip30.signTx loadedWallet.wallet { partialSign = False } cleanTx
+            ( Submitting ctx action { tx = cleanTx, errors = "" }
+            , Cip30.signTx ctx.loadedWallet.wallet { partialSign = False } cleanTx
                 |> Cip30.encodeRequest
                 |> toWallet
             )
 
         Err err ->
-            ( ParametersSet ctx { errors = Debug.toString err }
+            ( case mPrevTxId of
+                Nothing ->
+                    ParametersSet ctx { errors = Debug.toString err }
+
+                Just txId ->
+                    TxSubmitted ctx action { txId = txId, errors = Debug.toString err }
             , Cmd.none
             )
+
+
+makeMintBurnIntent : LockScript -> Bytes AssetName -> Bool -> TxIntent
+makeMintBurnIntent lockScript tokenName forMint =
+    MintBurn
+        { policyId = lockScript.hash
+        , assets =
+            BytesMap.singleton
+                tokenName
+                (if forMint then
+                    Integer.one
+
+                 else
+                    Integer.negativeOne
+                )
+        , scriptWitness =
+            PlutusWitness
+                { script = ( PlutusV3, WitnessValue lockScript.compiledCode )
+                , redeemerData =
+                    \_ ->
+                        Data.Constr
+                            (if forMint then
+                                Natural.zero
+
+                             else
+                                Natural.one
+                            )
+                            []
+                , requiredSigners = []
+                }
+        }
 
 
 protocolParamsDecoder : Decoder ProtocolParams
@@ -484,24 +516,37 @@ view model =
         BlueprintLoaded loadedWallet unappliedScript { errors } ->
             div []
                 (viewLoadedWallet loadedWallet
-                    ++ [ div [] [ text <| "Unapplied script size (bytes): " ++ String.fromInt (Bytes.width unappliedScript) ]
-                       , button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
+                    ++ [ div [] [ text <| "Unapplied script size (bytes): " ++ String.fromInt (Bytes.width unappliedScript.compiledCode) ]
+                       , Html.label [ HA.for "token_name" ] [ text "Token name of the gift card auth NFT (auto hex detection): " ]
+                       , Html.input [ HA.id "token_name", HE.onInput UpdateTokenName ] []
+                       , button [ HE.onClick FinalizeTokenName ] [ text "Finalize Token Name" ]
                        , displayErrors errors
                        ]
                 )
 
         ParametersSet ctx { errors } ->
-            div [] []
+            div []
+                (viewLoadedWallet ctx.loadedWallet
+                    ++ [ div [] [ text <| "Base16 (hex) formatted NFT token name: " ++ Bytes.toHex ctx.tokenName ]
+                       , div [] [ text <| "Applied Script hash: " ++ Bytes.toHex ctx.lockScript.hash ]
+                       , div [] [ text <| "Applied Script size (bytes): " ++ String.fromInt (Bytes.width ctx.lockScript.compiledCode) ]
+                       , button [ onClick LockAdaButtonClicked ] [ text "Lock 10 ADA and mint gift card NFT" ]
+                       , displayErrors errors
+                       ]
+                )
 
-        TxSubmitted { loadedWallet, lockScript } action { txId, errors } ->
+        Submitting _ _ _ ->
+            div [] [ text "Submitting transaction..." ]
+
+        TxSubmitted { loadedWallet } action { txId, errors } ->
             let
                 actionButton =
                     case action of
                         Locking ->
-                            button [ onClick UnlockAdaButtonClicked ] [ text "Unlock 2 ADA" ]
+                            button [ onClick UnlockAdaButtonClicked ] [ text "Unlock 10 ADA and burn NFT" ]
 
                         Unlocking ->
-                            button [ onClick LockAdaButtonClicked ] [ text "Lock 2 ADA" ]
+                            div [] []
             in
             div []
                 (viewLoadedWallet loadedWallet
