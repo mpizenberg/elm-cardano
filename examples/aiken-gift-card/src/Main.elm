@@ -349,7 +349,7 @@ update msg model =
                             ctx.loadedWallet.changeAddress
                             (Cardano.Value.onlyToken ctx.lockScript.hash ctx.tokenName Natural.one)
                         )
-                    , makeMintBurnIntent ctx.lockScript ctx.tokenName False
+                    , makeMintBurnIntent ctx.lockScript ctx.tokenName False |> Tuple.first
                     ]
             in
             intents |> finalizeTx ctx (Just txId)
@@ -361,32 +361,36 @@ update msg model =
 lock : AppContext -> ( Model, Cmd Msg )
 lock ({ scriptAddress, lockScript, pickedUtxo, tokenName } as ctx) =
     let
-        -- A valid UTxO must contain exactly one NFT with the script's policy
-        -- and specified token name.
-        -- twoAdaAndNFT =
-        --     Cardano.Value.add
-        --         (Cardano.Value.onlyLovelace (Natural.fromSafeString "2000000"))
-        --         (Cardano.Value.onlyToken lockScript.hash tokenName Natural.one)
+        gift =
+            Cardano.Value.onlyLovelace (Natural.fromSafeString "10000000")
+
+        ( mintIntent, mintValue ) =
+            makeMintBurnIntent lockScript tokenName True
+
         -- Transaction locking 2 ada, plust the minted NFT at connected wallet's
         -- address, and locking 10 ada at the script address.
         intents =
             [ Spend (FromWalletUtxo pickedUtxo)
-            , makeMintBurnIntent lockScript tokenName True
-
-            -- -- Commented out, relying on the finalization logic to send
-            -- -- the minted token along with change output
-            -- , SendToOutput
-            --     { address = loadedWallet.changeAddress
-            --     , amount = twoAdaAndNFT
-            --     , datumOption = Nothing
-            --     , referenceScript = Nothing
-            --     }
+            , mintIntent
             , SendToOutput
                 { address = scriptAddress
-                , amount = Cardano.Value.onlyLovelace (Natural.fromSafeString "10000000")
+                , amount = gift
                 , datumOption = Nothing
                 , referenceScript = Nothing
                 }
+            , SendTo
+                ctx.loadedWallet.changeAddress
+                (Cardano.Value.sum
+                    [ Cardano.Value.substract
+                        (ctx.localStateUtxos
+                            |> Dict.Any.get pickedUtxo
+                            |> Maybe.map .amount
+                            |> Maybe.withDefault Cardano.Value.zero
+                        )
+                        gift
+                    , mintValue
+                    ]
+                )
             ]
     in
     intents |> finalizeTx ctx Nothing
@@ -444,19 +448,19 @@ finalizeTx ctx mPrevTxId intents =
             )
 
 
-makeMintBurnIntent : LockScript -> Bytes AssetName -> Bool -> TxIntent
+makeMintBurnIntent : LockScript -> Bytes AssetName -> Bool -> ( TxIntent, Cardano.Value.Value )
 makeMintBurnIntent lockScript tokenName forMint =
-    MintBurn
-        { policyId = lockScript.hash
-        , assets =
-            BytesMap.singleton
-                tokenName
-                (if forMint then
-                    Integer.one
+    let
+        mintQuantity =
+            if forMint then
+                Integer.one
 
-                 else
-                    Integer.negativeOne
-                )
+            else
+                Integer.negativeOne
+    in
+    ( MintBurn
+        { policyId = lockScript.hash
+        , assets = BytesMap.singleton tokenName mintQuantity
         , scriptWitness =
             PlutusWitness
                 { script = ( PlutusV3, WitnessValue lockScript.compiledCode )
@@ -473,6 +477,8 @@ makeMintBurnIntent lockScript tokenName forMint =
                 , requiredSigners = []
                 }
         }
+    , Cardano.Value.onlyToken lockScript.hash tokenName (Integer.toNatural mintQuantity)
+    )
 
 
 protocolParamsDecoder : Decoder ProtocolParams

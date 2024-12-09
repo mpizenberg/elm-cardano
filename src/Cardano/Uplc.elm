@@ -21,7 +21,7 @@ import Bytes.Comparable as Bytes exposing (Bytes)
 import Cardano.Data as Data exposing (Data)
 import Cardano.Gov as Gov exposing (CostModels)
 import Cardano.Redeemer as Redeemer exposing (ExUnits, Redeemer)
-import Cardano.Script as Script exposing (PlutusScript)
+import Cardano.Script exposing (PlutusScript)
 import Cardano.Transaction as Transaction exposing (Transaction)
 import Cardano.Utxo as Utxo exposing (Output)
 import Cbor.Decode as CD
@@ -127,27 +127,13 @@ applyParamsToScript params script =
                 , ( "script", JE.string <| Bytes.toHex script.script )
                 ]
 
-        decodeAppliedScript : String -> Result String PlutusScript
+        decodeAppliedScript : String -> Maybe PlutusScript
         decodeAppliedScript appliedScriptHex =
             Bytes.fromHex appliedScriptHex
-                |> Result.fromMaybe "Bad CBOR received from parameter application."
-                |> Result.map Bytes.toBytes
-                |> Result.andThen
-                    (CD.decode Script.fromCbor
-                        >> Result.fromMaybe "Failed to decode the applied script."
-                    )
-                |> Result.andThen
-                    (\s ->
-                        case s of
-                            Script.Plutus plutusScript ->
-                                Ok plutusScript
-
-                            _ ->
-                                Err "Resulting script from parameter application was expected to be a Plutus script."
-                    )
+                |> Maybe.map (\s -> { script | script = s })
     in
     applyParamsToScriptKernel jsArguments
-        |> Result.andThen decodeAppliedScript
+        |> Result.andThen (decodeAppliedScript >> Result.fromMaybe "Failed to decode the applied script.")
 
 
 {-| Kernel function (needs patching by elm-cardano) to run phase 2 evaluation (WASM code).
