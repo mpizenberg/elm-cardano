@@ -1,7 +1,8 @@
 module Cardano.Address exposing
     ( Address(..), StakeAddress, NetworkId(..), ByronAddress
     , Credential(..), StakeCredential(..), StakeCredentialPointer, CredentialHash
-    , fromBech32, fromBytes, enterprise, script, base, pointer
+    , fromString, fromBech32, fromBytes
+    , enterprise, script, base, pointer
     , isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
     , setShelleyStakeCred
     , Dict, emptyDict, dictFromList
@@ -18,7 +19,9 @@ module Cardano.Address exposing
 
 @docs Credential, StakeCredential, StakeCredentialPointer, CredentialHash
 
-@docs fromBech32, fromBytes, enterprise, script, base, pointer
+@docs fromString, fromBech32, fromBytes
+
+@docs enterprise, script, base, pointer
 
 @docs isShelleyWallet, extractCredentialHash, extractCredentialKeyHash, extractPubKeyHash, extractStakeCredential, extractStakeKeyHash
 
@@ -132,11 +135,25 @@ type CredentialHash
     = CredentialHash Never
 
 
+{-| Build an [Address] from any valid string representation, such as Hex or Bech32.
+-}
+fromString : String -> Maybe Address
+fromString str =
+    case fromBech32 str of
+        Just addr ->
+            Just addr
+
+        Nothing ->
+            Bytes.fromHex str
+                |> Maybe.andThen fromBytes
+
+
 {-| Build an [Address] from its Bech32 string representation.
 -}
 fromBech32 : String -> Maybe Address
 fromBech32 _ =
-    Debug.todo "fromBech32"
+    -- Debug.todo "fromBech32"
+    Nothing
 
 
 {-| Create a simple enterprise address, with only a payment credential and no stake credential.
